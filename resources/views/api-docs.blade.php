@@ -8,13 +8,31 @@
         <style>
             body {
                 margin: 0;
-                background: #0b1414;
+                background: #fafafa; /* Light background */
+                font-family: sans-serif;
             }
 
             #swagger-ui {
-                max-width: 1200px;
-                margin: 0 auto;
-                padding: 24px;
+                max-width: 1100px;
+                margin: 20px auto;
+                background: #ffffff;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+                border-radius: 8px;
+                padding: 10px;
+            }
+
+            /* Ensure input text is always visible (black) */
+            .swagger-ui input[type=text], 
+            .swagger-ui textarea {
+                color: #333 !important;
+                background: #fff !important;
+                border: 1px solid #ccc !important;
+            }
+
+            /* Improve readability of the 'Try it out' button */
+            .swagger-ui .btn.try-out__btn {
+                background-color: #4990e2;
+                color: white;
             }
         </style>
     </head>

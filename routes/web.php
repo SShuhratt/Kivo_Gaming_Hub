@@ -8,7 +8,7 @@ Route::get('/', function () {
     return view('welcome');
 });
 
-Route::get('/api/docs', [ApiDocsController::class, 'index']);
+Route::get('/api-docs', [ApiDocsController::class, 'index']);
 Route::get('/docs/openapi.json', function () {
     $path = base_path('docs/openapi.json');
 
