@@ -1,4 +1,4 @@
-FROM php:8.5-fpm
+FROM php:8.5-cli
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
@@ -23,10 +23,18 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 # Set working directory
 WORKDIR /var/www
 
+# Copy application files
 COPY . /var/www
-COPY --chown=www-data:www-data . /var/www
+
+# Set permissions for Laravel
+# Note: We do this as root before switching users
+RUN chown -R www-data:www-data /var/www/storage /var/www/cache
+
+# Install dependencies via composer
+RUN composer install --no-dev --optimize-autoloader
 
 USER www-data
 
-EXPOSE 9000
-CMD ["php-fpm"]
+# Render provides a $PORT environment variable. 
+# We tell PHP to listen on 0.0.0.0 and that specific port.
+CMD php artisan serve --host=0.0.0.0 --port=$PORT
