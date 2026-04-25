@@ -7,6 +7,11 @@ services:
     container_name: khivo-hub-app
     restart: unless-stopped
     working_dir: /var/www
+    environment:
+      PORT: 8000
+    command: sh -c 'php artisan serve --host=0.0.0.0 --port=${PORT:-8000}'
+    expose:
+      - "8000"
     volumes:
       - ./:/var/www
     networks:
