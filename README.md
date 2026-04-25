@@ -76,12 +76,3 @@ curl http://127.0.0.1:8000/api/v1/dashboard/bootstrap \
 
 - The Docker image now starts Laravel with `PORT` fallback to `8000`, which prevents startup hangs on platforms that do not inject a `PORT` variable.
 - `docker-compose` now serves the app on `app:8000` and Nginx proxies HTTP traffic to that upstream, avoiding FastCGI misrouting.
-- Session / cache / queue defaults are now file/sync-safe (`SESSION_DRIVER=file`, `CACHE_STORE=file`, `QUEUE_CONNECTION=sync`) so the homepage and docs do not block on database connectivity during boot.
-- In production, the app force-falls back from DB-backed state drivers to file/sync (`session`, `cache`, `queue`) when those values resolve to `database`, preventing slow startup failures from DB connectivity issues.
-- The `web` middleware group is explicitly defined in `bootstrap/app.php` and includes `StartSession`, preventing `Session store not set on request` errors on browser routes.
-
-### Render-Specific DB Checklist
-
-- Use Render PostgreSQL **Internal Database URL** values for `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, and `DB_PASSWORD`.
-- Ensure `DB_CONNECTION=pgsql`.
-- If config is cached, run `php artisan config:clear` after changing environment variables.
