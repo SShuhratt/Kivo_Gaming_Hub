@@ -71,3 +71,8 @@ curl http://127.0.0.1:8000/api/v1/dashboard/bootstrap \
 - The current dashboard data is static demo data returned by the controller.
 - This is the first backend layer to support frontend integration quickly.
 - The next step would be replacing static dashboard payloads with database-backed modules for bookings, cashier, inventory, staff, finance, and analytics.
+
+## Deployment Stability Notes
+
+- The Docker image now starts Laravel with `PORT` fallback to `8000`, which prevents startup hangs on platforms that do not inject a `PORT` variable.
+- `docker-compose` now serves the app on `app:8000` and Nginx proxies HTTP traffic to that upstream, avoiding FastCGI misrouting.
