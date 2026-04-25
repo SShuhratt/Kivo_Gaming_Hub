@@ -2,86 +2,91 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Api\Concerns\ValidatesApiRequests;
 use App\Http\Controllers\Controller;
-use App\Models\{Booking, Asset, Tariff};
+use App\Models\{Booking, Tariff, Asset};
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
 class BookingController extends Controller
 {
-    /**
-     * @OA\Post(
-     *     path="/api/v1/bookings/calculate",
-     *     summary="Calculate booking cost",
-     *     tags={"Bookings"},
-     *     @OA\RequestBody(
-     *         required=true,
-     *         @OA\JsonContent(
-     *             required={"tariff_id", "asset_ids", "start_time", "end_time"},
-     *             @OA\Property(property="tariff_id", type="integer", example=1),
-     *             @OA\Property(property="asset_ids", type="array", @OA\Items(type="integer"), example={1, 2}),
-     *             @OA\Property(property="start_time", type="string", format="date-time", example="2026-04-24 10:00:00"),
-     *             @OA\Property(property="end_time", type="string", format="date-time", example="2026-04-24 12:00:00")
-     *         )
-     *     ),
-     *     @OA\Response(response=200, description="Cost calculated")
-     * )
-     */
+    use ValidatesApiRequests;
+
     public function calculate(Request $request)
     {
-        $request->validate([
+        $validated = $this->validateApi($request, [
             'tariff_id' => 'required|exists:tariffs,id',
             'asset_ids' => 'required|array',
+            'asset_ids.*' => 'required|integer|distinct|exists:assets,id',
             'start_time' => 'required|date',
             'end_time' => 'required|date|after:start_time',
         ]);
 
-        $tariff = Tariff::find($request->tariff_id);
-        $start = Carbon::parse($request->start_time);
-        $end = Carbon::parse($request->end_time);
-
-        // Math: duration_hours * tariff.hourly_cost * asset_ids.length
-        $durationMinutes = $end->diffInMinutes($start);
-        $durationHours = $durationMinutes / 60;
-        $totalCost = $durationHours * $tariff->hourly_cost * count($request->asset_ids);
+        $calculation = $this->calculateTotals($validated);
 
         return response()->json([
-            'duration_minutes' => $durationMinutes,
-            'total_cost' => round($totalCost, 2)
+            'duration_minutes' => $calculation['duration_minutes'],
+            'total_cost' => $calculation['total_cost'],
         ]);
     }
 
     public function store(Request $request)
     {
-        $request->validate([
+        $validated = $this->validateApi($request, [
             'tariff_id' => 'required|exists:tariffs,id',
-            'asset_ids' => 'required|array',
+            'asset_ids' => 'required|array|min:1',
+            'asset_ids.*' => 'required|integer|distinct|exists:assets,id',
             'start_time' => 'required|date',
             'end_time' => 'required|date|after:start_time',
             'status' => 'required|in:submitted,debt_closed',
-            'debt_name' => 'required_if:status,debt_closed',
-            'debt_phone_number' => 'required_if:status,debt_closed',
+            'debt_name' => 'required_if:status,debt_closed|nullable|string',
+            'debt_phone_number' => 'required_if:status,debt_closed|nullable|string',
         ]);
 
-        return DB::transaction(function () use ($request) {
-            $calculation = $this->calculate($request)->getData();
+        return DB::transaction(function () use ($validated) {
+            $calculation = $this->calculateTotals($validated);
 
-            $booking = Booking::create(array_merge($request->all(), [
-                'duration_minutes' => $calculation->duration_minutes,
-                'total_cost' => $calculation->total_cost,
-            ]));
+            $booking = Booking::create([
+                'tariff_id' => $validated['tariff_id'],
+                'start_time' => $validated['start_time'],
+                'end_time' => $validated['end_time'],
+                'duration_minutes' => $calculation['duration_minutes'],
+                'total_cost' => $calculation['total_cost'],
+                'status' => $validated['status'],
+                'debt_name' => $validated['debt_name'] ?? null,
+                'debt_phone_number' => $validated['debt_phone_number'] ?? null,
+            ]);
 
-            $booking->assets()->attach($request->asset_ids);
+            $booking->assets()->sync($validated['asset_ids']);
 
-            // Business Logic: Update assets
-            foreach ($request->asset_ids as $assetId) {
-                $asset = Asset::find($assetId);
-                $asset->increment('total_usage_duration_minutes', $calculation->duration_minutes);
-                $asset->increment('total_earned_money', $calculation->total_cost / count($request->asset_ids));
+            $assets = Asset::whereIn('id', $validated['asset_ids'])->lockForUpdate()->get();
+            $assetCount = count($validated['asset_ids']);
+            $earnedPerAsset = $assetCount > 0 ? $calculation['total_cost'] / $assetCount : 0;
+
+            foreach ($assets as $asset) {
+                $asset->increment('total_usage_duration_minutes', $calculation['duration_minutes']);
+                $asset->increment('total_earned_money', $earnedPerAsset);
             }
 
-            return response()->json($booking->load('assets'), 201);
+            return response()->json($booking->load('assets', 'tariff'), 201);
         });
+    }
+
+    protected function calculateTotals(array $payload): array
+    {
+        $tariff = Tariff::findOrFail($payload['tariff_id']);
+        $start = Carbon::parse($payload['start_time']);
+        $end = Carbon::parse($payload['end_time']);
+        $durationMinutes = (int) $start->diffInMinutes($end);
+        $durationHours = $durationMinutes / 60;
+
+        // Booking math: duration_hours * tariff.hourly_cost * selected_asset_count.
+        $totalCost = $durationHours * $tariff->hourly_cost * count($payload['asset_ids']);
+
+        return [
+            'duration_minutes' => $durationMinutes,
+            'total_cost' => round($totalCost, 2),
+        ];
     }
 }

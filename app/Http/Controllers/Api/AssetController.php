@@ -2,15 +2,44 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Api\Concerns\ValidatesApiRequests;
 use App\Http\Controllers\Controller;
 use App\Models\Asset;
 use Illuminate\Http\Request;
 
 class AssetController extends Controller
 {
+    use ValidatesApiRequests;
+
     public function index() { return response()->json(Asset::all()); }
-    public function store(Request $request) { return response()->json(Asset::create($request->all()), 201); }
+
+    public function store(Request $request)
+    {
+        $validated = $this->validateApi($request, [
+            'category' => 'required|in:Computer,PS',
+            'room_id' => 'required|integer',
+            'total_usage_duration_minutes' => 'sometimes|integer|min:0',
+            'total_earned_money' => 'sometimes|numeric|min:0',
+        ]);
+
+        return response()->json(Asset::create($validated), 201);
+    }
+
     public function show(Asset $asset) { return response()->json($asset); }
-    public function update(Request $request, Asset $asset) { $asset->update($request->all()); return response()->json($asset); }
+
+    public function update(Request $request, Asset $asset)
+    {
+        $validated = $this->validateApi($request, [
+            'category' => 'sometimes|required|in:Computer,PS',
+            'room_id' => 'sometimes|required|integer',
+            'total_usage_duration_minutes' => 'sometimes|required|integer|min:0',
+            'total_earned_money' => 'sometimes|required|numeric|min:0',
+        ]);
+
+        $asset->update($validated);
+
+        return response()->json($asset);
+    }
+
     public function destroy(Asset $asset) { $asset->delete(); return response()->json(null, 204); }
 }

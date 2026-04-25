@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Models\User;
+use App\Services\JwtService;
 use Closure;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -10,20 +11,23 @@ use Symfony\Component\HttpFoundation\Response;
 
 class ApiTokenMiddleware
 {
+    public function __construct(protected JwtService $jwt)
+    {
+    }
+
     public function handle(Request $request, Closure $next): Response
     {
         $token = $request->bearerToken();
 
         if (! $token) {
-            return $this->unauthorizedResponse('API token is missing.');
+            return $this->unauthorizedResponse('JWT bearer token is missing.');
         }
 
-        $user = User::query()
-            ->where('api_token', hash('sha256', $token))
-            ->first();
+        $payload = $this->jwt->decode($token);
+        $user = $payload ? User::find($payload['sub'] ?? null) : null;
 
         if (! $user) {
-            return $this->unauthorizedResponse('API token is invalid.');
+            return $this->unauthorizedResponse('JWT bearer token is invalid or expired.');
         }
 
         $request->setUserResolver(fn (): User => $user);
