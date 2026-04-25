@@ -41,7 +41,7 @@ http://127.0.0.1:8000/api/v1
 
 ## Swagger Docs
 
-- Swagger UI: `http://127.0.0.1:8000/api/docs`
+- Swagger UI: `http://127.0.0.1:8000/api-docs`
 - OpenAPI JSON: `http://127.0.0.1:8000/docs/openapi.json`
 
 ## Implemented Endpoints
