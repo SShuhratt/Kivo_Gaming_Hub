@@ -2,27 +2,25 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Api\Concerns\ValidatesApiRequests;
 use App\Http\Controllers\Controller;
 use App\Models\Booking;
+use Illuminate\Http\Request;
 
 class TradeController extends Controller
 {
-    /**
-     * @OA\Get(
-     *     path="/api/v1/trades",
-     *     summary="Financial ledger of bookings",
-     *     tags={"Finance"},
-     *     security={{"bearerAuth":{}}},
-     *     @OA\Response(
-     *         response=200,
-     *         description="Mapped ledger of Income and Debt",
-     *         @OA\JsonContent(type="array", @OA\Items(type="object"))
-     *     )
-     * )
-     */
-    public function index()
+    use ValidatesApiRequests;
+
+    public function index(Request $request)
     {
-        $bookings = Booking::with('assets', 'tariff')->get();
+        $validated = $this->validateApi($request, [
+            'status' => 'nullable|in:submitted,debt_closed',
+            'type' => 'nullable|in:Income,Debt',
+        ]);
+
+        $bookings = Booking::with('assets', 'tariff')
+            ->when($validated['status'] ?? null, fn ($query, $status) => $query->where('status', $status))
+            ->get();
 
         $ledger = $bookings->map(function ($booking) {
             return [
@@ -40,9 +38,17 @@ class TradeController extends Controller
                     ],
                 ],
                 'tariff' => $booking->tariff->name ?? 'N/A',
+                'tariff_data' => $booking->tariff,
+                'assets' => $booking->assets,
                 'assets_count' => $booking->assets->count(),
             ];
         });
+
+        if ($validated['type'] ?? null) {
+            $ledger = $ledger
+                ->filter(fn (array $entry) => $entry['type'] === $validated['type'])
+                ->values();
+        }
 
         return response()->json($ledger);
     }

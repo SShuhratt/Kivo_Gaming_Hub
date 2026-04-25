@@ -2,15 +2,40 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Api\Concerns\ValidatesApiRequests;
 use App\Http\Controllers\Controller;
 use App\Models\Tariff;
 use Illuminate\Http\Request;
 
 class TariffController extends Controller
 {
+    use ValidatesApiRequests;
+
     public function index() { return response()->json(Tariff::all()); }
-    public function store(Request $request) { return response()->json(Tariff::create($request->all()), 201); }
+
+    public function store(Request $request)
+    {
+        $validated = $this->validateApi($request, [
+            'name' => 'required|string',
+            'hourly_cost' => 'required|numeric|min:0',
+        ]);
+
+        return response()->json(Tariff::create($validated), 201);
+    }
+
     public function show(Tariff $tariff) { return response()->json($tariff); }
-    public function update(Request $request, Tariff $tariff) { $tariff->update($request->all()); return response()->json($tariff); }
+
+    public function update(Request $request, Tariff $tariff)
+    {
+        $validated = $this->validateApi($request, [
+            'name' => 'sometimes|required|string',
+            'hourly_cost' => 'sometimes|required|numeric|min:0',
+        ]);
+
+        $tariff->update($validated);
+
+        return response()->json($tariff);
+    }
+
     public function destroy(Tariff $tariff) { $tariff->delete(); return response()->json(null, 204); }
 }

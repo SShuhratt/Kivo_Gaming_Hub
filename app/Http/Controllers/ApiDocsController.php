@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\OpenApiSpec;
 use Illuminate\Contracts\View\View;
+use Illuminate\Http\JsonResponse;
 
 class ApiDocsController extends Controller
 {
@@ -11,5 +13,10 @@ class ApiDocsController extends Controller
         return view('api-docs', [
             'specUrl' => url('/docs/openapi.json'),
         ]);
+    }
+
+    public function spec(OpenApiSpec $spec): JsonResponse
+    {
+        return response()->json($spec->toArray());
     }
 }
