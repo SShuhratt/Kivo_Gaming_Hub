@@ -64,7 +64,7 @@ class OpenApiSpec
                 ]),
                 'UserRegisterRequest' => $this->object([
                     'name' => ['type' => 'string', 'example' => 'User One'],
-                    'gmail' => ['type' => 'string', 'format' => 'email', 'example' => 'user1@gmail.com'],
+                    'gmail' => ['type' => 'string', 'format' => 'email', 'example' => 'user1 @gmail.com'],
                     'phone_number' => ['type' => 'string', 'example' => '+998901234567'],
                     'password' => ['type' => 'string', 'format' => 'password', 'example' => 'user123'],
                 ], ['name', 'gmail', 'phone_number', 'password']),
@@ -101,6 +101,24 @@ class OpenApiSpec
                 'BookingCalculationResponse' => $this->object([
                     'duration_minutes' => ['type' => 'integer', 'example' => 120],
                     'total_cost' => ['type' => 'number', 'example' => 240000],
+                ]),
+                'DashboardBootstrapResponse' => $this->object([
+                    'user' => ['$ref' => '#/components/schemas/User'],
+                    'summary' => $this->object([
+                        'active_sessions' => ['type' => 'integer', 'example' => 2],
+                        'pending_sessions' => ['type' => 'integer', 'example' => 1],
+                        'rooms_count' => ['type' => 'integer', 'example' => 4],
+                        'sales_total_today' => ['type' => 'number', 'example' => 365000],
+                    ]),
+                    'services' => ['type' => 'array', 'items' => ['type' => 'object']],
+                    'tariffs' => ['type' => 'array', 'items' => ['type' => 'object']],
+                    'sales' => ['type' => 'array', 'items' => ['type' => 'object']],
+                    'companies' => ['type' => 'array', 'items' => ['type' => 'object']],
+                    'sections' => ['type' => 'array', 'items' => $this->object([
+                        'key' => ['type' => 'string'],
+                        'name' => ['type' => 'string'],
+                        'path' => ['type' => 'string'],
+                    ])],
                 ]),
                 'Booking' => $this->object([
                     'id' => ['type' => 'integer', 'example' => 1],
@@ -198,11 +216,14 @@ class OpenApiSpec
                     'name' => ['type' => 'string', 'example' => 'Standard Hour'],
                     'hourly_cost' => ['type' => 'number', 'example' => 60000],
                 ]),
+                'SimpleMessageResponse' => $this->object([
+                    'message' => ['type' => 'string', 'example' => 'Action required.'],
+                ]),
             ],
             'responses' => [
-                'BadRequest' => $this->errorResponse('Bad request'),
-                'Unauthorized' => $this->errorResponse('Unauthorized'),
-                'NotFound' => $this->errorResponse('Not found'),
+                'BadRequest' => $this->errorResponse('Bad request', 'ErrorResponse'),
+                'Unauthorized' => $this->errorResponse('Unauthorized', 'SimpleMessageResponse'),
+                'NotFound' => $this->errorResponse('Not found', 'SimpleMessageResponse'),
                 'NoContent' => ['description' => 'Deleted successfully'],
             ],
         ];
@@ -223,7 +244,7 @@ class OpenApiSpec
     {
         return [
             '/dashboard/bootstrap' => [
-                'get' => $this->operation('Dashboard', 'Get dashboard bootstrap data', 'getDashboardBootstrap', null, 'MessageResponse'),
+                'get' => $this->operation('Dashboard', 'Get dashboard bootstrap data', 'getDashboardBootstrap', null, 'DashboardBootstrapResponse'),
             ],
         ];
     }
@@ -401,13 +422,13 @@ class OpenApiSpec
         return $schema;
     }
 
-    protected function errorResponse(string $description): array
+    protected function errorResponse(string $description, string $schema = 'ErrorResponse'): array
     {
         return [
             'description' => $description,
             'content' => [
                 'application/json' => [
-                    'schema' => ['$ref' => '#/components/schemas/ErrorResponse'],
+                    'schema' => ['$ref' => "#/components/schemas/{$schema}"],
                 ],
             ],
         ];
