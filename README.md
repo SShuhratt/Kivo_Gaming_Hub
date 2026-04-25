@@ -71,3 +71,16 @@ curl http://127.0.0.1:8000/api/v1/dashboard/bootstrap \
 - The current dashboard data is static demo data returned by the controller.
 - This is the first backend layer to support frontend integration quickly.
 - The next step would be replacing static dashboard payloads with database-backed modules for bookings, cashier, inventory, staff, finance, and analytics.
+
+## Deployment Stability Notes
+
+- The Docker image now starts Laravel with `PORT` fallback to `8000`, which prevents startup hangs on platforms that do not inject a `PORT` variable.
+- `docker-compose` now serves the app on `app:8000` and Nginx proxies HTTP traffic to that upstream, avoiding FastCGI misrouting.
+- Session / cache / queue defaults are now file/sync-safe (`SESSION_DRIVER=file`, `CACHE_STORE=file`, `QUEUE_CONNECTION=sync`) so the homepage and docs do not block on database connectivity during boot.
+- Public docs routes (`/`, `/api-docs`, `/docs/openapi*.json`) are configured to skip session middleware, preventing DB-backed session lookups from blocking these pages.
+
+### Render-Specific DB Checklist
+
+- Use Render PostgreSQL **Internal Database URL** values for `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, and `DB_PASSWORD`.
+- Ensure `DB_CONNECTION=pgsql`.
+- If config is cached, run `php artisan config:clear` after changing environment variables.

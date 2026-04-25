@@ -35,6 +35,5 @@ RUN composer install --no-dev --optimize-autoloader
 
 USER www-data
 
-# Render provides a $PORT environment variable. 
-# We tell PHP to listen on 0.0.0.0 and that specific port.
-CMD php artisan serve --host=0.0.0.0 --port=$PORT
+# Start the app on the platform provided port, with a safe fallback.
+CMD ["sh", "-c", "PORT=${PORT:-8000}; php artisan serve --host=0.0.0.0 --port=${PORT}"]
