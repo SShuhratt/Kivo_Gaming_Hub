@@ -26,9 +26,9 @@ WORKDIR /var/www
 # Copy application files
 COPY . /var/www
 
-# Set permissions for Laravel
-# Note: We do this as root before switching users
-RUN chown -R www-data:www-data /var/www/storage /var/www/cache
+# Create Laravel required directories and set permissions
+RUN mkdir -p /var/www/storage /var/www/cache && \
+    chown -R www-data:www-data /var/www
 
 # Install dependencies via composer
 RUN composer install --no-dev --optimize-autoloader
