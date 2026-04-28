@@ -5,6 +5,7 @@ services:
       dockerfile: Dockerfile
     image: khivo-hub-app
     container_name: khivo-hub-app
+    command: php-fpm
     restart: unless-stopped
     working_dir: /var/www
     volumes:
