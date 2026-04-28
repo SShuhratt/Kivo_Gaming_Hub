@@ -12,6 +12,8 @@ class OpenApiDocsTest extends TestCase
         $this->get('/api-docs')
             ->assertOk()
             ->assertSee('openapi.json')
+            ->assertSee('"\/docs\/openapi.json"', false)
+            ->assertDontSee('http://')
             ->assertSee('tryItOutEnabled: true');
 
         $this->get('/docs/openapi.json')

@@ -11,7 +11,7 @@ class ApiDocsController extends Controller
     public function index(): View
     {
         return view('api-docs', [
-            'specUrl' => url('/docs/openapi.json'),
+            'specUrl' => '/docs/openapi.json',
         ]);
     }
 
