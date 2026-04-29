@@ -23,7 +23,7 @@ import {
   LogOut
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
@@ -142,7 +142,6 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
         <div className="bg-[#0a1a1a]/50 border border-white/5 rounded-2xl flex items-center justify-between p-3">
           <div className="flex items-center gap-3 min-w-0">
             <Avatar className="h-7 w-7 border border-primary/20 p-0.5 shrink-0">
-              <AvatarImage src="https://picsum.photos/seed/admin/100/100" />
               <AvatarFallback className="bg-primary/10 text-primary text-[10px] font-black">
                 {(currentUser?.name ?? 'Admin')
                   .split(' ')

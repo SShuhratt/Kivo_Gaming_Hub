@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { DeleteConfirmButton } from '@/components/delete-confirm-button';
 import { DashboardLayout } from '@/components/dashboard-layout';
 import { useDashboard } from '@/context/dashboard-context';
 import { Plus, Wrench, Key, Trash2 } from 'lucide-react';
@@ -82,8 +83,9 @@ export default function XizmatlarPage() {
                        </div>
                        <h4 className="text-sm font-black text-white uppercase tracking-tight">XONA {room.roomNumber}</h4>
                     </div>
-                    <button
-                      onClick={async () => {
+                    <DeleteConfirmButton
+                      itemName={`Xona ${room.roomNumber}`}
+                      onConfirm={async () => {
                         try {
                           await deleteServiceRoom(room);
                           toast({ title: "O'chirildi", description: `Xona ${room.roomNumber} xizmatlari olib tashlandi.` });
@@ -93,12 +95,14 @@ export default function XizmatlarPage() {
                             title: "O'chirishda xatolik",
                             description: error instanceof Error ? error.message : "So'rov bajarilmadi.",
                           });
+                          throw error;
                         }
                       }}
-                      className="h-7 w-7 flex items-center justify-center rounded-lg hover:bg-destructive/10 text-destructive/40 hover:text-destructive transition-all"
                     >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
+                      <button className="h-7 w-7 flex items-center justify-center rounded-lg hover:bg-destructive/10 text-destructive/40 hover:text-destructive transition-all">
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </DeleteConfirmButton>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {room.items.map((item, i) => (

@@ -12,7 +12,9 @@ import {
   createTariffRequest,
   createWarehouseItemRequest,
   deleteAssetRequest,
+  deleteManufacturerRequest,
   deleteServiceRequest,
+  deleteTariffRequest,
   deleteWarehouseItemRequest,
   getDashboardBootstrap,
   loginRequest,
@@ -49,6 +51,7 @@ export interface Product {
 
 export interface WarehouseCompany {
   id: string;
+  backendId: number;
   name: string;
   products: Product[];
 }
@@ -112,6 +115,7 @@ interface DashboardContextType {
   createServiceRoom: (payload: { roomNumber: string; items: string[] }) => Promise<void>;
   deleteServiceRoom: (room: ServiceRoom) => Promise<void>;
   createTariff: (payload: { name: string; hourlyPrice: number }) => Promise<void>;
+  deleteTariff: (tariff: Tariff) => Promise<void>;
   createAsset: (payload: { category: 'Computer' | 'PS'; roomId: number }) => Promise<void>;
   deleteAsset: (asset: AssetDevice) => Promise<void>;
   saveWarehouseProduct: (payload: {
@@ -125,6 +129,7 @@ interface DashboardContextType {
     sellingPrice: number;
   }) => Promise<void>;
   deleteWarehouseProduct: (backendId: number) => Promise<void>;
+  deleteManufacturer: (company: WarehouseCompany) => Promise<void>;
   calculateBooking: (payload: {
     tariffId: number;
     assetIds: number[];
@@ -205,6 +210,7 @@ function mapBootstrapPayload(payload: DashboardBootstrapResponse) {
     })),
     companies: payload.companies.map((company) => ({
       id: company.id,
+      backendId: company.backend_id,
       name: company.name,
       products: company.products.map((product) => ({
         id: product.id,
@@ -370,6 +376,16 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     [refreshDashboard, requireToken]
   );
 
+  const deleteTariff = useCallback(
+    async (tariff: Tariff) => {
+      const activeToken = requireToken();
+
+      await deleteTariffRequest(activeToken, tariff.backendId);
+      await refreshDashboard();
+    },
+    [refreshDashboard, requireToken]
+  );
+
   const createAsset = useCallback(
     async ({ category, roomId }: { category: 'Computer' | 'PS'; roomId: number }) => {
       const activeToken = requireToken();
@@ -432,6 +448,16 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       const activeToken = requireToken();
 
       await deleteWarehouseItemRequest(activeToken, backendId);
+      await refreshDashboard();
+    },
+    [refreshDashboard, requireToken]
+  );
+
+  const deleteManufacturer = useCallback(
+    async (company: WarehouseCompany) => {
+      const activeToken = requireToken();
+
+      await deleteManufacturerRequest(activeToken, company.backendId);
       await refreshDashboard();
     },
     [refreshDashboard, requireToken]
@@ -517,10 +543,12 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       createServiceRoom,
       deleteServiceRoom,
       createTariff,
+      deleteTariff,
       createAsset,
       deleteAsset,
       saveWarehouseProduct,
       deleteWarehouseProduct,
+      deleteManufacturer,
       calculateBooking,
       createBooking,
     }),
@@ -534,7 +562,9 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       createTariff,
       currentUser,
       deleteAsset,
+      deleteManufacturer,
       deleteServiceRoom,
+      deleteTariff,
       deleteWarehouseProduct,
       isCheckingAuth,
       login,

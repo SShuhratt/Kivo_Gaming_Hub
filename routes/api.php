@@ -5,22 +5,13 @@ use App\Http\Controllers\Api\{
     AuthController,
     BookingController,
     DashboardController,
+    ManufacturerController,
     ServiceController,
     TariffController,
     TradeController,
     WarehouseController
 };
 use Illuminate\Support\Facades\Route;
-
-// Public/Diagnostic Routes
-Route::get('/auth/db-test', function () {
-    try {
-        \Illuminate\Support\Facades\DB::connection()->getPdo();
-        return response()->json(['status' => 'connected', 'database' => \Illuminate\Support\Facades\DB::connection()->getDatabaseName()]);
-    } catch (\Exception $e) {
-        return response()->json(['status' => 'error', 'message' => $e->getMessage()], 500);
-    }
-});
 
 // Auth Routes
 Route::post('/auth/register', [AuthController::class, 'register'])
@@ -72,6 +63,8 @@ Route::middleware('api.token')->group(function () {
         ->defaults('openapiOperation', 'updateWarehouseItem');
     Route::delete('/warehouse/{warehouse}', [WarehouseController::class, 'destroy'])
         ->defaults('openapiOperation', 'deleteWarehouseItem');
+    Route::delete('/manufacturers/{manufacturer}', [ManufacturerController::class, 'destroy'])
+        ->defaults('openapiOperation', 'deleteManufacturer');
 
     // Services CRUD
     Route::get('/services', [ServiceController::class, 'index'])

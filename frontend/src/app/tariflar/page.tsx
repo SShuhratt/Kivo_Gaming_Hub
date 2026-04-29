@@ -1,9 +1,10 @@
 'use client';
 
 import React, { useState } from 'react';
+import { DeleteConfirmButton } from '@/components/delete-confirm-button';
 import { DashboardLayout } from '@/components/dashboard-layout';
 import { useDashboard } from '@/context/dashboard-context';
-import { Plus, CreditCard, PlusCircle } from 'lucide-react';
+import { Plus, CreditCard, PlusCircle, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
@@ -11,7 +12,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 
 export default function TariflarPage() {
-  const { tariffs, createTariff, isCheckingAuth } = useDashboard();
+  const { tariffs, createTariff, deleteTariff, isCheckingAuth } = useDashboard();
   const { toast } = useToast();
   const [isTariffModalOpen, setIsTariffModalOpen] = useState(false);
   const [newTariff, setNewTariff] = useState({
@@ -75,9 +76,35 @@ export default function TariflarPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
               {tariffs.map((t) => (
                 <div key={t.id} className="bg-[#0a1515]/60 border border-white/5 p-5 rounded-2xl space-y-4 hover:border-primary/30 transition-all shadow-xl backdrop-blur-md group">
-                  <div className="space-y-1">
-                    <h4 className="text-sm font-black text-white uppercase tracking-tight">{t.name}</h4>
-                    <p className="text-primary font-black text-xs tracking-tight">{t.hourlyPrice.toLocaleString()} UZS / SOAT</p>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="space-y-1">
+                      <h4 className="text-sm font-black text-white uppercase tracking-tight">{t.name}</h4>
+                      <p className="text-primary font-black text-xs tracking-tight">{t.hourlyPrice.toLocaleString()} UZS / SOAT</p>
+                    </div>
+                    <DeleteConfirmButton
+                      itemName={t.name}
+                      onConfirm={async () => {
+                        try {
+                          await deleteTariff(t);
+                          toast({ title: "Tarif o'chirildi", description: `${t.name} ro'yxatdan olib tashlandi.` });
+                        } catch (error) {
+                          toast({
+                            variant: "destructive",
+                            title: "Tarif o'chirilmadi",
+                            description: error instanceof Error ? error.message : "So'rov bajarilmadi.",
+                          });
+                          throw error;
+                        }
+                      }}
+                    >
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 rounded-lg bg-destructive/5 border border-destructive/10 text-destructive/40 hover:text-destructive hover:border-destructive/30 transition-all"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </DeleteConfirmButton>
                   </div>
                   <div className="pt-3 border-t border-white/5">
                     <span className="text-[9px] font-black text-white/50 uppercase tracking-widest">ID: {t.backendId}</span>

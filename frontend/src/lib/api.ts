@@ -64,6 +64,7 @@ export type DashboardBootstrapResponse = {
   }>;
   companies: Array<{
     id: string;
+    backend_id: number;
     name: string;
     products: Array<{
       id: string;
@@ -225,6 +226,13 @@ export function createTariffRequest(token: string, payload: { name: string; hour
   });
 }
 
+export function deleteTariffRequest(token: string, tariffId: number) {
+  return apiRequest(`/tariffs/${tariffId}`, {
+    method: 'DELETE',
+    token,
+  });
+}
+
 export function createAssetRequest(token: string, payload: { category: 'Computer' | 'PS'; room_id: number }) {
   return apiRequest('/assets', {
     method: 'POST',
@@ -281,6 +289,13 @@ export function updateWarehouseItemRequest(
 
 export function deleteWarehouseItemRequest(token: string, itemId: number) {
   return apiRequest(`/warehouse/${itemId}`, {
+    method: 'DELETE',
+    token,
+  });
+}
+
+export function deleteManufacturerRequest(token: string, manufacturerId: number) {
+  return apiRequest(`/manufacturers/${manufacturerId}`, {
     method: 'DELETE',
     token,
   });

@@ -4,11 +4,13 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Api\Concerns\ValidatesApiRequests;
+use App\Mail\WelcomeRegistrationMail;
 use App\Models\User;
 use App\Services\JwtService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Carbon\Carbon;
 
 class AuthController extends Controller
@@ -32,12 +34,22 @@ class AuthController extends Controller
             'password' => 'required|string|min:6',
         ]);
 
-        User::create([
+        $user = User::create([
             'name' => $validated['name'],
             'gmail' => $validated['gmail'],
             'phone_number' => $validated['phone_number'],
             'password_hash' => Hash::make($validated['password']),
         ]);
+
+        try {
+            Mail::to($user->gmail)->send(new WelcomeRegistrationMail($user));
+        } catch (\Throwable $e) {
+            Log::error('Failed to send registration email', [
+                'user_id' => $user->id ?? null,
+                'email' => $user->gmail ?? null,
+                'error' => $e->getMessage(),
+            ]);
+        }
 
         return response()->json(['message' => 'User registered successfully'], 201);
     }

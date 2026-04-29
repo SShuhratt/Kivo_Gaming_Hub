@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\Concerns\ValidatesApiRequests;
 use App\Http\Controllers\Controller;
 use App\Models\Tariff;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class TariffController extends Controller
 {
@@ -37,5 +38,21 @@ class TariffController extends Controller
         return response()->json($tariff);
     }
 
-    public function destroy(Tariff $tariff) { $tariff->delete(); return response()->json(null, 204); }
+    public function destroy(Tariff $tariff)
+    {
+        try {
+            $tariff->delete();
+
+            return response()->json(null, 204);
+        } catch (\Throwable $e) {
+            Log::error('Failed to delete tariff', [
+                'tariff_id' => $tariff->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'message' => 'Failed to delete tariff.',
+            ], 500);
+        }
+    }
 }

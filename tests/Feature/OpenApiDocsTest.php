@@ -48,6 +48,7 @@ class OpenApiDocsTest extends TestCase
             ['put', '/warehouse/{warehouse}'],
             ['patch', '/warehouse/{warehouse}'],
             ['delete', '/warehouse/{warehouse}'],
+            ['delete', '/manufacturers/{manufacturer}'],
             ['get', '/services'],
             ['post', '/services'],
             ['get', '/services/{service}'],

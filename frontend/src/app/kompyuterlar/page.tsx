@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { DeleteConfirmButton } from '@/components/delete-confirm-button';
 import { DashboardLayout } from '@/components/dashboard-layout';
 import { useDashboard } from '@/context/dashboard-context';
 import { Monitor, Plus, Trash2, Gamepad2, Cpu } from 'lucide-react';
@@ -79,10 +80,9 @@ export default function KompyuterlarPage() {
                       <p className="text-[9px] font-black text-primary/40 uppercase tracking-widest">Xona {asset.roomNumber}</p>
                     </div>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={async () => {
+                  <DeleteConfirmButton
+                    itemName={`${asset.category} xona ${asset.roomNumber}`}
+                    onConfirm={async () => {
                       try {
                         await deleteAsset(asset);
                         toast({ title: "O'chirildi", description: `Jihoz #${asset.backendId} olib tashlandi.` });
@@ -92,12 +92,18 @@ export default function KompyuterlarPage() {
                           title: "O'chirishda xatolik",
                           description: error instanceof Error ? error.message : "So'rov bajarilmadi.",
                         });
+                        throw error;
                       }
                     }}
-                    className="h-8 w-8 rounded-lg bg-destructive/5 border border-destructive/10 text-destructive/40 hover:text-destructive hover:border-destructive/30 transition-all"
                   >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 rounded-lg bg-destructive/5 border border-destructive/10 text-destructive/40 hover:text-destructive hover:border-destructive/30 transition-all"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </DeleteConfirmButton>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">

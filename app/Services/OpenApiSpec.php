@@ -23,6 +23,7 @@ class OpenApiSpec
                 ['name' => 'Finance'],
                 ['name' => 'Assets'],
                 ['name' => 'Warehouse'],
+                ['name' => 'Manufacturers'],
                 ['name' => 'Services'],
                 ['name' => 'Tariffs'],
             ],
@@ -34,6 +35,7 @@ class OpenApiSpec
                 $this->tradePaths(),
                 $this->crudPaths('Assets', 'Asset', '/assets', 'asset'),
                 $this->crudPaths('Warehouse', 'WarehouseItem', '/warehouse', 'warehouse', 'listWarehouseItems'),
+                $this->manufacturerPaths(),
                 $this->crudPaths('Services', 'Service', '/services', 'service'),
                 $this->crudPaths('Tariffs', 'Tariff', '/tariffs', 'tariff'),
             ),
@@ -53,6 +55,7 @@ class OpenApiSpec
             'parameters' => [
                 'asset' => $this->idParameter('asset', 'Asset ID'),
                 'warehouse' => $this->idParameter('warehouse', 'Warehouse item ID'),
+                'manufacturer' => $this->idParameter('manufacturer', 'Manufacturer ID'),
                 'service' => $this->idParameter('service', 'Service ID'),
                 'tariff' => $this->idParameter('tariff', 'Tariff ID'),
             ],
@@ -278,6 +281,16 @@ class OpenApiSpec
         ];
 
         return ['/trades' => ['get' => $operation]];
+    }
+
+    protected function manufacturerPaths(): array
+    {
+        return [
+            '/manufacturers/{manufacturer}' => [
+                'parameters' => [['$ref' => '#/components/parameters/manufacturer']],
+                'delete' => $this->deleteOperation('Manufacturers', 'Delete Manufacturer', 'deleteManufacturer'),
+            ],
+        ];
     }
 
     protected function crudPaths(string $tag, string $schema, string $path, string $parameter, ?string $listOperationId = null): array

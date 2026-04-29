@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useMemo, useState } from 'react';
+import { DeleteConfirmButton } from '@/components/delete-confirm-button';
 import { DashboardLayout } from '@/components/dashboard-layout';
 import { useDashboard, Product } from '@/context/dashboard-context';
 import {
@@ -75,7 +76,13 @@ const emptyProductForm: ProductFormState = {
 };
 
 export default function OmborPage() {
-  const { companies, saveWarehouseProduct, deleteWarehouseProduct, isCheckingAuth } = useDashboard();
+  const {
+    companies,
+    saveWarehouseProduct,
+    deleteWarehouseProduct,
+    deleteManufacturer,
+    isCheckingAuth,
+  } = useDashboard();
   const { toast } = useToast();
 
   const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
@@ -174,9 +181,6 @@ export default function OmborPage() {
   const handleDeleteProduct = async (product: Product) => {
     try {
       await deleteWarehouseProduct(product.backendId);
-      if (selectedCompany && selectedCompany.products.length === 1) {
-        setSelectedCompanyId(null);
-      }
       toast({ title: "O'chirildi", description: "Mahsulot ro'yxatdan olib tashlandi." });
     } catch (error) {
       toast({
@@ -184,6 +188,7 @@ export default function OmborPage() {
         title: "O'chirishda xatolik",
         description: error instanceof Error ? error.message : "So'rov bajarilmadi.",
       });
+      throw error;
     }
   };
 
@@ -281,6 +286,27 @@ export default function OmborPage() {
             <Button className="h-12 bg-white/5 border border-white/10 text-white/40 font-black uppercase tracking-widest text-[9px] rounded-2xl px-6 hover:text-white transition-all">
               <FileSpreadsheet className="mr-2 h-4 w-4" /> EKSPORT EXCEL
             </Button>
+            <DeleteConfirmButton
+              itemName={selectedCompany.name}
+              onConfirm={async () => {
+                try {
+                  await deleteManufacturer(selectedCompany);
+                  setSelectedCompanyId(null);
+                  toast({ title: "Ishlab chiqaruvchi o'chirildi", description: `${selectedCompany.name} ro'yxatdan olib tashlandi.` });
+                } catch (error) {
+                  toast({
+                    variant: 'destructive',
+                    title: "Ishlab chiqaruvchi o'chirilmadi",
+                    description: error instanceof Error ? error.message : "So'rov bajarilmadi.",
+                  });
+                  throw error;
+                }
+              }}
+            >
+              <Button className="h-12 bg-destructive/5 border border-destructive/10 text-destructive hover:bg-destructive/10 font-black uppercase tracking-widest text-[9px] rounded-2xl px-6 transition-all">
+                <Trash2 className="mr-2 h-4 w-4" /> ISHLAB CHIQARUVCHINI O'CHIRISH
+              </Button>
+            </DeleteConfirmButton>
             <Button onClick={() => handleOpenProductModal()} className="h-12 bg-primary text-black font-black uppercase tracking-[0.2em] rounded-2xl shadow-[0_10px_30px_rgba(0,255,255,0.3)] hover:bg-primary/90 px-8">
               <Plus className="mr-2 h-5 w-5" /> MAHSULOT YARATISH
             </Button>
@@ -339,14 +365,20 @@ export default function OmborPage() {
                           >
                             <Pencil className="h-3.5 w-3.5" />
                           </Button>
-                          <Button
-                            onClick={() => void handleDeleteProduct(product)}
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 rounded-lg bg-destructive/5 border border-destructive/10 text-destructive/40 hover:text-destructive hover:border-destructive/30 transition-all"
+                          <DeleteConfirmButton
+                            itemName={product.name}
+                            onConfirm={async () => {
+                              await handleDeleteProduct(product);
+                            }}
                           >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 rounded-lg bg-destructive/5 border border-destructive/10 text-destructive/40 hover:text-destructive hover:border-destructive/30 transition-all"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </DeleteConfirmButton>
                         </div>
                       </TableCell>
                     </TableRow>

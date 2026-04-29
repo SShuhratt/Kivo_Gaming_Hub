@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\Concerns\ValidatesApiRequests;
 use App\Http\Controllers\Controller;
 use App\Models\Asset;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class AssetController extends Controller
 {
@@ -41,5 +42,21 @@ class AssetController extends Controller
         return response()->json($asset);
     }
 
-    public function destroy(Asset $asset) { $asset->delete(); return response()->json(null, 204); }
+    public function destroy(Asset $asset)
+    {
+        try {
+            $asset->delete();
+
+            return response()->json(null, 204);
+        } catch (\Throwable $e) {
+            Log::error('Failed to delete asset', [
+                'asset_id' => $asset->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'message' => 'Failed to delete asset.',
+            ], 500);
+        }
+    }
 }

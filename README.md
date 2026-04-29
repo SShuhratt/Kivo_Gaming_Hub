@@ -1,25 +1,15 @@
 # Kivo Gaming Hub Backend
 
-This Laravel app now includes a starter backend for the Kivo Gaming Hub frontend, plus Swagger-style API documentation for frontend integration.
+This Laravel app provides the backend for the Kivo Gaming Hub frontend, plus Swagger-style API documentation for frontend integration.
 
 ## What Is Included
 
 - Phone/password login API
 - Bearer token authentication
 - Auth endpoints for login, current user, and logout
-- Dashboard bootstrap endpoint with demo data
+- Dashboard bootstrap endpoint powered by live database records
 - Swagger UI page at `/api/docs`
 - OpenAPI JSON spec at `/docs/openapi.json`
-- Seeded demo users that match the current frontend login screen
-
-## Demo Accounts
-
-- Admin
-  - Phone: `+998 90 123 45 67`
-  - Password: `admin`
-- User
-  - Phone: `+998 91 765 43 21`
-  - Password: `user123`
 
 ## Local Setup
 
@@ -27,7 +17,7 @@ This Laravel app now includes a starter backend for the Kivo Gaming Hub frontend
 composer install
 cp .env.example .env
 php artisan key:generate
-php artisan migrate:fresh --seed
+php artisan migrate:fresh
 php artisan serve
 ```
 
@@ -68,6 +58,5 @@ curl http://127.0.0.1:8000/api/v1/dashboard/bootstrap \
 
 ## Notes
 
-- The current dashboard data is static demo data returned by the controller.
-- This is the first backend layer to support frontend integration quickly.
-- The next step would be replacing static dashboard payloads with database-backed modules for bookings, cashier, inventory, staff, finance, and analytics.
+- Fresh installs start with no seeded business data.
+- Dashboard responses are generated from the current database state.

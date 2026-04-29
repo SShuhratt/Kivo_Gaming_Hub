@@ -5,9 +5,10 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Api\Concerns\ValidatesApiRequests;
 use App\Http\Controllers\Controller;
 use App\Models\{Booking, Tariff, Asset};
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Carbon\Carbon;
+use Illuminate\Support\Facades\Log;
 
 class BookingController extends Controller
 {
@@ -71,6 +72,38 @@ class BookingController extends Controller
 
             return response()->json($booking->load('assets', 'tariff'), 201);
         });
+    }
+
+    public function destroy(Booking $booking)
+    {
+        try {
+            DB::transaction(function () use ($booking) {
+                $booking->load('assets');
+
+                $assetCount = $booking->assets->count();
+                $earnedPerAsset = $assetCount > 0 ? $booking->total_cost / $assetCount : 0;
+
+                foreach ($booking->assets as $asset) {
+                    $asset->update([
+                        'total_usage_duration_minutes' => max(0, $asset->total_usage_duration_minutes - $booking->duration_minutes),
+                        'total_earned_money' => max(0, (float) $asset->total_earned_money - $earnedPerAsset),
+                    ]);
+                }
+
+                $booking->delete();
+            });
+
+            return response()->json(null, 204);
+        } catch (\Throwable $e) {
+            Log::error('Failed to delete booking', [
+                'booking_id' => $booking->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'message' => 'Failed to delete booking.',
+            ], 500);
+        }
     }
 
     protected function calculateTotals(array $payload): array

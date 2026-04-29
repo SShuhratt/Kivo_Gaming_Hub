@@ -5,13 +5,12 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Asset;
 use App\Models\Booking;
+use App\Models\Manufacturer;
 use App\Models\Service;
 use App\Models\Tariff;
-use App\Models\Warehouse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Str;
 
 class DashboardController extends Controller
 {
@@ -63,18 +62,16 @@ class DashboardController extends Controller
             })
             ->values();
 
-        $companies = Warehouse::query()
-            ->orderBy('manufacturer')
-            ->orderBy('product_name')
+        $companies = Manufacturer::query()
+            ->with(['warehouseItems' => fn ($query) => $query->orderBy('product_name')])
+            ->orderBy('name')
             ->get()
-            ->groupBy('manufacturer')
-            ->map(function ($manufacturerItems, $manufacturer) {
-                $firstItem = $manufacturerItems->first();
-
+            ->map(function (Manufacturer $manufacturer) {
                 return [
-                    'id' => Str::slug($manufacturer) . '-' . $firstItem->id,
-                    'name' => $manufacturer,
-                    'products' => $manufacturerItems->map(function (Warehouse $item) {
+                    'id' => (string) $manufacturer->id,
+                    'backend_id' => $manufacturer->id,
+                    'name' => $manufacturer->name,
+                    'products' => $manufacturer->warehouseItems->map(function ($item) {
                         return [
                             'id' => (string) $item->id,
                             'backend_id' => $item->id,
