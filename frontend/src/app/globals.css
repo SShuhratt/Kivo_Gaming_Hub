@@ -1,0 +1,77 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 180 35% 4%;
+    --foreground: 180 5% 95%;
+    --card: 180 25% 8%;
+    --card-foreground: 180 5% 95%;
+    --popover: 180 25% 8%;
+    --popover-foreground: 180 5% 95%;
+    --primary: 180 100% 50%;
+    --primary-foreground: 180 100% 5%;
+    --secondary: 180 20% 15%;
+    --secondary-foreground: 180 100% 50%;
+    --muted: 180 20% 12%;
+    --muted-foreground: 180 10% 50%;
+    --accent: 180 100% 50%;
+    --accent-foreground: 180 100% 5%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 180 20% 15%;
+    --input: 180 20% 12%;
+    --ring: 180 100% 50%;
+    --radius: 0.75rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-[#081414] text-foreground selection:bg-primary/30 selection:text-primary antialiased;
+  }
+}
+
+.gaming-gradient-bg {
+  background: radial-gradient(circle at center, hsla(180, 100%, 50%, 0.05), transparent),
+              linear-gradient(to bottom, #081414, #0a1818);
+}
+
+.input-focus-glow:focus-within {
+  box-shadow: 0 0 20px hsla(180, 100%, 50%, 0.1);
+}
+
+.custom-sidebar::-webkit-scrollbar {
+  width: 4px;
+}
+
+.custom-sidebar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-sidebar::-webkit-scrollbar-thumb {
+  background: hsla(180, 100%, 50%, 0.1);
+  border-radius: 10px;
+}
+
+.custom-sidebar::-webkit-scrollbar-thumb:hover {
+  background: hsla(180, 100%, 50%, 0.3);
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.custom-sidebar {
+  scrollbar-width: thin;
+  scrollbar-color: hsla(180, 100%, 50%, 0.1) transparent;
+}
