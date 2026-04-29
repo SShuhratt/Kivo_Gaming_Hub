@@ -15,11 +15,15 @@ return [
     |
     */
 
-    'paths' => ['api/*', 'sanctum/csrf-cookie'],
+    'paths' => ['*'],
 
     'allowed_methods' => ['*'],
 
-    'allowed_origins' => ['*'],
+    'allowed_origins' => [
+        'https://kivo-gaming-hub-1.onrender.com',
+        'http://localhost:3000',
+        'http://localhost:9002',
+    ],
 
     'allowed_origins_patterns' => [],
 
