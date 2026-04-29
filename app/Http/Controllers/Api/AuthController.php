@@ -21,6 +21,10 @@ class AuthController extends Controller
 
     public function register(Request $request)
     {
+        $request->merge([
+            'phone_number' => $this->normalizePhoneNumber($request->input('phone_number')),
+        ]);
+
         $validated = $this->validateApi($request, [
             'name' => 'required|string',
             'gmail' => 'required|email|unique:users,gmail',
@@ -40,6 +44,10 @@ class AuthController extends Controller
 
     public function login(Request $request)
     {
+        $request->merge([
+            'phone_number' => $this->normalizePhoneNumber($request->input('phone_number')),
+        ]);
+
         $validated = $this->validateApi($request, [
             'phone_number' => 'required|string',
             'password' => 'required|string',
@@ -61,6 +69,10 @@ class AuthController extends Controller
 
     public function forgotPassword(Request $request)
     {
+        $request->merge([
+            'phone_number' => $this->normalizePhoneNumber($request->input('phone_number')),
+        ]);
+
         $validated = $this->validateApi($request, ['phone_number' => 'required|string']);
         
         $user = User::where('phone_number', $validated['phone_number'])->firstOrFail();
@@ -78,6 +90,10 @@ class AuthController extends Controller
 
     public function verifyOtp(Request $request)
     {
+        $request->merge([
+            'phone_number' => $this->normalizePhoneNumber($request->input('phone_number')),
+        ]);
+
         $validated = $this->validateApi($request, [
             'phone_number' => 'required|string',
             'otp' => 'required|string',
@@ -97,6 +113,10 @@ class AuthController extends Controller
 
     public function resetPassword(Request $request)
     {
+        $request->merge([
+            'phone_number' => $this->normalizePhoneNumber($request->input('phone_number')),
+        ]);
+
         $validated = $this->validateApi($request, [
             'phone_number' => 'required|string',
             'otp' => 'required|string',
@@ -119,5 +139,10 @@ class AuthController extends Controller
         ]);
 
         return response()->json(['message' => 'Password reset successfully']);
+    }
+
+    protected function normalizePhoneNumber(?string $phoneNumber): string
+    {
+        return preg_replace('/[^\d+]/', '', (string) $phoneNumber) ?? '';
     }
 }
