@@ -1,4 +1,11 @@
-const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api').replace(/\/$/, '');
+let baseUrl = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api').replace(/\/$/, '');
+
+// Ensure the base URL ends with /api
+if (!baseUrl.endsWith('/api')) {
+  baseUrl += '/api';
+}
+
+const API_BASE_URL = baseUrl;
 
 type RequestOptions = {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
