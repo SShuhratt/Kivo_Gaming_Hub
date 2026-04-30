@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Mail\WelcomeRegistrationMail;
 use App\Models\User;
 use App\Services\JwtService;
+use App\Services\MailDiagnosticsService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -17,7 +18,10 @@ class AuthController extends Controller
 {
     use ValidatesApiRequests;
 
-    public function __construct(protected JwtService $jwt) {}
+    public function __construct(
+        protected JwtService $jwt,
+        protected MailDiagnosticsService $mailDiagnostics,
+    ) {}
 
     public function register(Request $request)
     {
@@ -41,14 +45,26 @@ class AuthController extends Controller
             'password_hash' => Hash::make($validated['password']),
         ]);
 
+        $email = $user->gmail;
+
+        Log::info('Registration email sending started', $this->mailDiagnostics->safeContext([
+            'user_id' => $user->id,
+            'email' => $email,
+        ]));
+
         try {
-            Mail::to($user->gmail)->send(new WelcomeRegistrationMail($user));
+            Mail::to($email)->send(new WelcomeRegistrationMail($user));
+
+            Log::info('Registration email sent successfully', $this->mailDiagnostics->safeContext([
+                'user_id' => $user->id,
+                'email' => $email,
+            ]));
         } catch (\Throwable $e) {
-            Log::error('Failed to send registration email', [
+            Log::error('Registration email sending failed', $this->mailDiagnostics->safeContext([
                 'user_id' => $user->id ?? null,
-                'email' => $user->gmail ?? null,
+                'email' => $email ?? null,
                 'error' => $e->getMessage(),
-            ]);
+            ]));
         }
 
         return response()->json(['message' => 'User registered successfully'], 201);

@@ -6,6 +6,8 @@
     <title>Registration successful</title>
 </head>
 <body>
+    <p>Hello! Registration successful.</p>
+
     <p>Hello{{ $user->name ? ' ' . $user->name : '' }},</p>
 
     <p>Your registration was successful.</p>

@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\ManufacturerController;
 use App\Http\Controllers\Api\ServiceController;
 use App\Http\Controllers\Api\TariffController;
+use App\Http\Controllers\Api\TestMailController;
 use App\Http\Controllers\Api\TradeController;
 use App\Http\Controllers\Api\WarehouseController;
 use Illuminate\Support\Facades\Route;
@@ -29,6 +30,8 @@ Route::middleware('api.token')->group(function () {
     // Dashboard
     Route::get('/dashboard/bootstrap', [DashboardController::class, 'bootstrap'])
         ->defaults('openapiOperation', 'getDashboardBootstrap');
+    Route::post('/test-mail', TestMailController::class)
+        ->defaults('openapiOperation', 'sendTestMail');
 
     // Finance/Trades
     Route::get('/trades', [TradeController::class, 'index'])
