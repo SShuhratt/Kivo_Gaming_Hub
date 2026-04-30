@@ -61,9 +61,9 @@ export function RegistrationForm() {
 
     try {
       await registerRequest({
-        name: values.username,
-        gmail: values.email,
-        phone_number: values.phoneNumber,
+        name: values.username.trim(),
+        gmail: values.email.trim().toLowerCase(),
+        phone_number: values.phoneNumber.trim(),
         password: values.password,
       });
 
@@ -111,6 +111,7 @@ export function RegistrationForm() {
                     <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20 group-focus-within:text-primary transition-colors" />
                     <Input 
                       placeholder="Ismingizni kiriting" 
+                      autoComplete="name"
                       className="h-14 pl-12 border-white/5 bg-[#051111]/60 text-white font-bold focus:border-primary/40 focus:ring-primary/5 rounded-xl transition-all" 
                       {...field} 
                     />
@@ -135,6 +136,8 @@ export function RegistrationForm() {
                     <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20 group-focus-within:text-primary transition-colors" />
                     <Input 
                       type="email"
+                      autoComplete="email"
+                      autoCapitalize="none"
                       placeholder="you@example.com" 
                       className="h-14 pl-12 border-white/5 bg-[#051111]/60 text-white font-bold focus:border-primary/40 focus:ring-primary/5 rounded-xl transition-all" 
                       {...field} 
@@ -160,6 +163,9 @@ export function RegistrationForm() {
                     <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20 group-focus-within:text-primary transition-colors" />
                     <Input 
                       placeholder="+998 -- --- -- --" 
+                      type="tel"
+                      autoComplete="tel"
+                      inputMode="tel"
                       className="h-14 pl-12 border-white/5 bg-[#051111]/60 text-white font-bold focus:border-primary/40 focus:ring-primary/5 rounded-xl transition-all" 
                       {...field} 
                     />
@@ -186,6 +192,8 @@ export function RegistrationForm() {
                     <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20 group-focus-within:text-primary transition-colors" />
                     <Input 
                       type={showPassword ? "text" : "password"}
+                      autoComplete="new-password"
+                      spellCheck={false}
                       placeholder="••••••••" 
                       className="h-14 pl-12 pr-12 border-white/5 bg-[#051111]/60 text-white font-bold focus:border-primary/40 focus:ring-primary/5 rounded-xl transition-all" 
                       {...field} 
@@ -224,6 +232,8 @@ export function RegistrationForm() {
                     <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20 group-focus-within:text-primary transition-colors" />
                     <Input 
                       type="password" 
+                      autoComplete="new-password"
+                      spellCheck={false}
                       placeholder="••••••••" 
                       className="h-14 pl-12 border-white/5 bg-[#051111]/60 text-white font-bold focus:border-primary/40 focus:ring-primary/5 rounded-xl transition-all" 
                       {...field} 

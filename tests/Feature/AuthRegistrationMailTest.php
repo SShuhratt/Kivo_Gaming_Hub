@@ -75,4 +75,28 @@ class AuthRegistrationMailTest extends TestCase
                     && $context['user_id'] !== null;
             }));
     }
+
+    public function test_registered_user_can_login_with_or_without_a_plus_sign_in_phone_number(): void
+    {
+        Mail::fake();
+
+        $this->postJson('/api/auth/register', [
+            'name' => 'Phone Format User',
+            'gmail' => 'phone-format-user@example.test',
+            'phone_number' => '+998 90 777 66 55',
+            'password' => 'secret123',
+        ])->assertCreated();
+
+        $this->postJson('/api/auth/login', [
+            'phone_number' => '998907776655',
+            'password' => 'secret123',
+        ])->assertOk()
+            ->assertJsonStructure([
+                'token_type',
+                'token',
+                'expires_in',
+                'user' => ['id', 'name', 'gmail', 'phone_number'],
+            ])
+            ->assertJsonPath('user.phone_number', '+998907776655');
+    }
 }

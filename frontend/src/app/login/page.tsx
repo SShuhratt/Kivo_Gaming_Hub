@@ -15,10 +15,12 @@ import {
   EyeOff,
   LogIn, 
   Gamepad2, 
-  Facebook, 
-  Globe, 
+  Facebook,
+  Globe,
   Instagram,
-  Loader2
+  Loader2,
+  ShieldCheck,
+  Sparkles
 } from 'lucide-react';
 
 export default function LoginPage() {
@@ -29,13 +31,6 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-
-  // Demo hisob ma'lumotlari
-  const DEMO_ADMIN_PHONE = "+998 90 123 45 67";
-  const DEMO_ADMIN_PASSWORD = "admin";
-
-  const DEMO_USER_PHONE = "+998 91 765 43 21";
-  const DEMO_USER_PASSWORD = "user123";
 
   React.useEffect(() => {
     if (!isCheckingAuth && isAuthenticated) {
@@ -49,11 +44,9 @@ export default function LoginPage() {
 
     try {
       await login(phoneNumber, password);
-      const isAdmin = phoneNumber === DEMO_ADMIN_PHONE || phoneNumber.replace(/\s+/g, '') === DEMO_ADMIN_PHONE.replace(/\s+/g, '');
-
       toast({
         title: "Muvaffaqiyatli!",
-        description: `Kivo Hub ${isAdmin ? 'admin' : 'foydalanuvchi'} paneliga xush kelibsiz.`,
+        description: "Kivo Hub boshqaruv paneliga muvaffaqiyatli kirdingiz.",
       });
       router.push('/asosiy');
     } catch (error) {
@@ -89,14 +82,22 @@ export default function LoginPage() {
 
             <div className="mt-4 md:mt-8 space-y-3 md:space-y-4">
               <div className="p-3 md:p-4 bg-primary/5 border border-primary/10 rounded-xl text-left">
-                <p className="text-[9px] md:text-[10px] text-primary font-black uppercase tracking-widest mb-1 md:mb-2">Admin Account</p>
-                <p className="text-[10px] md:text-xs text-white/80 font-medium">Tel: {DEMO_ADMIN_PHONE}</p>
-                <p className="text-[10px] md:text-xs text-white/80 font-medium">Parol: {DEMO_ADMIN_PASSWORD}</p>
+                <div className="flex items-center gap-2 mb-2">
+                  <ShieldCheck className="h-4 w-4 text-primary" />
+                  <p className="text-[9px] md:text-[10px] text-primary font-black uppercase tracking-widest">Real hisob bilan kiring</p>
+                </div>
+                <p className="text-[10px] md:text-xs text-white/80 font-medium">
+                  Ro'yxatdan o'tishda ishlatgan telefon raqamingiz va parolingiz bilan tizimga kiring.
+                </p>
               </div>
               <div className="p-3 md:p-4 bg-primary/5 border border-primary/10 rounded-xl text-left">
-                <p className="text-[9px] md:text-[10px] text-primary font-black uppercase tracking-widest mb-1 md:mb-2">User Account</p>
-                <p className="text-[10px] md:text-xs text-white/80 font-medium">Tel: {DEMO_USER_PHONE}</p>
-                <p className="text-[10px] md:text-xs text-white/80 font-medium">Parol: {DEMO_USER_PASSWORD}</p>
+                <div className="flex items-center gap-2 mb-2">
+                  <Sparkles className="h-4 w-4 text-primary" />
+                  <p className="text-[9px] md:text-[10px] text-primary font-black uppercase tracking-widest">Telefon formati</p>
+                </div>
+                <p className="text-[10px] md:text-xs text-white/80 font-medium">
+                  `+998 90 123 45 67` yoki `998901234567` ko'rinishida kiritsangiz ham tizim bir xil qabul qiladi.
+                </p>
               </div>
             </div>
           </div>
@@ -123,6 +124,9 @@ export default function LoginPage() {
                     <Input 
                       type="tel" 
                       placeholder="+998 90 123 45 67" 
+                      name="phone_number"
+                      autoComplete="tel"
+                      inputMode="tel"
                       value={phoneNumber}
                       onChange={(e) => setPhoneNumber(e.target.value)}
                       className="h-12 md:h-14 border-white/5 bg-[#080c0c] pl-12 text-white font-bold focus:border-primary/50 focus:ring-primary/10 transition-all rounded-xl text-sm"
@@ -144,6 +148,9 @@ export default function LoginPage() {
                     <Input 
                       type={showPassword ? "text" : "password"}
                       placeholder="••••••••" 
+                      name="password"
+                      autoComplete="current-password"
+                      spellCheck={false}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       className="h-12 md:h-14 border-white/5 bg-[#080c0c] pl-12 pr-12 text-white font-bold focus:border-primary/50 focus:ring-primary/10 transition-all rounded-xl text-sm"

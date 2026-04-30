@@ -1,11 +1,30 @@
-let baseUrl = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api').replace(/\/$/, '');
+function normalizeApiBaseUrl(value?: string | null): string | null {
+  if (!value) {
+    return null;
+  }
 
-// Ensure the base URL ends with /api
-if (!baseUrl.endsWith('/api')) {
-  baseUrl += '/api';
+  let normalized = value.trim().replace(/\/$/, '');
+
+  if (!normalized) {
+    return null;
+  }
+
+  if (!normalized.endsWith('/api')) {
+    normalized += '/api';
+  }
+
+  return normalized;
 }
 
-const API_BASE_URL = baseUrl;
+function resolveApiBaseUrls(): string[] {
+  const candidates = [
+    normalizeApiBaseUrl(process.env.NEXT_PUBLIC_API_URL),
+    typeof window !== 'undefined' ? normalizeApiBaseUrl(window.location.origin) : null,
+    normalizeApiBaseUrl('http://localhost:8000'),
+  ].filter((value): value is string => Boolean(value));
+
+  return Array.from(new Set(candidates));
+}
 
 type RequestOptions = {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
@@ -130,6 +149,29 @@ export class ApiError extends Error {
 }
 
 async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  const apiBaseUrls = resolveApiBaseUrls();
+  let lastError: unknown;
+
+  for (const [index, baseUrl] of apiBaseUrls.entries()) {
+    try {
+      return await requestAgainstBase<T>(baseUrl, path, options);
+    } catch (error) {
+      const isLastCandidate = index === apiBaseUrls.length - 1;
+
+      if (isLastCandidate || !shouldTryNextApiBase(error)) {
+        throw error;
+      }
+
+      lastError = error;
+    }
+  }
+
+  throw lastError instanceof Error
+    ? lastError
+    : new Error('API base URL is not configured.');
+}
+
+async function requestAgainstBase<T>(baseUrl: string, path: string, options: RequestOptions = {}): Promise<T> {
   const headers = new Headers({
     Accept: 'application/json',
   });
@@ -142,7 +184,7 @@ async function apiRequest<T>(path: string, options: RequestOptions = {}): Promis
     headers.set('Authorization', `Bearer ${options.token}`);
   }
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const response = await fetch(`${baseUrl}${path}`, {
     method: options.method ?? 'GET',
     headers,
     body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
@@ -154,18 +196,65 @@ async function apiRequest<T>(path: string, options: RequestOptions = {}): Promis
     : await response.text();
 
   if (!response.ok) {
-    const message =
-      typeof payload === 'object' &&
-      payload !== null &&
-      'message' in payload &&
-      typeof payload.message === 'string'
-        ? payload.message
-        : `API request failed with status ${response.status}`;
+    const message = extractApiErrorMessage(payload, response.status);
 
     throw new ApiError(message, response.status, payload);
   }
 
   return payload as T;
+}
+
+function shouldTryNextApiBase(error: unknown): boolean {
+  if (error instanceof ApiError) {
+    return error.status === 404;
+  }
+
+  return error instanceof TypeError;
+}
+
+function extractApiErrorMessage(payload: unknown, status: number): string {
+  const validationMessage = extractFirstValidationError(payload);
+
+  if (validationMessage) {
+    return validationMessage;
+  }
+
+  if (
+    typeof payload === 'object' &&
+    payload !== null &&
+    'message' in payload &&
+    typeof payload.message === 'string'
+  ) {
+    return payload.message;
+  }
+
+  return `API request failed with status ${status}`;
+}
+
+function extractFirstValidationError(payload: unknown): string | null {
+  if (
+    typeof payload !== 'object' ||
+    payload === null ||
+    !('errors' in payload) ||
+    typeof payload.errors !== 'object' ||
+    payload.errors === null
+  ) {
+    return null;
+  }
+
+  for (const value of Object.values(payload.errors as Record<string, unknown>)) {
+    if (!Array.isArray(value)) {
+      continue;
+    }
+
+    const firstMessage = value.find((item) => typeof item === 'string');
+
+    if (typeof firstMessage === 'string' && firstMessage.trim() !== '') {
+      return firstMessage;
+    }
+  }
+
+  return null;
 }
 
 export function loginRequest(phoneNumber: string, password: string) {

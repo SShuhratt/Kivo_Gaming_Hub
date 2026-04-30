@@ -274,12 +274,15 @@ export default function ForgotPasswordPage() {
                 <div className="relative">
                   <input 
                     type={showPassword ? "text" : "password"}
+                    autoComplete="new-password"
+                    spellCheck={false}
                     placeholder="Parolni kiriting"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     className="w-full h-16 bg-[#081414]/50 border border-primary/10 rounded-xl px-5 text-white font-bold focus:outline-none focus:border-primary/40 transition-all"
                   />
                   <button 
+                    type="button"
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute right-5 top-1/2 -translate-y-1/2 text-primary/40 hover:text-primary"
                   >
@@ -295,12 +298,15 @@ export default function ForgotPasswordPage() {
                 <div className="relative">
                   <input 
                     type={showConfirmPassword ? "text" : "password"}
+                    autoComplete="new-password"
+                    spellCheck={false}
                     placeholder="Parolni qayta kiriting"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     className="w-full h-16 bg-[#081414]/50 border border-primary/10 rounded-xl px-5 text-white font-bold focus:outline-none focus:border-primary/40 transition-all"
                   />
                   <button 
+                    type="button"
                     onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                     className="absolute right-5 top-1/2 -translate-y-1/2 text-primary/40 hover:text-primary"
                   >
@@ -413,6 +419,7 @@ export default function ForgotPasswordPage() {
                   key={i}
                   ref={(el) => { inputRefs.current[i] = el; }}
                   type="text"
+                  autoComplete={i === 0 ? 'one-time-code' : 'off'}
                   inputMode="numeric"
                   maxLength={1}
                   value={val}
@@ -552,6 +559,9 @@ export default function ForgotPasswordPage() {
                 <Phone className="absolute left-5 top-1/2 -translate-y-1/2 h-6 w-6 text-muted-foreground/30 group-focus-within:text-primary transition-colors" />
                 <input 
                   type="tel" 
+                  name="phone_number"
+                  autoComplete="tel"
+                  inputMode="tel"
                   placeholder="+998 __ ___ __ __" 
                   value={phoneNumber}
                   onChange={(e) => setPhoneNumber(e.target.value)}

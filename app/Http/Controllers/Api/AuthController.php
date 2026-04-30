@@ -2,28 +2,28 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Http\Controllers\Controller;
 use App\Http\Controllers\Api\Concerns\ValidatesApiRequests;
+use App\Http\Controllers\Controller;
 use App\Mail\WelcomeRegistrationMail;
 use App\Models\User;
 use App\Services\JwtService;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
-use Carbon\Carbon;
 
 class AuthController extends Controller
 {
     use ValidatesApiRequests;
 
-    public function __construct(protected JwtService $jwt)
-    {
-    }
+    public function __construct(protected JwtService $jwt) {}
 
     public function register(Request $request)
     {
         $request->merge([
+            'name' => trim((string) $request->input('name')),
+            'gmail' => $this->normalizeEmail($request->input('gmail')),
             'phone_number' => $this->normalizePhoneNumber($request->input('phone_number')),
         ]);
 
@@ -86,9 +86,9 @@ class AuthController extends Controller
         ]);
 
         $validated = $this->validateApi($request, ['phone_number' => 'required|string']);
-        
+
         $user = User::where('phone_number', $validated['phone_number'])->firstOrFail();
-        
+
         $otp = (string) rand(100000, 999999);
         $user->update([
             'otp_code' => $otp,
@@ -116,7 +116,7 @@ class AuthController extends Controller
             ->where('otp_expiry', '>', Carbon::now())
             ->first();
 
-        if (!$user) {
+        if (! $user) {
             return response()->json(['message' => 'Invalid or expired OTP'], 400);
         }
 
@@ -140,7 +140,7 @@ class AuthController extends Controller
             ->where('otp_expiry', '>', Carbon::now())
             ->first();
 
-        if (!$user) {
+        if (! $user) {
             return response()->json(['message' => 'Invalid or expired OTP'], 400);
         }
 
@@ -155,6 +155,17 @@ class AuthController extends Controller
 
     protected function normalizePhoneNumber(?string $phoneNumber): string
     {
-        return preg_replace('/[^\d+]/', '', (string) $phoneNumber) ?? '';
+        $digitsOnly = preg_replace('/\D+/', '', (string) $phoneNumber) ?? '';
+
+        if ($digitsOnly === '') {
+            return '';
+        }
+
+        return '+'.$digitsOnly;
+    }
+
+    protected function normalizeEmail(?string $email): string
+    {
+        return mb_strtolower(trim((string) $email));
     }
 }

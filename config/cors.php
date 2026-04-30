@@ -19,11 +19,14 @@ return [
 
     'allowed_methods' => ['*'],
 
-    'allowed_origins' => [
+    'allowed_origins' => array_values(array_unique(array_filter([
+        env('APP_URL'),
+        env('FRONTEND_URL'),
+        'https://kivo-gaming-hub.onrender.com',
         'https://kivo-gaming-hub-1.onrender.com',
         'http://localhost:3000',
         'http://localhost:9002',
-    ],
+    ], static fn ($origin) => is_string($origin) && $origin !== ''))),
 
     'allowed_origins_patterns' => [],
 
