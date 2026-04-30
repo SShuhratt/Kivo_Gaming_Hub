@@ -136,8 +136,8 @@ export default function BandQilishPage() {
       setDebtName('');
       setDebtPhoneNumber('');
       toast({
-        title: "Booking yaratildi",
-        description: "Seans backend bazasiga muvaffaqiyatli saqlandi.",
+        title: "Aktiv seans yaratildi",
+        description: "Bron qilingan seans Aktiv seanslar bo'limiga yuborildi.",
       });
     } catch (error) {
       toast({

@@ -28,6 +28,7 @@ export type DashboardBootstrapResponse = {
   user: ApiUser | null;
   summary: {
     active_sessions: number;
+    total_session_devices: number;
     pending_sessions: number;
     rooms_count: number;
     sales_total_today: number;
@@ -61,6 +62,33 @@ export type DashboardBootstrapResponse = {
     debt: number;
     paid: number;
     timestamp: number;
+  }>;
+  sessions: Array<{
+    id: number;
+    status: 'submitted' | 'debt_closed';
+    session_status: 'active' | 'completed' | 'cancelled';
+    start_time: string;
+    end_time: string;
+    ended_at: string | null;
+    duration_minutes: number;
+    total_cost: number;
+    debt_name: string | null;
+    debt_phone_number: string | null;
+    tariff: {
+      id: number | null;
+      name: string | null;
+      hourly_cost: number;
+    };
+    assets: Array<{
+      id: number | null;
+      category: 'Computer' | 'PS' | null;
+      room_id: number | null;
+      room_number: string | null;
+    }>;
+    assets_count: number;
+    room_label: string;
+    trade_exists: boolean;
+    can_delete: boolean;
   }>;
   companies: Array<{
     id: string;
@@ -336,5 +364,19 @@ export function createBookingRequest(
     method: 'POST',
     token,
     body: payload,
+  });
+}
+
+export function endSessionRequest(token: string, sessionId: number) {
+  return apiRequest(`/sessions/${sessionId}/end`, {
+    method: 'POST',
+    token,
+  });
+}
+
+export function deleteSessionRequest(token: string, sessionId: number) {
+  return apiRequest(`/sessions/${sessionId}`, {
+    method: 'DELETE',
+    token,
   });
 }

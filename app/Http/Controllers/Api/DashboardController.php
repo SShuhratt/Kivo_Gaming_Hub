@@ -2,20 +2,27 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Api\Concerns\FormatsSessionPayloads;
 use App\Http\Controllers\Controller;
 use App\Models\Asset;
 use App\Models\Booking;
 use App\Models\Manufacturer;
 use App\Models\Service;
 use App\Models\Tariff;
+use App\Models\Trade;
+use App\Services\SessionLifecycleService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 
 class DashboardController extends Controller
 {
-    public function bootstrap(Request $request): JsonResponse
+    use FormatsSessionPayloads;
+
+    public function bootstrap(Request $request, SessionLifecycleService $sessionLifecycle): JsonResponse
     {
+        $sessionLifecycle->syncElapsedSessions();
+
         $groupedServices = Service::query()
             ->orderBy('room_id')
             ->orderBy('game_name')
@@ -88,38 +95,17 @@ class DashboardController extends Controller
             })
             ->values();
 
-        $bookings = Booking::query()
-            ->with(['assets', 'tariff'])
+        $sessions = Booking::query()
+            ->with(['assets', 'tariff', 'trade'])
+            ->orderByRaw("case when session_status = 'active' then 0 else 1 end")
             ->latest('start_time')
             ->get();
 
-        $sales = $bookings->map(function (Booking $booking) {
-            $roomIds = $booking->assets
-                ->pluck('room_id')
-                ->unique()
-                ->sort()
-                ->values();
-
-            $submitted = $booking->status === 'submitted';
-
-            return [
-                'id' => (string) $booking->id,
-                'room' => $roomIds->isNotEmpty() ? 'Xona ' . $roomIds->implode(', ') : 'Xona N/A',
-                'base_price' => (float) ($booking->tariff->hourly_cost ?? 0),
-                'start' => optional($booking->start_time)->format('H:i'),
-                'end' => optional($booking->end_time)->format('H:i'),
-                'service_cost' => (float) $booking->total_cost,
-                'products' => 0,
-                'total' => (float) $booking->total_cost,
-                'cash' => $submitted ? (float) $booking->total_cost : 0,
-                'terminal' => 0,
-                'click' => 0,
-                'payme' => 0,
-                'debt' => $submitted ? 0 : (float) $booking->total_cost,
-                'paid' => $submitted ? (float) $booking->total_cost : 0,
-                'timestamp' => optional($booking->created_at)->getTimestampMs(),
-            ];
-        })->values();
+        $sales = Trade::query()
+            ->latest('end_time')
+            ->get()
+            ->map(fn (Trade $trade) => $this->formatDashboardSale($trade))
+            ->values();
 
         $today = Carbon::now()->startOfDay();
         $roomsCount = collect($groupedServices)
@@ -131,21 +117,24 @@ class DashboardController extends Controller
         return response()->json([
             'user' => $request->user(),
             'summary' => [
-                'active_sessions' => 0,
+                'active_sessions' => $sessions->where('session_status', 'active')->count(),
+                'total_session_devices' => $assets->count(),
                 'pending_sessions' => $tariffs->count(),
                 'rooms_count' => $roomsCount,
-                'sales_total_today' => (float) $bookings
-                    ->filter(fn (Booking $booking) => $booking->created_at && $booking->created_at->greaterThanOrEqualTo($today))
+                'sales_total_today' => (float) Trade::query()
+                    ->where('end_time', '>=', $today)
                     ->sum('total_cost'),
             ],
             'services' => $groupedServices,
             'tariffs' => $tariffs,
             'sales' => $sales,
+            'sessions' => $sessions->map(fn (Booking $booking) => $this->formatSession($booking))->values(),
             'companies' => $companies,
             'assets' => $assets,
             'sections' => [
                 ['key' => 'dashboard', 'name' => 'Asosiy', 'path' => '/asosiy'],
                 ['key' => 'booking', 'name' => 'Band qilish', 'path' => '/band-qilish'],
+                ['key' => 'sessions', 'name' => 'Aktiv seanslar', 'path' => '/aktiv-seanslar'],
                 ['key' => 'cashier', 'name' => 'Kassa', 'path' => '/kassa'],
                 ['key' => 'sales', 'name' => 'Savdo', 'path' => '/savdo'],
                 ['key' => 'computers', 'name' => 'Kompyuterlar', 'path' => '/kompyuterlar'],

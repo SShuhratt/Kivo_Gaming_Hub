@@ -14,8 +14,10 @@ import {
   deleteAssetRequest,
   deleteManufacturerRequest,
   deleteServiceRequest,
+  deleteSessionRequest,
   deleteTariffRequest,
   deleteWarehouseItemRequest,
+  endSessionRequest,
   getDashboardBootstrap,
   loginRequest,
   updateWarehouseItemRequest,
@@ -32,6 +34,7 @@ export interface SessionUser {
 
 export interface DashboardSummary {
   activeSessions: number;
+  totalSessionDevices: number;
   pendingSessions: number;
   roomsCount: number;
   salesTotalToday: number;
@@ -99,12 +102,44 @@ export interface SaleRecord {
   timestamp: number;
 }
 
+export interface SessionAssetSnapshot {
+  id: number | null;
+  category: 'Computer' | 'PS' | null;
+  roomId: number | null;
+  roomNumber: string | null;
+}
+
+export interface SessionRecord {
+  id: string;
+  backendId: number;
+  status: 'submitted' | 'debt_closed';
+  sessionStatus: 'active' | 'completed' | 'cancelled';
+  startTime: string;
+  endTime: string;
+  endedAt: string | null;
+  durationMinutes: number;
+  totalCost: number;
+  debtName: string | null;
+  debtPhoneNumber: string | null;
+  roomLabel: string;
+  assetsCount: number;
+  tradeExists: boolean;
+  canDelete: boolean;
+  tariff: {
+    id: number | null;
+    name: string | null;
+    hourlyCost: number;
+  };
+  assets: SessionAssetSnapshot[];
+}
+
 interface DashboardContextType {
   currentUser: SessionUser | null;
   summary: DashboardSummary;
   services: ServiceRoom[];
   tariffs: Tariff[];
   sales: SaleRecord[];
+  sessions: SessionRecord[];
   companies: WarehouseCompany[];
   assets: AssetDevice[];
   isCheckingAuth: boolean;
@@ -145,12 +180,15 @@ interface DashboardContextType {
     debtName?: string;
     debtPhoneNumber?: string;
   }) => Promise<void>;
+  endSession: (sessionId: number) => Promise<void>;
+  deleteSession: (sessionId: number) => Promise<void>;
 }
 
 const DashboardContext = createContext<DashboardContextType | undefined>(undefined);
 
 const emptySummary: DashboardSummary = {
   activeSessions: 0,
+  totalSessionDevices: 0,
   pendingSessions: 0,
   roomsCount: 0,
   salesTotalToday: 0,
@@ -174,6 +212,7 @@ function mapBootstrapPayload(payload: DashboardBootstrapResponse) {
     currentUser: mapUser(payload.user),
     summary: {
       activeSessions: payload.summary.active_sessions,
+      totalSessionDevices: payload.summary.total_session_devices,
       pendingSessions: payload.summary.pending_sessions,
       roomsCount: payload.summary.rooms_count,
       salesTotalToday: payload.summary.sales_total_today,
@@ -207,6 +246,34 @@ function mapBootstrapPayload(payload: DashboardBootstrapResponse) {
       debt: sale.debt,
       paid: sale.paid,
       timestamp: sale.timestamp,
+    })),
+    sessions: payload.sessions.map((session) => ({
+      id: String(session.id),
+      backendId: session.id,
+      status: session.status,
+      sessionStatus: session.session_status,
+      startTime: session.start_time,
+      endTime: session.end_time,
+      endedAt: session.ended_at,
+      durationMinutes: session.duration_minutes,
+      totalCost: session.total_cost,
+      debtName: session.debt_name,
+      debtPhoneNumber: session.debt_phone_number,
+      roomLabel: session.room_label,
+      assetsCount: session.assets_count,
+      tradeExists: session.trade_exists,
+      canDelete: session.can_delete,
+      tariff: {
+        id: session.tariff.id,
+        name: session.tariff.name,
+        hourlyCost: session.tariff.hourly_cost,
+      },
+      assets: session.assets.map((asset) => ({
+        id: asset.id,
+        category: asset.category,
+        roomId: asset.room_id,
+        roomNumber: asset.room_number,
+      })),
     })),
     companies: payload.companies.map((company) => ({
       id: company.id,
@@ -242,6 +309,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
   const [services, setServices] = useState<ServiceRoom[]>([]);
   const [tariffs, setTariffs] = useState<Tariff[]>([]);
   const [sales, setSales] = useState<SaleRecord[]>([]);
+  const [sessions, setSessions] = useState<SessionRecord[]>([]);
   const [companies, setCompanies] = useState<WarehouseCompany[]>([]);
   const [assets, setAssets] = useState<AssetDevice[]>([]);
   const [token, setToken] = useState<string | null>(null);
@@ -253,6 +321,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     setServices([]);
     setTariffs([]);
     setSales([]);
+    setSessions([]);
     setCompanies([]);
     setAssets([]);
   }, []);
@@ -283,6 +352,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
         setServices(mapped.services);
         setTariffs(mapped.tariffs);
         setSales(mapped.sales);
+        setSessions(mapped.sessions);
         setCompanies(mapped.companies);
         setAssets(mapped.assets);
       } catch (error) {
@@ -526,6 +596,26 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     [refreshDashboard, requireToken]
   );
 
+  const endSession = useCallback(
+    async (sessionId: number) => {
+      const activeToken = requireToken();
+
+      await endSessionRequest(activeToken, sessionId);
+      await refreshDashboard();
+    },
+    [refreshDashboard, requireToken]
+  );
+
+  const deleteSession = useCallback(
+    async (sessionId: number) => {
+      const activeToken = requireToken();
+
+      await deleteSessionRequest(activeToken, sessionId);
+      await refreshDashboard();
+    },
+    [refreshDashboard, requireToken]
+  );
+
   const value = useMemo(
     () => ({
       currentUser,
@@ -533,6 +623,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       services,
       tariffs,
       sales,
+      sessions,
       companies,
       assets,
       isCheckingAuth,
@@ -551,6 +642,8 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       deleteManufacturer,
       calculateBooking,
       createBooking,
+      endSession,
+      deleteSession,
     }),
     [
       assets,
@@ -564,8 +657,10 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       deleteAsset,
       deleteManufacturer,
       deleteServiceRoom,
+      deleteSession,
       deleteTariff,
       deleteWarehouseProduct,
+      endSession,
       isCheckingAuth,
       login,
       logout,
@@ -573,6 +668,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       sales,
       saveWarehouseProduct,
       services,
+      sessions,
       summary,
       tariffs,
       token,

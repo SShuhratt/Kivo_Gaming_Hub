@@ -1,16 +1,14 @@
 <?php
 
-use App\Http\Controllers\Api\{
-    AssetController,
-    AuthController,
-    BookingController,
-    DashboardController,
-    ManufacturerController,
-    ServiceController,
-    TariffController,
-    TradeController,
-    WarehouseController
-};
+use App\Http\Controllers\Api\AssetController;
+use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\BookingController;
+use App\Http\Controllers\Api\DashboardController;
+use App\Http\Controllers\Api\ManufacturerController;
+use App\Http\Controllers\Api\ServiceController;
+use App\Http\Controllers\Api\TariffController;
+use App\Http\Controllers\Api\TradeController;
+use App\Http\Controllers\Api\WarehouseController;
 use Illuminate\Support\Facades\Route;
 
 // Auth Routes
@@ -27,7 +25,7 @@ Route::post('/auth/reset-password', [AuthController::class, 'resetPassword'])
 
 // Protected Routes
 Route::middleware('api.token')->group(function () {
-    
+
     // Dashboard
     Route::get('/dashboard/bootstrap', [DashboardController::class, 'bootstrap'])
         ->defaults('openapiOperation', 'getDashboardBootstrap');
@@ -95,6 +93,14 @@ Route::middleware('api.token')->group(function () {
         ->defaults('openapiOperation', 'updateBooking');
     Route::delete('/bookings/{booking}', [BookingController::class, 'destroy'])
         ->defaults('openapiOperation', 'deleteBooking');
+    Route::get('/sessions', [BookingController::class, 'index'])
+        ->defaults('openapiOperation', 'listSessions');
+    Route::get('/sessions/{booking}', [BookingController::class, 'show'])
+        ->defaults('openapiOperation', 'getSession');
+    Route::post('/sessions/{booking}/end', [BookingController::class, 'end'])
+        ->defaults('openapiOperation', 'endSession');
+    Route::delete('/sessions/{booking}', [BookingController::class, 'destroy'])
+        ->defaults('openapiOperation', 'deleteSession');
 
     // Tariffs CRUD
     Route::get('/tariffs', [TariffController::class, 'index'])

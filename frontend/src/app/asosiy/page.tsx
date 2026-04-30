@@ -11,7 +11,12 @@ export default function AsosiyPage() {
   if (isCheckingAuth) return null;
 
   const stats = [
-    { label: 'Faol seanslar', value: summary.activeSessions.toString(), change: 'LIVE TRACKING', icon: Monitor },
+    {
+      label: 'Aktiv seanslar',
+      value: `${summary.activeSessions}/${summary.totalSessionDevices}`,
+      change: `${summary.activeSessions} aktiv seans / ${summary.totalSessionDevices} jami seans`,
+      icon: Monitor,
+    },
     { label: 'Xonalar soni', value: summary.roomsCount.toString(), change: 'STABLE CONNECTION', icon: Database },
     { label: 'Tariflar', value: summary.pendingSessions.toString(), change: 'AVAILABLE PACKAGES', icon: History },
     { label: 'Bugungi tushum', value: `${summary.salesTotalToday.toLocaleString()} UZS`, change: 'DAILY REVENUE', icon: TrendingUp },

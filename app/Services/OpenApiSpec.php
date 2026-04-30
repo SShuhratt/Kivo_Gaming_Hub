@@ -20,6 +20,7 @@ class OpenApiSpec
                 ['name' => 'Auth'],
                 ['name' => 'Dashboard'],
                 ['name' => 'Bookings'],
+                ['name' => 'Sessions'],
                 ['name' => 'Finance'],
                 ['name' => 'Assets'],
                 ['name' => 'Warehouse'],
@@ -32,6 +33,7 @@ class OpenApiSpec
                 $this->authPaths(),
                 $this->dashboardPaths(),
                 $this->bookingPaths(),
+                $this->sessionPaths(),
                 $this->tradePaths(),
                 $this->crudPaths('Assets', 'Asset', '/assets', 'asset'),
                 $this->crudPaths('Warehouse', 'WarehouseItem', '/warehouse', 'warehouse', 'listWarehouseItems'),
@@ -58,6 +60,7 @@ class OpenApiSpec
                 'manufacturer' => $this->idParameter('manufacturer', 'Manufacturer ID'),
                 'service' => $this->idParameter('service', 'Service ID'),
                 'tariff' => $this->idParameter('tariff', 'Tariff ID'),
+                'booking' => $this->idParameter('booking', 'Booking or session ID'),
             ],
             'schemas' => [
                 'MessageResponse' => $this->object(['message' => ['type' => 'string', 'example' => 'Operation completed.']]),
@@ -109,6 +112,7 @@ class OpenApiSpec
                     'user' => ['$ref' => '#/components/schemas/User'],
                     'summary' => $this->object([
                         'active_sessions' => ['type' => 'integer', 'example' => 2],
+                        'total_session_devices' => ['type' => 'integer', 'example' => 9],
                         'pending_sessions' => ['type' => 'integer', 'example' => 1],
                         'rooms_count' => ['type' => 'integer', 'example' => 4],
                         'sales_total_today' => ['type' => 'number', 'example' => 365000],
@@ -116,6 +120,7 @@ class OpenApiSpec
                     'services' => ['type' => 'array', 'items' => ['type' => 'object']],
                     'tariffs' => ['type' => 'array', 'items' => ['type' => 'object']],
                     'sales' => ['type' => 'array', 'items' => ['type' => 'object']],
+                    'sessions' => ['type' => 'array', 'items' => ['$ref' => '#/components/schemas/Session']],
                     'companies' => ['type' => 'array', 'items' => ['type' => 'object']],
                     'sections' => ['type' => 'array', 'items' => $this->object([
                         'key' => ['type' => 'string'],
@@ -128,19 +133,41 @@ class OpenApiSpec
                     'tariff_id' => ['type' => 'integer', 'example' => 1],
                     'start_time' => ['type' => 'string', 'format' => 'date-time'],
                     'end_time' => ['type' => 'string', 'format' => 'date-time'],
+                    'ended_at' => ['type' => 'string', 'format' => 'date-time', 'nullable' => true],
                     'duration_minutes' => ['type' => 'integer', 'example' => 120],
                     'total_cost' => ['type' => 'number', 'example' => 240000],
                     'status' => ['type' => 'string', 'enum' => ['submitted', 'debt_closed'], 'example' => 'submitted'],
+                    'session_status' => ['type' => 'string', 'enum' => ['active', 'completed', 'cancelled'], 'example' => 'active'],
                     'debt_name' => ['type' => 'string', 'nullable' => true],
                     'debt_phone_number' => ['type' => 'string', 'nullable' => true],
                     'assets' => ['type' => 'array', 'items' => ['$ref' => '#/components/schemas/Asset']],
                     'tariff' => ['$ref' => '#/components/schemas/Tariff'],
                 ]),
+                'Session' => $this->object([
+                    'id' => ['type' => 'integer', 'example' => 1],
+                    'status' => ['type' => 'string', 'enum' => ['submitted', 'debt_closed'], 'example' => 'submitted'],
+                    'session_status' => ['type' => 'string', 'enum' => ['active', 'completed', 'cancelled'], 'example' => 'active'],
+                    'start_time' => ['type' => 'string', 'format' => 'date-time'],
+                    'end_time' => ['type' => 'string', 'format' => 'date-time'],
+                    'ended_at' => ['type' => 'string', 'format' => 'date-time', 'nullable' => true],
+                    'duration_minutes' => ['type' => 'integer', 'example' => 120],
+                    'total_cost' => ['type' => 'number', 'example' => 240000],
+                    'debt_name' => ['type' => 'string', 'nullable' => true],
+                    'debt_phone_number' => ['type' => 'string', 'nullable' => true],
+                    'tariff' => ['type' => 'object'],
+                    'assets' => ['type' => 'array', 'items' => ['type' => 'object']],
+                    'assets_count' => ['type' => 'integer', 'example' => 2],
+                    'room_label' => ['type' => 'string', 'example' => 'Xona 1'],
+                    'trade_exists' => ['type' => 'boolean', 'example' => false],
+                    'can_delete' => ['type' => 'boolean', 'example' => false],
+                ]),
                 'TradeLedgerEntry' => $this->object([
                     'id' => ['type' => 'integer', 'example' => 1],
+                    'booking_id' => ['type' => 'integer', 'nullable' => true, 'example' => 1],
                     'type' => ['type' => 'string', 'enum' => ['Income', 'Debt'], 'example' => 'Income'],
                     'amount' => ['type' => 'number', 'example' => 240000],
                     'status' => ['type' => 'string', 'enum' => ['submitted', 'debt_closed'], 'example' => 'submitted'],
+                    'session_status' => ['type' => 'string', 'enum' => ['completed', 'cancelled'], 'example' => 'completed'],
                     'details' => ['type' => 'object'],
                     'tariff_data' => ['$ref' => '#/components/schemas/Tariff'],
                     'assets' => ['type' => 'array', 'items' => ['$ref' => '#/components/schemas/Asset']],
@@ -259,7 +286,25 @@ class OpenApiSpec
                 'post' => $this->operation('Bookings', 'Calculate booking cost', 'calculateBooking', 'BookingCalculateRequest', 'BookingCalculationResponse'),
             ],
             '/bookings' => [
-                'post' => $this->operation('Bookings', 'Create booking', 'createBooking', 'BookingCreateRequest', 'Booking', 201),
+                'post' => $this->operation('Bookings', 'Create booking as active session', 'createBooking', 'BookingCreateRequest', 'Session', 201),
+            ],
+        ];
+    }
+
+    protected function sessionPaths(): array
+    {
+        return [
+            '/sessions' => [
+                'get' => $this->listOperation('Sessions', 'List active and ended sessions', 'listSessions', 'Session'),
+            ],
+            '/sessions/{booking}' => [
+                'parameters' => [['$ref' => '#/components/parameters/booking']],
+                'get' => $this->operation('Sessions', 'Get session', 'getSession', null, 'Session', 200, true, true, false, true),
+                'delete' => $this->deleteOperation('Sessions', 'Delete ended session', 'deleteSession'),
+            ],
+            '/sessions/{booking}/end' => [
+                'parameters' => [['$ref' => '#/components/parameters/booking']],
+                'post' => $this->operation('Sessions', 'End an active session manually', 'endSession', null, 'Session'),
             ],
         ];
     }
@@ -300,15 +345,15 @@ class OpenApiSpec
 
         return [
             $path => [
-                'get' => $this->listOperation($tag, "List {$tag}", $listOperationId ?? 'list' . str_replace(' ', '', $tag), $schema),
-                'post' => $this->operation($tag, "Create {$schema}", 'create' . $schema, $createSchema, $schema, 201),
+                'get' => $this->listOperation($tag, "List {$tag}", $listOperationId ?? 'list'.str_replace(' ', '', $tag), $schema),
+                'post' => $this->operation($tag, "Create {$schema}", 'create'.$schema, $createSchema, $schema, 201),
             ],
             "{$path}/{{$parameter}}" => [
                 'parameters' => [['$ref' => "#/components/parameters/{$parameter}"]],
-                'get' => $this->operation($tag, "Get {$schema}", 'get' . $schema, null, $schema, 200, true, true, false, true),
-                'put' => $this->operation($tag, "Replace {$schema}", 'replace' . $schema, $updateSchema, $schema, 200, true, true, false, true),
-                'patch' => $this->operation($tag, "Update {$schema}", 'update' . $schema, $updateSchema, $schema, 200, true, true, false, true),
-                'delete' => $this->deleteOperation($tag, "Delete {$schema}", 'delete' . $schema),
+                'get' => $this->operation($tag, "Get {$schema}", 'get'.$schema, null, $schema, 200, true, true, false, true),
+                'put' => $this->operation($tag, "Replace {$schema}", 'replace'.$schema, $updateSchema, $schema, 200, true, true, false, true),
+                'patch' => $this->operation($tag, "Update {$schema}", 'update'.$schema, $updateSchema, $schema, 200, true, true, false, true),
+                'delete' => $this->deleteOperation($tag, "Delete {$schema}", 'delete'.$schema),
             ],
         ];
     }

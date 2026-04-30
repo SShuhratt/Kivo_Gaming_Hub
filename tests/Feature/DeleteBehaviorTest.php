@@ -6,6 +6,7 @@ use App\Models\Asset;
 use App\Models\Booking;
 use App\Models\Manufacturer;
 use App\Models\Tariff;
+use App\Models\Trade;
 use App\Models\User;
 use App\Models\Warehouse;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -112,9 +113,94 @@ class DeleteBehaviorTest extends TestCase
         $this->assertDatabaseMissing('manufacturers', ['id' => $manufacturer->id]);
     }
 
+    public function test_active_sessions_cannot_be_deleted_and_completed_sessions_require_a_trade_record(): void
+    {
+        $tariff = Tariff::create([
+            'name' => 'Delete Session Tariff',
+            'hourly_cost' => 50000,
+        ]);
+
+        $activeSession = Booking::create([
+            'tariff_id' => $tariff->id,
+            'tariff_name_snapshot' => $tariff->name,
+            'hourly_rate_snapshot' => 50000,
+            'asset_snapshot' => [['id' => 1, 'category' => 'Computer', 'room_id' => 10, 'room_number' => '10']],
+            'asset_stats_recorded' => true,
+            'start_time' => '2026-04-28T10:00:00+05:00',
+            'end_time' => '2030-04-28T12:00:00+05:00',
+            'duration_minutes' => 120,
+            'total_cost' => 100000,
+            'status' => 'submitted',
+            'session_status' => 'active',
+        ]);
+
+        $completedWithoutTrade = Booking::create([
+            'tariff_id' => $tariff->id,
+            'tariff_name_snapshot' => $tariff->name,
+            'hourly_rate_snapshot' => 50000,
+            'asset_snapshot' => [['id' => 2, 'category' => 'PS', 'room_id' => 11, 'room_number' => '11']],
+            'asset_stats_recorded' => true,
+            'start_time' => '2026-04-28T12:00:00+05:00',
+            'end_time' => '2026-04-28T14:00:00+05:00',
+            'ended_at' => '2026-04-28T14:00:00+05:00',
+            'duration_minutes' => 120,
+            'total_cost' => 100000,
+            'status' => 'submitted',
+            'session_status' => 'completed',
+        ]);
+
+        $completedWithTrade = Booking::create([
+            'tariff_id' => $tariff->id,
+            'tariff_name_snapshot' => $tariff->name,
+            'hourly_rate_snapshot' => 50000,
+            'asset_snapshot' => [['id' => 3, 'category' => 'Computer', 'room_id' => 12, 'room_number' => '12']],
+            'asset_stats_recorded' => true,
+            'start_time' => '2026-04-28T15:00:00+05:00',
+            'end_time' => '2026-04-28T17:00:00+05:00',
+            'ended_at' => '2026-04-28T17:00:00+05:00',
+            'duration_minutes' => 120,
+            'total_cost' => 100000,
+            'status' => 'submitted',
+            'session_status' => 'completed',
+        ]);
+
+        $trade = Trade::create([
+            'booking_id' => $completedWithTrade->id,
+            'tariff_id' => $tariff->id,
+            'tariff_name' => $tariff->name,
+            'hourly_rate' => 50000,
+            'payment_status' => 'submitted',
+            'session_status' => 'completed',
+            'start_time' => '2026-04-28T15:00:00+05:00',
+            'end_time' => '2026-04-28T17:00:00+05:00',
+            'duration_minutes' => 120,
+            'total_cost' => 100000,
+            'asset_snapshot' => [['id' => 3, 'category' => 'Computer', 'room_id' => 12, 'room_number' => '12']],
+            'assets_count' => 1,
+        ]);
+
+        $this->deleteJson("/api/sessions/{$activeSession->id}", [], $this->authHeaders())
+            ->assertStatus(409)
+            ->assertJson([
+                'message' => 'Active sessions cannot be deleted.',
+            ]);
+
+        $this->deleteJson("/api/sessions/{$completedWithoutTrade->id}", [], $this->authHeaders())
+            ->assertStatus(409)
+            ->assertJson([
+                'message' => 'Completed session cannot be deleted before its trade history is saved.',
+            ]);
+
+        $this->deleteJson("/api/sessions/{$completedWithTrade->id}", [], $this->authHeaders())
+            ->assertNoContent();
+
+        $this->assertDatabaseMissing('bookings', ['id' => $completedWithTrade->id]);
+        $this->assertDatabaseHas('trades', ['id' => $trade->id]);
+    }
+
     protected function authHeaders(): array
     {
-        return ['Authorization' => 'Bearer ' . $this->loginToken()];
+        return ['Authorization' => 'Bearer '.$this->loginToken()];
     }
 
     protected function loginToken(): string

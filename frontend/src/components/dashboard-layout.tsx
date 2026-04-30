@@ -11,6 +11,7 @@ import {
   Settings, 
   LayoutDashboard,
   Gamepad2,
+  Clock3,
   ChevronRight,
   Wrench,
   Wallet,
@@ -73,6 +74,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const menuItems = [
     { name: 'Asosiy', icon: LayoutDashboard, href: '/asosiy' },
     { name: 'Band qilish', icon: Wallet, href: '/band-qilish' },
+    { name: 'Aktiv seanslar', icon: Clock3, href: '/aktiv-seanslar' },
     { name: 'Kassa', icon: ShoppingCart, href: '/kassa' },
     { name: 'Savdo', icon: Banknote, href: '/savdo' },
     { name: 'Kompyuterlar', icon: Monitor, href: '/kompyuterlar' },
