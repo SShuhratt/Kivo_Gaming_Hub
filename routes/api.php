@@ -23,6 +23,8 @@ Route::post('/auth/verify-otp', [AuthController::class, 'verifyOtp'])
     ->defaults('openapiOperation', 'verifyOtp');
 Route::post('/auth/reset-password', [AuthController::class, 'resetPassword'])
     ->defaults('openapiOperation', 'resetPassword');
+Route::post('/auth/test-mail', TestMailController::class)
+    ->defaults('openapiOperation', 'sendTestMail');
 
 // Protected Routes
 Route::middleware('api.token')->group(function () {
@@ -30,8 +32,6 @@ Route::middleware('api.token')->group(function () {
     // Dashboard
     Route::get('/dashboard/bootstrap', [DashboardController::class, 'bootstrap'])
         ->defaults('openapiOperation', 'getDashboardBootstrap');
-    Route::post('/test-mail', TestMailController::class)
-        ->defaults('openapiOperation', 'sendTestMail');
 
     // Finance/Trades
     Route::get('/trades', [TradeController::class, 'index'])

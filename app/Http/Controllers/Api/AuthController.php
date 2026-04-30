@@ -25,18 +25,29 @@ class AuthController extends Controller
 
     public function register(Request $request)
     {
+        Log::info('Registration attempt started', [
+            'input' => $request->except(['password', 'password_confirmation']),
+        ]);
+
         $request->merge([
             'name' => trim((string) $request->input('name')),
             'gmail' => $this->normalizeEmail($request->input('gmail')),
             'phone_number' => $this->normalizePhoneNumber($request->input('phone_number')),
         ]);
 
-        $validated = $this->validateApi($request, [
-            'name' => 'required|string',
-            'gmail' => 'required|email|unique:users,gmail',
-            'phone_number' => 'required|string|unique:users,phone_number',
-            'password' => 'required|string|min:6',
-        ]);
+        try {
+            $validated = $this->validateApi($request, [
+                'name' => 'required|string',
+                'gmail' => 'required|email|unique:users,gmail',
+                'phone_number' => 'required|string|unique:users,phone_number',
+                'password' => 'required|string|min:6',
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('Registration validation failed', [
+                'errors' => ($e instanceof \Illuminate\Http\Exceptions\HttpResponseException) ? $e->getResponse()->getContent() : $e->getMessage(),
+            ]);
+            throw $e;
+        }
 
         $user = User::create([
             'name' => $validated['name'],
@@ -44,6 +55,8 @@ class AuthController extends Controller
             'phone_number' => $validated['phone_number'],
             'password_hash' => Hash::make($validated['password']),
         ]);
+
+        Log::info('User created successfully', ['user_id' => $user->id]);
 
         $email = $user->gmail;
 
@@ -67,7 +80,10 @@ class AuthController extends Controller
             ]));
         }
 
-        return response()->json(['message' => 'User registered successfully'], 201);
+        return response()->json([
+            'message' => 'User registered successfully',
+            'user' => $user,
+        ], 201);
     }
 
     public function login(Request $request)
