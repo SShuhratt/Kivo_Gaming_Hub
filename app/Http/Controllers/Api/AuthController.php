@@ -111,15 +111,27 @@ class AuthController extends Controller
         ]);
     }
 
-    public function forgotPassword(Request $request)
+    public function forgotPassword(Request $request, \App\Contracts\SmsServiceInterface $smsService)
     {
         $request->merge([
             'phone_number' => $this->normalizePhoneNumber($request->input('phone_number')),
+            'gmail' => $this->normalizeEmail($request->input('gmail')),
+            'delivery_method' => $request->input('delivery_method', 'sms'),
         ]);
 
-        $validated = $this->validateApi($request, ['phone_number' => 'required|string']);
+        $validated = $this->validateApi($request, [
+            'delivery_method' => 'required|string|in:sms,email',
+            'phone_number' => 'required_if:delivery_method,sms|string|nullable',
+            'gmail' => 'required_if:delivery_method,email|email|nullable',
+        ]);
 
-        $user = User::where('phone_number', $validated['phone_number'])->firstOrFail();
+        $deliveryMethod = $validated['delivery_method'];
+
+        if ($deliveryMethod === 'sms') {
+            $user = User::where('phone_number', $validated['phone_number'])->firstOrFail();
+        } else {
+            $user = User::where('gmail', $validated['gmail'])->firstOrFail();
+        }
 
         $otp = (string) rand(100000, 999999);
         $user->update([
@@ -127,26 +139,38 @@ class AuthController extends Controller
             'otp_expiry' => Carbon::now()->addMinutes(10),
         ]);
 
-        Log::info("SMS MOCK to {$user->phone_number}: Your OTP is {$otp}");
+        if ($deliveryMethod === 'sms') {
+            $smsService->send($user->phone_number, "Your OTP is {$otp}. It expires in 10 minutes.");
+        } else {
+            Mail::to($user->gmail)->send(new \App\Mail\PasswordResetOtpMail($otp));
+        }
 
-        return response()->json(['message' => 'OTP sent successfully (check logs)']);
+        return response()->json(['message' => 'OTP sent successfully']);
     }
 
     public function verifyOtp(Request $request)
     {
         $request->merge([
             'phone_number' => $this->normalizePhoneNumber($request->input('phone_number')),
+            'gmail' => $this->normalizeEmail($request->input('gmail')),
         ]);
 
         $validated = $this->validateApi($request, [
-            'phone_number' => 'required|string',
+            'phone_number' => 'required_without:gmail|string|nullable',
+            'gmail' => 'required_without:phone_number|email|nullable',
             'otp' => 'required|string',
         ]);
 
-        $user = User::where('phone_number', $validated['phone_number'])
-            ->where('otp_code', $validated['otp'])
-            ->where('otp_expiry', '>', Carbon::now())
-            ->first();
+        $query = User::where('otp_code', $validated['otp'])
+            ->where('otp_expiry', '>', Carbon::now());
+
+        if (!empty($validated['phone_number'])) {
+            $query->where('phone_number', $validated['phone_number']);
+        } else {
+            $query->where('gmail', $validated['gmail']);
+        }
+
+        $user = $query->first();
 
         if (! $user) {
             return response()->json(['message' => 'Invalid or expired OTP'], 400);
@@ -159,18 +183,26 @@ class AuthController extends Controller
     {
         $request->merge([
             'phone_number' => $this->normalizePhoneNumber($request->input('phone_number')),
+            'gmail' => $this->normalizeEmail($request->input('gmail')),
         ]);
 
         $validated = $this->validateApi($request, [
-            'phone_number' => 'required|string',
+            'phone_number' => 'required_without:gmail|string|nullable',
+            'gmail' => 'required_without:phone_number|email|nullable',
             'otp' => 'required|string',
             'new_password' => 'required|string|min:6',
         ]);
 
-        $user = User::where('phone_number', $validated['phone_number'])
-            ->where('otp_code', $validated['otp'])
-            ->where('otp_expiry', '>', Carbon::now())
-            ->first();
+        $query = User::where('otp_code', $validated['otp'])
+            ->where('otp_expiry', '>', Carbon::now());
+
+        if (!empty($validated['phone_number'])) {
+            $query->where('phone_number', $validated['phone_number']);
+        } else {
+            $query->where('gmail', $validated['gmail']);
+        }
+
+        $user = $query->first();
 
         if (! $user) {
             return response()->json(['message' => 'Invalid or expired OTP'], 400);

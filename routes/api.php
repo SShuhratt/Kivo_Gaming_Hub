@@ -18,6 +18,7 @@ Route::post('/auth/register', [AuthController::class, 'register'])
 Route::post('/auth/login', [AuthController::class, 'login'])
     ->defaults('openapiOperation', 'loginUser');
 Route::post('/auth/forgot-password', [AuthController::class, 'forgotPassword'])
+    ->middleware('throttle:3,1')
     ->defaults('openapiOperation', 'forgotPassword');
 Route::post('/auth/verify-otp', [AuthController::class, 'verifyOtp'])
     ->defaults('openapiOperation', 'verifyOtp');
