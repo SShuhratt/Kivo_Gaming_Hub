@@ -8,7 +8,7 @@ return new class extends Migration {
     public function up(): void {
         Schema::create('assets', function (Blueprint $table) {
             $table->id();
-            $table->enum('category', ['Computer', 'PS']);
+            $table->string('category');
             $table->foreignId('room_id')->index();
             $table->integer('total_usage_duration_minutes')->default(0);
             $table->decimal('total_earned_money', 15, 2)->default(0);

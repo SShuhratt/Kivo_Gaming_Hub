@@ -77,7 +77,7 @@ export interface Tariff {
 export interface AssetDevice {
   id: string;
   backendId: number;
-  category: 'Computer' | 'PS';
+  category: string;
   roomId: number;
   roomNumber: string;
   totalUsageDurationMinutes: number;
@@ -104,7 +104,7 @@ export interface SaleRecord {
 
 export interface SessionAssetSnapshot {
   id: number | null;
-  category: 'Computer' | 'PS' | null;
+  category: string | null;
   roomId: number | null;
   roomNumber: string | null;
 }
@@ -151,7 +151,7 @@ interface DashboardContextType {
   deleteServiceRoom: (room: ServiceRoom) => Promise<void>;
   createTariff: (payload: { name: string; hourlyPrice: number }) => Promise<void>;
   deleteTariff: (tariff: Tariff) => Promise<void>;
-  createAsset: (payload: { category: 'Computer' | 'PS'; roomId: number }) => Promise<void>;
+  createAsset: (payload: { category: string; roomId: number }) => Promise<void>;
   deleteAsset: (asset: AssetDevice) => Promise<void>;
   saveWarehouseProduct: (payload: {
     backendId?: number;
@@ -457,11 +457,20 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
   );
 
   const createAsset = useCallback(
-    async ({ category, roomId }: { category: 'Computer' | 'PS'; roomId: number }) => {
+    async ({ category, roomId }: { category: string; roomId: number }) => {
       const activeToken = requireToken();
+      const normalizedCategory = category.trim();
+
+      if (!normalizedCategory) {
+        throw new Error('Asset type is required.');
+      }
+
+      if (!Number.isFinite(roomId) || roomId <= 0) {
+        throw new Error('Room number must be a positive number.');
+      }
 
       await createAssetRequest(activeToken, {
-        category,
+        category: normalizedCategory,
         room_id: roomId,
       });
 

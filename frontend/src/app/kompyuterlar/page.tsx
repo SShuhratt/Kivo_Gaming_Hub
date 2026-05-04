@@ -9,32 +9,49 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
+import { formatAssetCategoryLabel, getAssetCategoryKind } from '@/lib/asset-category';
 
 export default function KompyuterlarPage() {
   const { assets, createAsset, deleteAsset, isCheckingAuth } = useDashboard();
   const { toast } = useToast();
   const [isAssetModalOpen, setIsAssetModalOpen] = useState(false);
   const [roomId, setRoomId] = useState('');
-  const [category, setCategory] = useState<'Computer' | 'PS'>('Computer');
+  const [category, setCategory] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
   if (isCheckingAuth) return null;
 
   const handleCreateAsset = async () => {
-    if (!roomId) {
+    const normalizedCategory = category.trim();
+    const parsedRoomId = Number(roomId);
+
+    if (!normalizedCategory) {
+      toast({
+        variant: 'destructive',
+        title: 'Jihoz turi kiritilmagan',
+        description: "Jihoz turi yoki nomini kiriting.",
+      });
+      return;
+    }
+
+    if (!Number.isFinite(parsedRoomId) || parsedRoomId <= 0) {
+      toast({
+        variant: 'destructive',
+        title: 'Xona raqami noto‘g‘ri',
+        description: "Musbat xona raqamini kiriting.",
+      });
       return;
     }
 
     try {
       setIsSaving(true);
       await createAsset({
-        category,
-        roomId: Number(roomId),
+        category: normalizedCategory,
+        roomId: parsedRoomId,
       });
       setRoomId('');
-      setCategory('Computer');
+      setCategory('');
       setIsAssetModalOpen(false);
       toast({ title: "Jihoz qo'shildi", description: `Xona ${roomId} uchun yangi jihoz yaratildi.` });
     } catch (error) {
@@ -73,15 +90,21 @@ export default function KompyuterlarPage() {
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-3">
                     <div className="h-10 w-10 flex items-center justify-center rounded-xl bg-primary/5 border border-primary/20">
-                      {asset.category === 'Computer' ? <Cpu className="h-5 w-5 text-primary" /> : <Gamepad2 className="h-5 w-5 text-primary" />}
+                      {getAssetCategoryKind(asset.category) === 'console' ? (
+                        <Gamepad2 className="h-5 w-5 text-primary" />
+                      ) : getAssetCategoryKind(asset.category) === 'computer' ? (
+                        <Cpu className="h-5 w-5 text-primary" />
+                      ) : (
+                        <Monitor className="h-5 w-5 text-primary" />
+                      )}
                     </div>
                     <div>
-                      <h3 className="text-sm font-black text-white uppercase tracking-tight">{asset.category}</h3>
+                      <h3 className="text-sm font-black text-white uppercase tracking-tight">{formatAssetCategoryLabel(asset.category)}</h3>
                       <p className="text-[9px] font-black text-primary/40 uppercase tracking-widest">Xona {asset.roomNumber}</p>
                     </div>
                   </div>
                   <DeleteConfirmButton
-                    itemName={`${asset.category} xona ${asset.roomNumber}`}
+                    itemName={`${formatAssetCategoryLabel(asset.category)} xona ${asset.roomNumber}`}
                     onConfirm={async () => {
                       try {
                         await deleteAsset(asset);
@@ -129,16 +152,14 @@ export default function KompyuterlarPage() {
             </DialogHeader>
             <div className="space-y-6 py-6">
               <div className="space-y-2">
-                <Label className="text-[9px] font-black uppercase tracking-[0.2em] text-primary/60">Kategoriya</Label>
-                <Select value={category} onValueChange={(value: 'Computer' | 'PS') => setCategory(value)}>
-                  <SelectTrigger className="h-12 bg-[#051111] border-white/5 rounded-xl font-bold px-4 text-sm">
-                    <SelectValue placeholder="Tanlang" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-[#0a1a1a] border-white/10 text-white rounded-xl">
-                    <SelectItem value="Computer" className="text-[10px] font-black uppercase">Computer</SelectItem>
-                    <SelectItem value="PS" className="text-[10px] font-black uppercase">PlayStation</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Label className="text-[9px] font-black uppercase tracking-[0.2em] text-primary/60">Jihoz Turi / Nomi</Label>
+                <Input
+                  type="text"
+                  placeholder="M: VR headset"
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                  className="h-12 bg-[#051111] border-white/5 rounded-xl font-bold px-4 text-sm"
+                />
               </div>
               <div className="space-y-2">
                 <Label className="text-[9px] font-black uppercase tracking-[0.2em] text-primary/60">Xona Raqami</Label>

@@ -17,6 +17,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
+import { formatAssetCategoryLabel, getAssetCategoryKind } from '@/lib/asset-category';
 import { cn } from '@/lib/utils';
 
 function toLocalDateTimeValue(date: Date) {
@@ -226,10 +227,14 @@ export default function BandQilishPage() {
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-3">
                                 <div className="h-9 w-9 flex items-center justify-center rounded-lg bg-white/5 border border-white/10">
-                                  {asset.category === 'Computer' ? <Monitor className="h-4 w-4 text-primary" /> : <Gamepad2 className="h-4 w-4 text-primary" />}
+                                  {getAssetCategoryKind(asset.category) === 'console' ? (
+                                    <Gamepad2 className="h-4 w-4 text-primary" />
+                                  ) : (
+                                    <Monitor className="h-4 w-4 text-primary" />
+                                  )}
                                 </div>
                                 <div>
-                                  <p className="text-[10px] font-black text-white uppercase tracking-tight">{asset.category}</p>
+                                  <p className="text-[10px] font-black text-white uppercase tracking-tight">{formatAssetCategoryLabel(asset.category)}</p>
                                   <p className="text-[8px] text-white/40 font-bold uppercase tracking-widest">Asset #{asset.backendId}</p>
                                 </div>
                               </div>

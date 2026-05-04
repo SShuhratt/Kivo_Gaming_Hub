@@ -173,20 +173,20 @@ class OpenApiSpec
                     'assets' => ['type' => 'array', 'items' => ['$ref' => '#/components/schemas/Asset']],
                 ]),
                 'AssetCreateRequest' => $this->object([
-                    'category' => ['type' => 'string', 'enum' => ['Computer', 'PS'], 'example' => 'Computer'],
+                    'category' => ['type' => 'string', 'example' => 'VR headset'],
                     'room_id' => ['type' => 'integer', 'example' => 101],
                     'total_usage_duration_minutes' => ['type' => 'integer', 'example' => 0],
                     'total_earned_money' => ['type' => 'number', 'example' => 0],
                 ], ['category', 'room_id']),
                 'AssetUpdateRequest' => $this->object([
-                    'category' => ['type' => 'string', 'enum' => ['Computer', 'PS'], 'example' => 'PS'],
+                    'category' => ['type' => 'string', 'example' => 'Racing simulator'],
                     'room_id' => ['type' => 'integer', 'example' => 102],
                     'total_usage_duration_minutes' => ['type' => 'integer', 'example' => 120],
                     'total_earned_money' => ['type' => 'number', 'example' => 120000],
                 ]),
                 'Asset' => $this->object([
                     'id' => ['type' => 'integer', 'example' => 1],
-                    'category' => ['type' => 'string', 'enum' => ['Computer', 'PS'], 'example' => 'Computer'],
+                    'category' => ['type' => 'string', 'example' => 'Projector'],
                     'room_id' => ['type' => 'integer', 'example' => 101],
                     'total_usage_duration_minutes' => ['type' => 'integer', 'example' => 0],
                     'total_earned_money' => ['type' => 'number', 'example' => 0],

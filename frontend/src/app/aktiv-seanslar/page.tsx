@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { CheckCircle2, Clock3, Gamepad2, Monitor, ShieldAlert, StopCircle, Trash2 } from 'lucide-react';
+import { formatAssetCategoryLabel, getAssetCategoryKind } from '@/lib/asset-category';
 
 function formatDateTime(value: string | null) {
   if (!value) {
@@ -148,13 +149,13 @@ export default function AktivSeanslarPage() {
                     <div className="flex flex-wrap gap-2">
                       {session.assets.map((asset, index) => (
                         <div key={`${session.id}-${asset.id ?? index}`} className="rounded-xl bg-[#051111] border border-white/5 px-3 py-2 flex items-center gap-2">
-                          {asset.category === 'PS' ? (
+                          {getAssetCategoryKind(asset.category) === 'console' ? (
                             <Gamepad2 className="h-3.5 w-3.5 text-primary" />
                           ) : (
                             <Monitor className="h-3.5 w-3.5 text-primary" />
                           )}
                           <span className="text-[10px] font-black text-white uppercase tracking-tight">
-                            {asset.category ?? 'Device'} {asset.roomNumber ? `• Xona ${asset.roomNumber}` : ''}
+                            {formatAssetCategoryLabel(asset.category)} {asset.roomNumber ? `• Xona ${asset.roomNumber}` : ''}
                           </span>
                         </div>
                       ))}

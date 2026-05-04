@@ -100,7 +100,7 @@ export type DashboardBootstrapResponse = {
     };
     assets: Array<{
       id: number | null;
-      category: 'Computer' | 'PS' | null;
+      category: string | null;
       room_id: number | null;
       room_number: string | null;
     }>;
@@ -128,7 +128,7 @@ export type DashboardBootstrapResponse = {
   assets: Array<{
     id: string;
     backend_id: number;
-    category: 'Computer' | 'PS';
+    category: string;
     room_id: number;
     room_number: string;
     total_usage_duration_minutes: number;
@@ -350,7 +350,7 @@ export function deleteTariffRequest(token: string, tariffId: number) {
   });
 }
 
-export function createAssetRequest(token: string, payload: { category: 'Computer' | 'PS'; room_id: number }) {
+export function createAssetRequest(token: string, payload: { category: string; room_id: number }) {
   return apiRequest('/assets', {
     method: 'POST',
     token,
