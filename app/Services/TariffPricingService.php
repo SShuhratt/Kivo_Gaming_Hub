@@ -105,6 +105,7 @@ class TariffPricingService
                 ])
                 ->map(fn (Asset $asset) => [
                     'id' => $asset->id,
+                    'name' => $asset->name,
                     'category' => $asset->category,
                     'room_id' => $asset->room_id,
                     'room_number' => (string) $asset->room_id,
@@ -134,6 +135,7 @@ class TariffPricingService
 
                     return [
                         'id' => $asset->id,
+                        'name' => $asset->name,
                         'category' => $asset->category,
                         'room_id' => $asset->room_id,
                         'room_number' => (string) $asset->room_id,
@@ -143,6 +145,7 @@ class TariffPricingService
 
                 return [
                     'id' => $asset->id,
+                    'name' => $asset->name,
                     'category' => $asset->category,
                     'room_id' => $asset->room_id,
                     'room_number' => (string) $asset->room_id,

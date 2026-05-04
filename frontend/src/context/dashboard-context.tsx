@@ -93,6 +93,7 @@ export interface Tariff {
 export interface AssetDevice {
   id: string;
   backendId: number;
+  name: string;
   category: string;
   roomId: number;
   roomNumber: string;
@@ -187,8 +188,8 @@ interface DashboardContextType {
   createTariff: (payload: { name: string; categoryPrices: Array<{ category: string; hourlyPrice: number }> }) => Promise<void>;
   updateTariff: (payload: { backendId: number; name: string; categoryPrices: Array<{ category: string; hourlyPrice: number }> }) => Promise<void>;
   deleteTariff: (tariff: Tariff) => Promise<void>;
-  createAsset: (payload: { category: string; roomId: number }) => Promise<void>;
-  updateAsset: (payload: { backendId: number; category: string; roomId: number }) => Promise<void>;
+  createAsset: (payload: { name: string; category: string; roomId: number }) => Promise<void>;
+  updateAsset: (payload: { backendId: number; name: string; category: string; roomId: number }) => Promise<void>;
   deleteAsset: (asset: AssetDevice) => Promise<void>;
   saveWarehouseProduct: (payload: {
     backendId?: number;
@@ -373,6 +374,7 @@ function mapBootstrapPayload(payload: DashboardBootstrapResponse) {
     assets: payload.assets.map((asset) => ({
       id: asset.id,
       backendId: asset.backend_id,
+      name: asset.name,
       category: asset.category,
       roomId: asset.room_id,
       roomNumber: asset.room_number,
@@ -587,12 +589,17 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
   );
 
   const createAsset = useCallback(
-    async ({ category, roomId }: { category: string; roomId: number }) => {
+    async ({ name, category, roomId }: { name: string; category: string; roomId: number }) => {
       const activeToken = requireToken();
+      const normalizedName = name.trim();
       const normalizedCategory = category.trim();
 
+      if (!normalizedName) {
+        throw new Error('Asset name is required.');
+      }
+
       if (!normalizedCategory) {
-        throw new Error('Asset type is required.');
+        throw new Error('Asset category is required.');
       }
 
       if (!Number.isFinite(roomId) || roomId <= 0) {
@@ -600,6 +607,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       }
 
       await createAssetRequest(activeToken, {
+        name: normalizedName,
         category: normalizedCategory,
         room_id: roomId,
       });
@@ -610,12 +618,17 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
   );
 
   const updateAsset = useCallback(
-    async ({ backendId, category, roomId }: { backendId: number; category: string; roomId: number }) => {
+    async ({ backendId, name, category, roomId }: { backendId: number; name: string; category: string; roomId: number }) => {
       const activeToken = requireToken();
+      const normalizedName = name.trim();
       const normalizedCategory = category.trim();
 
+      if (!normalizedName) {
+        throw new Error('Asset name is required.');
+      }
+
       if (!normalizedCategory) {
-        throw new Error('Asset type is required.');
+        throw new Error('Asset category is required.');
       }
 
       if (!Number.isFinite(roomId) || roomId <= 0) {
@@ -623,6 +636,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       }
 
       await updateAssetRequest(activeToken, backendId, {
+        name: normalizedName,
         category: normalizedCategory,
         room_id: roomId,
       });

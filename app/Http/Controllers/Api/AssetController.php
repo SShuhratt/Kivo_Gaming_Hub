@@ -17,6 +17,7 @@ class AssetController extends Controller
     public function store(Request $request)
     {
         $validated = $this->validateApi($request, [
+            'name' => 'required|string|max:255',
             'category' => 'required|string|max:255',
             'room_id' => 'required|integer',
             'total_usage_duration_minutes' => 'sometimes|integer|min:0',
@@ -31,6 +32,7 @@ class AssetController extends Controller
     public function update(Request $request, Asset $asset)
     {
         $validated = $this->validateApi($request, [
+            'name' => 'sometimes|required|string|max:255',
             'category' => 'sometimes|required|string|max:255',
             'room_id' => 'sometimes|required|integer',
             'total_usage_duration_minutes' => 'sometimes|required|integer|min:0',

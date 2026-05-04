@@ -116,6 +116,7 @@ trait FormatsSessionPayloads
             return collect($snapshot)
                 ->map(fn ($asset) => [
                     'id' => $asset['id'] ?? null,
+                    'name' => $asset['name'] ?? null,
                     'category' => $asset['category'] ?? null,
                     'room_id' => $asset['room_id'] ?? null,
                     'room_number' => isset($asset['room_number']) ? (string) $asset['room_number'] : (isset($asset['room_id']) ? (string) $asset['room_id'] : null),
@@ -128,6 +129,7 @@ trait FormatsSessionPayloads
         return $fallbackAssets
             ->map(fn ($asset) => [
                 'id' => $asset->id,
+                'name' => $asset->name,
                 'category' => $asset->category,
                 'room_id' => $asset->room_id,
                 'room_number' => (string) $asset->room_id,

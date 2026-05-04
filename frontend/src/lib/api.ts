@@ -142,6 +142,7 @@ export type DashboardBootstrapResponse = {
   assets: Array<{
     id: string;
     backend_id: number;
+    name: string;
     category: string;
     room_id: number;
     room_number: string;
@@ -399,7 +400,7 @@ export function deleteTariffRequest(token: string, tariffId: number) {
   });
 }
 
-export function createAssetRequest(token: string, payload: { category: string; room_id: number }) {
+export function createAssetRequest(token: string, payload: { name: string; category: string; room_id: number }) {
   return apiRequest('/assets', {
     method: 'POST',
     token,
@@ -411,6 +412,7 @@ export function updateAssetRequest(
   token: string,
   assetId: number,
   payload: {
+    name?: string;
     category?: string;
     room_id?: number;
   }

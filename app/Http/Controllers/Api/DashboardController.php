@@ -76,6 +76,7 @@ class DashboardController extends Controller
                 return [
                     'id' => (string) $asset->id,
                     'backend_id' => $asset->id,
+                    'name' => $asset->name,
                     'category' => $asset->category,
                     'room_id' => $asset->room_id,
                     'room_number' => (string) $asset->room_id,

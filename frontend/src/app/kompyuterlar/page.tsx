@@ -18,11 +18,13 @@ import {
 } from '@/lib/asset-category';
 
 type AssetFormState = {
+  name: string;
   category: string;
   roomId: string;
 };
 
 const emptyFormState: AssetFormState = {
+  name: '',
   category: '',
   roomId: '',
 };
@@ -51,6 +53,7 @@ export default function JihozlarPage() {
   const openEditModal = (asset: AssetDevice) => {
     setEditingAsset(asset);
     setFormState({
+      name: asset.name,
       category: asset.category,
       roomId: String(asset.roomId),
     });
@@ -61,11 +64,20 @@ export default function JihozlarPage() {
     const normalizedCategory = normalizeAssetCategoryValue(formState.category);
     const parsedRoomId = Number(formState.roomId);
 
+    if (!formState.name.trim()) {
+      toast({
+        variant: 'destructive',
+        title: 'Jihoz nomi kiritilmagan',
+        description: "Jihoz nomini kiriting (Masalan: Kompyuter 1).",
+      });
+      return;
+    }
+
     if (!normalizedCategory) {
       toast({
         variant: 'destructive',
-        title: 'Jihoz turi kiritilmagan',
-        description: "Jihoz turi yoki nomini kiriting.",
+        title: 'Kategoriya kiritilmagan',
+        description: "Jihoz kategoriyasini kiriting (Masalan: Kompyuterlar).",
       });
       return;
     }
@@ -85,11 +97,13 @@ export default function JihozlarPage() {
       if (editingAsset) {
         await updateAsset({
           backendId: editingAsset.backendId,
+          name: formState.name.trim(),
           category: normalizedCategory,
           roomId: parsedRoomId,
         });
       } else {
         await createAsset({
+          name: formState.name.trim(),
           category: normalizedCategory,
           roomId: parsedRoomId,
         });
@@ -147,8 +161,8 @@ export default function JihozlarPage() {
                       )}
                     </div>
                     <div className="min-w-0">
-                      <h3 className="text-sm font-black text-white uppercase tracking-tight truncate">{formatAssetCategoryLabel(asset.category)}</h3>
-                      <p className="text-[9px] font-black text-primary/40 uppercase tracking-widest">Xona {asset.roomNumber}</p>
+                      <h3 className="text-sm font-black text-white uppercase tracking-tight truncate">{asset.name}</h3>
+                      <p className="text-[9px] font-black text-primary/40 uppercase tracking-widest">{formatAssetCategoryLabel(asset.category)} • Xona {asset.roomNumber}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
@@ -222,13 +236,23 @@ export default function JihozlarPage() {
                 Mavjud kategoriyani tanlang yoki yangi kategoriya kiriting.
               </DialogDescription>
             </DialogHeader>
-            <div className="space-y-6 py-6">
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label className="text-[9px] font-black uppercase tracking-[0.2em] text-primary/60">Nomi</Label>
+                <Input
+                  type="text"
+                  placeholder="M: Kompyuter 1"
+                  value={formState.name}
+                  onChange={(e) => setFormState((current) => ({ ...current, name: e.target.value }))}
+                  className="h-12 bg-[#051111] border-white/5 rounded-xl font-bold px-4 text-sm"
+                />
+              </div>
               <div className="space-y-2">
                 <Label className="text-[9px] font-black uppercase tracking-[0.2em] text-primary/60">Kategoriya</Label>
                 <Input
                   type="text"
                   list="asset-category-options"
-                  placeholder="M: PS5 yoki Racing simulator"
+                  placeholder="M: Kompyuterlar"
                   value={formState.category}
                   onChange={(e) => setFormState((current) => ({ ...current, category: e.target.value }))}
                   className="h-12 bg-[#051111] border-white/5 rounded-xl font-bold px-4 text-sm"
@@ -240,10 +264,10 @@ export default function JihozlarPage() {
                 </datalist>
               </div>
               <div className="space-y-2">
-                <Label className="text-[9px] font-black uppercase tracking-[0.2em] text-primary/60">Xona Raqami</Label>
+                <Label className="text-[9px] font-black uppercase tracking-[0.2em] text-primary/60">Xona raqami</Label>
                 <Input
                   type="number"
-                  placeholder="M: 2"
+                  placeholder="M: 1"
                   value={formState.roomId}
                   onChange={(e) => setFormState((current) => ({ ...current, roomId: e.target.value }))}
                   className="h-12 bg-[#051111] border-white/5 rounded-xl font-bold px-4 text-sm"
