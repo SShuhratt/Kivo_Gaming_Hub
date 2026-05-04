@@ -57,6 +57,12 @@ export type DashboardBootstrapResponse = {
     room_id: number;
     room_number: string;
     items: string[];
+    service_entries: Array<{
+      id: string;
+      backend_id: number;
+      name: string;
+      cost: number;
+    }>;
     service_ids: number[];
   }>;
   tariffs: Array<{
@@ -64,6 +70,11 @@ export type DashboardBootstrapResponse = {
     backend_id: number;
     name: string;
     hourly_price: number;
+    category_prices: Array<{
+      id: string;
+      category: string;
+      hourly_price: number;
+    }>;
   }>;
   sales: Array<{
     id: string;
@@ -87,12 +98,14 @@ export type DashboardBootstrapResponse = {
     status: 'submitted' | 'debt_closed';
     session_status: 'active' | 'completed' | 'cancelled';
     start_time: string;
-    end_time: string;
+    end_time: string | null;
     ended_at: string | null;
     duration_minutes: number;
+    requested_duration_hours: number | null;
     total_cost: number;
     debt_name: string | null;
     debt_phone_number: string | null;
+    is_vip: boolean;
     tariff: {
       id: number | null;
       name: string | null;
@@ -103,6 +116,7 @@ export type DashboardBootstrapResponse = {
       category: string | null;
       room_id: number | null;
       room_number: string | null;
+      hourly_price: number | null;
     }>;
     assets_count: number;
     room_label: string;
@@ -320,9 +334,17 @@ export function getDashboardBootstrap(token: string) {
   });
 }
 
-export function createServiceRequest(token: string, payload: { game_name: string; room_id: number }) {
+export function createServiceRequest(token: string, payload: { game_name: string; room_id: number; cost: number }) {
   return apiRequest('/services', {
     method: 'POST',
+    token,
+    body: payload,
+  });
+}
+
+export function updateServiceRequest(token: string, serviceId: number, payload: { game_name?: string; room_id?: number; cost?: number }) {
+  return apiRequest(`/services/${serviceId}`, {
+    method: 'PATCH',
     token,
     body: payload,
   });
@@ -335,9 +357,36 @@ export function deleteServiceRequest(token: string, serviceId: number) {
   });
 }
 
-export function createTariffRequest(token: string, payload: { name: string; hourly_cost: number }) {
+export function createTariffRequest(
+  token: string,
+  payload: {
+    name: string;
+    category_prices: Array<{
+      category: string;
+      hourly_price: number;
+    }>;
+  }
+) {
   return apiRequest('/tariffs', {
     method: 'POST',
+    token,
+    body: payload,
+  });
+}
+
+export function updateTariffRequest(
+  token: string,
+  tariffId: number,
+  payload: {
+    name?: string;
+    category_prices?: Array<{
+      category: string;
+      hourly_price: number;
+    }>;
+  }
+) {
+  return apiRequest(`/tariffs/${tariffId}`, {
+    method: 'PATCH',
     token,
     body: payload,
   });
@@ -353,6 +402,21 @@ export function deleteTariffRequest(token: string, tariffId: number) {
 export function createAssetRequest(token: string, payload: { category: string; room_id: number }) {
   return apiRequest('/assets', {
     method: 'POST',
+    token,
+    body: payload,
+  });
+}
+
+export function updateAssetRequest(
+  token: string,
+  assetId: number,
+  payload: {
+    category?: string;
+    room_id?: number;
+  }
+) {
+  return apiRequest(`/assets/${assetId}`, {
+    method: 'PATCH',
     token,
     body: payload,
   });
@@ -424,12 +488,25 @@ export function calculateBookingRequest(
     tariff_id: number;
     asset_ids: number[];
     start_time: string;
-    end_time: string;
+    duration_hours?: number;
+    end_time?: string;
+    is_vip?: boolean;
   }
 ) {
   return apiRequest<{
     duration_minutes: number;
+    duration_hours: number | null;
+    hourly_rate_total: number;
     total_cost: number;
+    is_vip: boolean;
+    end_time: string | null;
+    asset_breakdown: Array<{
+      id: number;
+      category: string;
+      room_id: number;
+      room_number: string;
+      hourly_price: number;
+    }>;
   }>('/bookings/calculate', {
     method: 'POST',
     token,
@@ -443,7 +520,9 @@ export function createBookingRequest(
     tariff_id: number;
     asset_ids: number[];
     start_time: string;
-    end_time: string;
+    duration_hours?: number;
+    end_time?: string;
+    is_vip?: boolean;
     status: 'submitted' | 'debt_closed';
     debt_name?: string;
     debt_phone_number?: string;

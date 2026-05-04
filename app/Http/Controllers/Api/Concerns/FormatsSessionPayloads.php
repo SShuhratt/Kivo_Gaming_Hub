@@ -23,9 +23,11 @@ trait FormatsSessionPayloads
             'end_time' => $booking->end_time,
             'ended_at' => $booking->ended_at,
             'duration_minutes' => $booking->duration_minutes,
+            'requested_duration_hours' => $booking->requested_duration_hours,
             'total_cost' => (float) $booking->total_cost,
             'debt_name' => $booking->debt_name,
             'debt_phone_number' => $booking->debt_phone_number,
+            'is_vip' => $booking->is_vip,
             'tariff' => [
                 'id' => $booking->tariff_id,
                 'name' => $booking->tariff_name_snapshot ?: $booking->tariff?->name,
@@ -117,6 +119,7 @@ trait FormatsSessionPayloads
                     'category' => $asset['category'] ?? null,
                     'room_id' => $asset['room_id'] ?? null,
                     'room_number' => isset($asset['room_number']) ? (string) $asset['room_number'] : (isset($asset['room_id']) ? (string) $asset['room_id'] : null),
+                    'hourly_price' => array_key_exists('hourly_price', $asset) ? (float) $asset['hourly_price'] : null,
                 ])
                 ->values()
                 ->all();
@@ -128,6 +131,7 @@ trait FormatsSessionPayloads
                 'category' => $asset->category,
                 'room_id' => $asset->room_id,
                 'room_number' => (string) $asset->room_id,
+                'hourly_price' => null,
             ])
             ->values()
             ->all();

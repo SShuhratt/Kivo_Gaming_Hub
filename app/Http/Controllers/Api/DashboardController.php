@@ -34,12 +34,21 @@ class DashboardController extends Controller
                     'room_id' => (int) $roomId,
                     'room_number' => (string) $roomId,
                     'items' => $roomServices->pluck('game_name')->values()->all(),
+                    'service_entries' => $roomServices->map(function (Service $service) {
+                        return [
+                            'id' => (string) $service->id,
+                            'backend_id' => $service->id,
+                            'name' => $service->game_name,
+                            'cost' => (float) $service->cost,
+                        ];
+                    })->values()->all(),
                     'service_ids' => $roomServices->pluck('id')->values()->all(),
                 ];
             })
             ->values();
 
         $tariffs = Tariff::query()
+            ->with('categoryPrices')
             ->orderBy('name')
             ->get()
             ->map(function (Tariff $tariff) {
@@ -48,6 +57,13 @@ class DashboardController extends Controller
                     'backend_id' => $tariff->id,
                     'name' => $tariff->name,
                     'hourly_price' => (float) $tariff->hourly_cost,
+                    'category_prices' => $tariff->categoryPrices->map(function ($price) {
+                        return [
+                            'id' => (string) $price->id,
+                            'category' => $price->category,
+                            'hourly_price' => (float) $price->hourly_price,
+                        ];
+                    })->values()->all(),
                 ];
             })
             ->values();
@@ -96,7 +112,7 @@ class DashboardController extends Controller
             ->values();
 
         $sessions = Booking::query()
-            ->with(['assets', 'tariff', 'trade'])
+            ->with(['assets', 'tariff.categoryPrices', 'trade'])
             ->orderByRaw("case when session_status = 'active' then 0 else 1 end")
             ->latest('start_time')
             ->get();
@@ -137,7 +153,7 @@ class DashboardController extends Controller
                 ['key' => 'sessions', 'name' => 'Aktiv seanslar', 'path' => '/aktiv-seanslar'],
                 ['key' => 'cashier', 'name' => 'Kassa', 'path' => '/kassa'],
                 ['key' => 'sales', 'name' => 'Savdo', 'path' => '/savdo'],
-                ['key' => 'computers', 'name' => 'Kompyuterlar', 'path' => '/kompyuterlar'],
+                ['key' => 'assets', 'name' => 'Jihozlar', 'path' => '/kompyuterlar'],
                 ['key' => 'inventory', 'name' => 'Ombor', 'path' => '/ombor'],
                 ['key' => 'services', 'name' => 'Xizmatlar', 'path' => '/xizmatlar'],
                 ['key' => 'tariffs', 'name' => 'Tariflar', 'path' => '/tariflar'],

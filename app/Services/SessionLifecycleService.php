@@ -9,10 +9,17 @@ use Illuminate\Support\Facades\DB;
 
 class SessionLifecycleService
 {
+    public function __construct(
+        protected TariffPricingService $tariffPricing,
+    ) {
+    }
+
     public function syncElapsedSessions(): void
     {
         Booking::query()
             ->where('session_status', 'active')
+            ->where('is_vip', false)
+            ->whereNotNull('end_time')
             ->where('end_time', '<=', Carbon::now())
             ->pluck('id')
             ->each(fn (int $bookingId) => $this->completeBooking($bookingId));
@@ -25,7 +32,7 @@ class SessionLifecycleService
         return DB::transaction(function () use ($bookingId, $endedAt) {
             /** @var Booking $lockedBooking */
             $lockedBooking = Booking::query()
-                ->with(['assets', 'tariff', 'trade'])
+                ->with(['assets', 'tariff.categoryPrices', 'trade'])
                 ->lockForUpdate()
                 ->findOrFail($bookingId);
 
@@ -35,10 +42,12 @@ class SessionLifecycleService
 
             $snapshot = $lockedBooking->asset_snapshot ?? $this->buildAssetSnapshot($lockedBooking);
             $startTime = Carbon::parse($lockedBooking->start_time);
-            $scheduledEndTime = Carbon::parse($lockedBooking->end_time);
-            $effectiveEndTime = $endedAt ? Carbon::parse($endedAt) : $scheduledEndTime->copy();
+            $scheduledEndTime = $lockedBooking->end_time ? Carbon::parse($lockedBooking->end_time) : null;
+            $effectiveEndTime = $endedAt
+                ? Carbon::parse($endedAt)
+                : ($scheduledEndTime ? $scheduledEndTime->copy() : Carbon::now());
 
-            if ($effectiveEndTime->greaterThan($scheduledEndTime)) {
+            if ($scheduledEndTime && ! $lockedBooking->is_vip && $effectiveEndTime->greaterThan($scheduledEndTime)) {
                 $effectiveEndTime = $scheduledEndTime->copy();
             }
 
@@ -52,10 +61,11 @@ class SessionLifecycleService
                 'end_time' => $effectiveEndTime,
                 'ended_at' => $effectiveEndTime,
                 'duration_minutes' => $totals['duration_minutes'],
+                'requested_duration_hours' => $totals['duration_hours'],
                 'total_cost' => $totals['total_cost'],
                 'session_status' => 'completed',
                 'tariff_name_snapshot' => $lockedBooking->tariff_name_snapshot ?: $lockedBooking->tariff?->name,
-                'hourly_rate_snapshot' => $totals['hourly_rate'],
+                'hourly_rate_snapshot' => $totals['hourly_rate_total'],
                 'asset_snapshot' => $snapshot,
             ]);
 
@@ -68,7 +78,7 @@ class SessionLifecycleService
                 $this->tradePayload($lockedBooking, $snapshot),
             );
 
-            return $lockedBooking->fresh(['assets', 'tariff', 'trade']);
+            return $lockedBooking->fresh(['assets', 'tariff.categoryPrices', 'trade']);
         });
     }
 
@@ -76,46 +86,56 @@ class SessionLifecycleService
     {
         $startTime = Carbon::parse($booking->start_time);
         $durationMinutes = (int) $startTime->diffInMinutes($effectiveEndTime);
-        $assetCount = count($snapshot);
-        $hourlyRate = $this->resolveHourlyRate($booking, $durationMinutes, $assetCount);
-        $totalCost = $durationMinutes > 0 && $assetCount > 0
-            ? round(($durationMinutes / 60) * $hourlyRate * $assetCount, 2)
+        $durationHours = round($durationMinutes / 60, 2);
+        $hourlyRateTotal = $this->resolveHourlyRateTotal($booking, $snapshot);
+        $totalCost = $durationMinutes > 0
+            ? round($durationHours * $hourlyRateTotal, 2)
             : 0;
 
         return [
+            'duration_hours' => $durationHours,
             'duration_minutes' => $durationMinutes,
+            'hourly_rate_total' => $hourlyRateTotal,
             'total_cost' => $totalCost,
-            'hourly_rate' => $hourlyRate,
         ];
     }
 
-    protected function resolveHourlyRate(Booking $booking, int $durationMinutes, int $assetCount): float
+    protected function resolveHourlyRateTotal(Booking $booking, array $snapshot): float
     {
+        $snapshotHasExplicitPrices = collect($snapshot)->contains(
+            fn ($asset) => array_key_exists('hourly_price', $asset) && $asset['hourly_price'] !== null
+        );
+
+        if ($snapshotHasExplicitPrices) {
+            return round(
+                collect($snapshot)->sum(fn ($asset) => (float) ($asset['hourly_price'] ?? 0)),
+                2,
+            );
+        }
+
         if ((float) $booking->hourly_rate_snapshot > 0) {
-            return (float) $booking->hourly_rate_snapshot;
+            return round((float) $booking->hourly_rate_snapshot * max(1, count($snapshot)), 2);
         }
 
-        if ($booking->tariff && $booking->tariff->hourly_cost !== null) {
-            return (float) $booking->tariff->hourly_cost;
-        }
-
-        if ($durationMinutes <= 0 || $assetCount <= 0) {
-            return 0;
-        }
-
-        return round((float) $booking->total_cost / (($durationMinutes / 60) * $assetCount), 2);
+        return 0;
     }
 
     protected function recordAssetStats(Booking $booking, array $snapshot): void
     {
-        $snapshotAssetCount = count($snapshot);
-        $earnedPerAsset = $snapshotAssetCount > 0
-            ? round((float) $booking->total_cost / $snapshotAssetCount, 2)
-            : 0;
+        $durationHours = round($booking->duration_minutes / 60, 2);
+        $assetEarnings = collect($snapshot)
+            ->filter(fn ($asset) => isset($asset['id']))
+            ->keyBy(fn ($asset) => (int) $asset['id'])
+            ->map(fn ($asset) => round($durationHours * (float) ($asset['hourly_price'] ?? 0), 2));
 
         foreach ($booking->assets as $asset) {
             $asset->increment('total_usage_duration_minutes', $booking->duration_minutes);
-            $asset->increment('total_earned_money', $earnedPerAsset);
+
+            $earnedMoney = $assetEarnings->has($asset->id)
+                ? (float) $assetEarnings->get($asset->id)
+                : $this->fallbackAssetEarnings($booking, count($snapshot));
+
+            $asset->increment('total_earned_money', $earnedMoney);
         }
 
         $booking->update(['asset_stats_recorded' => true]);
@@ -142,6 +162,14 @@ class SessionLifecycleService
 
     protected function buildAssetSnapshot(Booking $booking): array
     {
+        if ($booking->tariff) {
+            try {
+                return $this->tariffPricing->buildAssetSnapshot($booking->tariff, $booking->assets);
+            } catch (\Throwable) {
+                // Fall back to a minimal snapshot if the tariff no longer has matching category prices.
+            }
+        }
+
         return $booking->assets
             ->sortBy([
                 ['room_id', 'asc'],
@@ -152,8 +180,18 @@ class SessionLifecycleService
                 'category' => $asset->category,
                 'room_id' => $asset->room_id,
                 'room_number' => (string) $asset->room_id,
+                'hourly_price' => null,
             ])
             ->values()
             ->all();
+    }
+
+    protected function fallbackAssetEarnings(Booking $booking, int $assetCount): float
+    {
+        if ($assetCount <= 0) {
+            return 0;
+        }
+
+        return round((float) $booking->total_cost / $assetCount, 2);
     }
 }

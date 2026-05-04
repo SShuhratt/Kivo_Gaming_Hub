@@ -9,7 +9,9 @@ use App\Models\Asset;
 use App\Models\Booking;
 use App\Models\Tariff;
 use App\Services\SessionLifecycleService;
+use App\Services\TariffPricingService;
 use Carbon\Carbon;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -28,7 +30,7 @@ class BookingController extends Controller
         $sessionLifecycle->syncElapsedSessions();
 
         $bookings = Booking::query()
-            ->with(['assets', 'tariff', 'trade'])
+            ->with(['assets', 'tariff.categoryPrices', 'trade'])
             ->when(
                 $validated['session_status'] ?? null,
                 fn ($query, $status) => $query->where('session_status', $status)
@@ -46,68 +48,87 @@ class BookingController extends Controller
     {
         $sessionLifecycle->syncElapsedSessions();
 
-        $booking->load(['assets', 'tariff', 'trade']);
+        $booking->load(['assets', 'tariff.categoryPrices', 'trade']);
 
         return response()->json($this->formatSession($booking));
     }
 
-    public function calculate(Request $request)
-    {
-        $validated = $this->validateApi($request, [
-            'tariff_id' => 'required|exists:tariffs,id',
-            'asset_ids' => 'required|array',
-            'asset_ids.*' => 'required|integer|distinct|exists:assets,id',
-            'start_time' => 'required|date',
-            'end_time' => 'required|date|after:start_time',
-        ]);
-
-        $calculation = $this->calculateTotals($validated);
-
-        return response()->json([
-            'duration_minutes' => $calculation['duration_minutes'],
-            'total_cost' => $calculation['total_cost'],
-        ]);
-    }
-
-    public function store(Request $request, SessionLifecycleService $sessionLifecycle)
+    public function calculate(Request $request, TariffPricingService $tariffPricing)
     {
         $validated = $this->validateApi($request, [
             'tariff_id' => 'required|exists:tariffs,id',
             'asset_ids' => 'required|array|min:1',
             'asset_ids.*' => 'required|integer|distinct|exists:assets,id',
             'start_time' => 'required|date',
-            'end_time' => 'required|date|after:start_time',
+            'end_time' => 'nullable|date|after:start_time',
+            'duration_hours' => 'nullable|numeric|min:0.1',
+            'is_vip' => 'sometimes|boolean',
+        ]);
+
+        $timing = $this->resolveTiming($validated);
+        $tariff = Tariff::query()->with('categoryPrices')->findOrFail($validated['tariff_id']);
+        $assets = $this->resolveAssets($validated['asset_ids']);
+        $snapshot = $tariffPricing->buildAssetSnapshot($tariff, $assets);
+        $summary = $tariffPricing->summarizeSnapshot($snapshot, $timing['duration_hours']);
+
+        return response()->json([
+            'duration_minutes' => $summary['duration_minutes'],
+            'duration_hours' => $summary['duration_hours'],
+            'hourly_rate_total' => $summary['hourly_rate_total'],
+            'total_cost' => $summary['total_cost'],
+            'is_vip' => $timing['is_vip'],
+            'end_time' => $timing['end_time']?->toISOString(),
+            'asset_breakdown' => collect($snapshot)->map(fn ($asset) => [
+                'id' => $asset['id'],
+                'category' => $asset['category'],
+                'room_id' => $asset['room_id'],
+                'room_number' => $asset['room_number'],
+                'hourly_price' => (float) ($asset['hourly_price'] ?? 0),
+            ])->values()->all(),
+        ]);
+    }
+
+    public function store(
+        Request $request,
+        SessionLifecycleService $sessionLifecycle,
+        TariffPricingService $tariffPricing
+    ) {
+        $validated = $this->validateApi($request, [
+            'tariff_id' => 'required|exists:tariffs,id',
+            'asset_ids' => 'required|array|min:1',
+            'asset_ids.*' => 'required|integer|distinct|exists:assets,id',
+            'start_time' => 'required|date',
+            'end_time' => 'nullable|date|after:start_time',
+            'duration_hours' => 'nullable|numeric|min:0.1',
+            'is_vip' => 'sometimes|boolean',
             'status' => 'required|in:submitted,debt_closed',
             'debt_name' => 'required_if:status,debt_closed|nullable|string',
             'debt_phone_number' => 'required_if:status,debt_closed|nullable|string',
         ]);
 
-        $booking = DB::transaction(function () use ($validated) {
-            $assets = Asset::query()
-                ->whereIn('id', $validated['asset_ids'])
-                ->orderBy('room_id')
-                ->orderBy('id')
-                ->get();
-            $tariff = Tariff::findOrFail($validated['tariff_id']);
-            $calculation = $this->calculateTotals($validated, $tariff, $assets->count());
+        $timing = $this->resolveTiming($validated);
+
+        $booking = DB::transaction(function () use ($validated, $timing, $tariffPricing) {
+            $assets = $this->resolveAssets($validated['asset_ids']);
+            $tariff = Tariff::query()->with('categoryPrices')->findOrFail($validated['tariff_id']);
+            $snapshot = $tariffPricing->buildAssetSnapshot($tariff, $assets);
+            $summary = $tariffPricing->summarizeSnapshot($snapshot, $timing['duration_hours']);
 
             $booking = Booking::create([
                 'tariff_id' => $validated['tariff_id'],
                 'tariff_name_snapshot' => $tariff->name,
-                'hourly_rate_snapshot' => (float) $tariff->hourly_cost,
-                'asset_snapshot' => $assets->map(fn (Asset $asset) => [
-                    'id' => $asset->id,
-                    'category' => $asset->category,
-                    'room_id' => $asset->room_id,
-                    'room_number' => (string) $asset->room_id,
-                ])->values()->all(),
+                'hourly_rate_snapshot' => $summary['hourly_rate_total'],
+                'asset_snapshot' => $snapshot,
                 'asset_stats_recorded' => false,
-                'start_time' => $validated['start_time'],
-                'end_time' => $validated['end_time'],
-                'duration_minutes' => $calculation['duration_minutes'],
-                'total_cost' => $calculation['total_cost'],
+                'start_time' => $timing['start_time'],
+                'end_time' => $timing['end_time'],
+                'ended_at' => null,
+                'duration_minutes' => $summary['duration_minutes'],
+                'requested_duration_hours' => $summary['duration_hours'],
+                'total_cost' => $summary['total_cost'],
                 'status' => $validated['status'],
                 'session_status' => 'active',
+                'is_vip' => $timing['is_vip'],
                 'debt_name' => $validated['debt_name'] ?? null,
                 'debt_phone_number' => $validated['debt_phone_number'] ?? null,
             ]);
@@ -117,10 +138,10 @@ class BookingController extends Controller
             return $booking;
         });
 
-        if (Carbon::parse($booking->end_time)->lessThanOrEqualTo(Carbon::now())) {
+        if (! $booking->is_vip && $booking->end_time && Carbon::parse($booking->end_time)->lessThanOrEqualTo(Carbon::now())) {
             $booking = $sessionLifecycle->completeBooking($booking);
         } else {
-            $booking->load(['assets', 'tariff', 'trade']);
+            $booking->load(['assets', 'tariff.categoryPrices', 'trade']);
         }
 
         return response()->json($this->formatSession($booking), 201);
@@ -184,20 +205,77 @@ class BookingController extends Controller
         ], 405);
     }
 
-    protected function calculateTotals(array $payload, ?Tariff $tariff = null, ?int $assetCount = null): array
+    protected function resolveAssets(array $assetIds)
     {
-        $tariff ??= Tariff::findOrFail($payload['tariff_id']);
-        $start = Carbon::parse($payload['start_time']);
-        $end = Carbon::parse($payload['end_time']);
-        $durationMinutes = (int) $start->diffInMinutes($end);
-        $durationHours = $durationMinutes / 60;
-        $assetCount ??= count($payload['asset_ids']);
+        return Asset::query()
+            ->whereIn('id', $assetIds)
+            ->orderBy('room_id')
+            ->orderBy('id')
+            ->get();
+    }
 
-        $totalCost = $durationHours * $tariff->hourly_cost * $assetCount;
+    protected function resolveTiming(array $validated): array
+    {
+        $startTime = Carbon::parse($validated['start_time']);
+        $isVip = (bool) ($validated['is_vip'] ?? false);
+        $hasDuration = array_key_exists('duration_hours', $validated) && $validated['duration_hours'] !== null;
+        $hasEndTime = array_key_exists('end_time', $validated) && $validated['end_time'] !== null;
 
-        return [
-            'duration_minutes' => $durationMinutes,
-            'total_cost' => round($totalCost, 2),
-        ];
+        if ($isVip && ($hasDuration || $hasEndTime)) {
+            $this->abortBadRequest([
+                'duration_hours' => ['VIP booking cannot have a fixed duration or end time.'],
+            ]);
+        }
+
+        if (! $isVip && $hasDuration && $hasEndTime) {
+            $this->abortBadRequest([
+                'duration_hours' => ['Use either duration_hours or end_time, not both.'],
+            ]);
+        }
+
+        if ($isVip) {
+            return [
+                'is_vip' => true,
+                'start_time' => $startTime,
+                'end_time' => null,
+                'duration_hours' => null,
+            ];
+        }
+
+        if ($hasDuration) {
+            $durationHours = round((float) $validated['duration_hours'], 2);
+            $durationMinutes = (int) round($durationHours * 60);
+
+            return [
+                'is_vip' => false,
+                'start_time' => $startTime,
+                'end_time' => $startTime->copy()->addMinutes($durationMinutes),
+                'duration_hours' => $durationHours,
+            ];
+        }
+
+        if ($hasEndTime) {
+            $endTime = Carbon::parse($validated['end_time']);
+            $durationHours = round($startTime->diffInMinutes($endTime) / 60, 2);
+
+            return [
+                'is_vip' => false,
+                'start_time' => $startTime,
+                'end_time' => $endTime,
+                'duration_hours' => $durationHours,
+            ];
+        }
+
+        $this->abortBadRequest([
+            'duration_hours' => ['Duration is required unless VIP is selected.'],
+        ]);
+    }
+
+    protected function abortBadRequest(array $errors): never
+    {
+        throw new HttpResponseException(response()->json([
+            'message' => 'Bad request.',
+            'errors' => $errors,
+        ], 400));
     }
 }

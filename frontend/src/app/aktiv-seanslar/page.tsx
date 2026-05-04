@@ -7,7 +7,7 @@ import { useDashboard } from '@/context/dashboard-context';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { CheckCircle2, Clock3, Gamepad2, Monitor, ShieldAlert, StopCircle, Trash2 } from 'lucide-react';
+import { CheckCircle2, Clock3, Crown, Gamepad2, Monitor, ShieldAlert, StopCircle, Trash2 } from 'lucide-react';
 import { formatAssetCategoryLabel, getAssetCategoryKind } from '@/lib/asset-category';
 
 function formatDateTime(value: string | null) {
@@ -22,6 +22,23 @@ function formatDateTime(value: string | null) {
     hour: '2-digit',
     minute: '2-digit',
   });
+}
+
+function formatDuration(session: {
+  durationMinutes: number;
+  requestedDurationHours: number | null;
+  isVip: boolean;
+  sessionStatus: 'active' | 'completed' | 'cancelled';
+}) {
+  if (session.isVip && session.sessionStatus === 'active') {
+    return 'VIP';
+  }
+
+  if (session.requestedDurationHours !== null) {
+    return `${session.requestedDurationHours} soat`;
+  }
+
+  return `${session.durationMinutes} min`;
 }
 
 export default function AktivSeanslarPage() {
@@ -90,10 +107,15 @@ export default function AktivSeanslarPage() {
                         <Badge variant="outline" className="border-white/10 text-white/60 uppercase tracking-widest">
                           {session.status === 'submitted' ? "To'langan" : 'Qarz'}
                         </Badge>
+                        {session.isVip ? (
+                          <Badge variant="outline" className="border-primary/30 text-primary uppercase tracking-widest">
+                            <Crown className="mr-1 h-3 w-3" /> VIP
+                          </Badge>
+                        ) : null}
                       </div>
                       <h4 className="text-lg font-black text-white uppercase tracking-tight">{session.roomLabel}</h4>
                       <p className="text-[10px] font-bold text-primary/60 uppercase tracking-widest">
-                        {session.assetsCount} qurilma • {session.tariff.name ?? 'Tarif yo‘q'}
+                        {session.assetsCount} jihoz • {session.tariff.name ?? 'Tarif yo‘q'}
                       </p>
                     </div>
 
@@ -131,21 +153,29 @@ export default function AktivSeanslarPage() {
                       <p className="text-[11px] font-bold text-white mt-2">{formatDateTime(session.startTime)}</p>
                     </div>
                     <div className="rounded-2xl bg-white/5 border border-white/5 p-4">
-                      <p className="text-[8px] font-black text-white/30 uppercase tracking-widest">Rejadagi tugash</p>
-                      <p className="text-[11px] font-bold text-white mt-2">{formatDateTime(session.endTime)}</p>
+                      <p className="text-[8px] font-black text-white/30 uppercase tracking-widest">
+                        {session.isVip ? 'VIP holati' : 'Rejadagi tugash'}
+                      </p>
+                      <p className="text-[11px] font-bold text-white mt-2">
+                        {session.isVip ? 'Ochiq seans' : formatDateTime(session.endTime)}
+                      </p>
                     </div>
                     <div className="rounded-2xl bg-white/5 border border-white/5 p-4">
                       <p className="text-[8px] font-black text-white/30 uppercase tracking-widest">Davomiyligi</p>
-                      <p className="text-sm font-black text-white mt-2">{session.durationMinutes} min</p>
+                      <p className="text-sm font-black text-white mt-2">{formatDuration(session)}</p>
                     </div>
                     <div className="rounded-2xl bg-white/5 border border-white/5 p-4">
-                      <p className="text-[8px] font-black text-white/30 uppercase tracking-widest">Jami</p>
-                      <p className="text-sm font-black text-primary mt-2">{session.totalCost.toLocaleString()} UZS</p>
+                      <p className="text-[8px] font-black text-white/30 uppercase tracking-widest">
+                        {session.isVip ? 'Hisob-kitob' : 'Jami'}
+                      </p>
+                      <p className="text-sm font-black text-primary mt-2">
+                        {session.isVip ? 'Seans yakunida' : `${session.totalCost.toLocaleString()} UZS`}
+                      </p>
                     </div>
                   </div>
 
                   <div className="space-y-3">
-                    <p className="text-[8px] font-black text-white/30 uppercase tracking-widest">Qurilmalar</p>
+                    <p className="text-[8px] font-black text-white/30 uppercase tracking-widest">Jihozlar</p>
                     <div className="flex flex-wrap gap-2">
                       {session.assets.map((asset, index) => (
                         <div key={`${session.id}-${asset.id ?? index}`} className="rounded-xl bg-[#051111] border border-white/5 px-3 py-2 flex items-center gap-2">
@@ -196,10 +226,15 @@ export default function AktivSeanslarPage() {
                         <Badge variant="outline" className="border-white/10 text-white/60 uppercase tracking-widest">
                           {session.tradeExists ? 'Trade saved' : 'Trade missing'}
                         </Badge>
+                        {session.isVip ? (
+                          <Badge variant="outline" className="border-primary/30 text-primary uppercase tracking-widest">
+                            <Crown className="mr-1 h-3 w-3" /> VIP
+                          </Badge>
+                        ) : null}
                       </div>
                       <h4 className="text-lg font-black text-white uppercase tracking-tight">{session.roomLabel}</h4>
                       <p className="text-[10px] font-bold text-primary/60 uppercase tracking-widest">
-                        {session.assetsCount} qurilma • {session.tariff.name ?? 'Tarif yo‘q'}
+                        {session.assetsCount} jihoz • {session.tariff.name ?? 'Tarif yo‘q'}
                       </p>
                     </div>
 
@@ -250,7 +285,7 @@ export default function AktivSeanslarPage() {
                     </div>
                     <div className="rounded-2xl bg-white/5 border border-white/5 p-4">
                       <p className="text-[8px] font-black text-white/30 uppercase tracking-widest">Davomiyligi</p>
-                      <p className="text-sm font-black text-white mt-2">{session.durationMinutes} min</p>
+                      <p className="text-sm font-black text-white mt-2">{formatDuration(session)}</p>
                     </div>
                     <div className="rounded-2xl bg-white/5 border border-white/5 p-4">
                       <p className="text-[8px] font-black text-white/30 uppercase tracking-widest">Trade holati</p>

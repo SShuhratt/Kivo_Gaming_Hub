@@ -6,5 +6,9 @@ use Illuminate\Database\Eloquent\Model;
 
 class Service extends Model
 {
-    protected $fillable = ['game_name', 'room_id'];
+    protected $fillable = ['game_name', 'room_id', 'cost'];
+
+    protected $casts = [
+        'cost' => 'float',
+    ];
 }

@@ -19,6 +19,7 @@ class ServiceController extends Controller
         $validated = $this->validateApi($request, [
             'game_name' => 'required|string',
             'room_id' => 'required|integer',
+            'cost' => 'required|numeric|min:0',
         ]);
 
         return response()->json(Service::create($validated), 201);
@@ -31,6 +32,7 @@ class ServiceController extends Controller
         $validated = $this->validateApi($request, [
             'game_name' => 'sometimes|required|string',
             'room_id' => 'sometimes|required|integer',
+            'cost' => 'sometimes|required|numeric|min:0',
         ]);
 
         $service->update($validated);

@@ -19,9 +19,11 @@ class Booking extends Model
         'end_time',
         'ended_at',
         'duration_minutes',
+        'requested_duration_hours',
         'total_cost',
         'status',
         'session_status',
+        'is_vip',
         'debt_name',
         'debt_phone_number',
     ];
@@ -31,9 +33,11 @@ class Booking extends Model
         'end_time' => 'datetime',
         'ended_at' => 'datetime',
         'hourly_rate_snapshot' => 'float',
+        'requested_duration_hours' => 'float',
         'total_cost' => 'float',
         'asset_snapshot' => 'array',
         'asset_stats_recorded' => 'boolean',
+        'is_vip' => 'boolean',
     ];
 
     public function tariff(): BelongsTo

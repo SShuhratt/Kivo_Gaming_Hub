@@ -1,29 +1,46 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { DashboardLayout } from '@/components/dashboard-layout';
 import { useDashboard } from '@/context/dashboard-context';
 import {
   Receipt,
   Calendar as CalendarIcon,
   Zap,
-  CheckCircle2,
   AlertCircle,
   Monitor,
-  Gamepad2
+  Gamepad2,
+  Timer,
+  Crown,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { formatAssetCategoryLabel, getAssetCategoryKind } from '@/lib/asset-category';
+import { formatAssetCategoryLabel, getAssetCategoryKind, normalizeAssetCategoryValue } from '@/lib/asset-category';
 import { cn } from '@/lib/utils';
 
 function toLocalDateTimeValue(date: Date) {
   const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
   return localDate.toISOString().slice(0, 16);
 }
+
+function formatDateTimePreview(value: string | null) {
+  if (!value) {
+    return 'VIP / Open-ended';
+  }
+
+  return new Date(value).toLocaleString('uz-UZ', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+const durationOptions = [0.5, 1, 2, 2.5, 3];
 
 export default function BandQilishPage() {
   const { tariffs, assets, calculateBooking, createBooking, isCheckingAuth } = useDashboard();
@@ -32,11 +49,13 @@ export default function BandQilishPage() {
   const [selectedTariffId, setSelectedTariffId] = useState<string | null>(null);
   const [selectedAssetIds, setSelectedAssetIds] = useState<string[]>([]);
   const [startTime, setStartTime] = useState(() => toLocalDateTimeValue(new Date()));
-  const [endTime, setEndTime] = useState(() => toLocalDateTimeValue(new Date(Date.now() + 60 * 60 * 1000)));
+  const [durationHoursInput, setDurationHoursInput] = useState('1');
+  const [isVip, setIsVip] = useState(false);
   const [status, setStatus] = useState<'submitted' | 'debt_closed'>('submitted');
   const [debtName, setDebtName] = useState('');
   const [debtPhoneNumber, setDebtPhoneNumber] = useState('');
-  const [calculation, setCalculation] = useState<{ durationMinutes: number; totalCost: number } | null>(null);
+  const [calculation, setCalculation] = useState<Awaited<ReturnType<typeof calculateBooking>> | null>(null);
+  const [calculationError, setCalculationError] = useState<string | null>(null);
   const [isCalculating, setIsCalculating] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -53,6 +72,45 @@ export default function BandQilishPage() {
   }, [assets]);
 
   const selectedTariff = tariffs.find((tariff) => tariff.id === selectedTariffId) ?? null;
+  const selectedAssets = assets.filter((asset) => selectedAssetIds.includes(asset.id));
+  const parsedDurationHours = Number(durationHoursInput);
+
+  const tariffPriceMap = useMemo(() => {
+    if (!selectedTariff) {
+      return new Map<string, number>();
+    }
+
+    return new Map(
+      selectedTariff.categoryPrices.map((price) => [normalizeAssetCategoryValue(price.category).toLowerCase(), price.hourlyPrice])
+    );
+  }, [selectedTariff]);
+
+  const missingCategoryLabels = useMemo(() => {
+    if (!selectedTariff || selectedTariff.categoryPrices.length === 0) {
+      return [];
+    }
+
+    const labels = new Map<string, string>();
+
+    for (const asset of selectedAssets) {
+      const normalizedCategory = normalizeAssetCategoryValue(asset.category);
+      const key = normalizedCategory.toLowerCase();
+
+      if (!tariffPriceMap.has(key)) {
+        labels.set(key, normalizedCategory);
+      }
+    }
+
+    return Array.from(labels.values());
+  }, [selectedAssets, selectedTariff, tariffPriceMap]);
+
+  const localEndTimePreview = useMemo(() => {
+    if (isVip || !Number.isFinite(parsedDurationHours) || parsedDurationHours <= 0 || !startTime) {
+      return null;
+    }
+
+    return new Date(new Date(startTime).getTime() + parsedDurationHours * 60 * 60 * 1000).toISOString();
+  }, [durationHoursInput, isVip, parsedDurationHours, startTime]);
 
   if (isCheckingAuth) return null;
 
@@ -62,12 +120,69 @@ export default function BandQilishPage() {
     );
   };
 
-  const handleCalculate = async () => {
+  useEffect(() => {
+    if (!selectedTariff || selectedAssetIds.length === 0 || !startTime) {
+      setCalculation(null);
+      setCalculationError(null);
+      return;
+    }
+
+    if (!isVip && (!Number.isFinite(parsedDurationHours) || parsedDurationHours <= 0)) {
+      setCalculation(null);
+      setCalculationError(null);
+      return;
+    }
+
+    if (missingCategoryLabels.length > 0) {
+      setCalculation(null);
+      setCalculationError(`Tanlangan tarifda quyidagi kategoriyalar uchun narx yo'q: ${missingCategoryLabels.join(', ')}.`);
+      return;
+    }
+
+    let cancelled = false;
+    const timeoutId = window.setTimeout(() => {
+      void (async () => {
+        try {
+          setIsCalculating(true);
+          const result = await calculateBooking({
+            tariffId: selectedTariff.backendId,
+            assetIds: selectedAssetIds
+              .map((assetId) => assets.find((asset) => asset.id === assetId)?.backendId)
+              .filter((value): value is number => Boolean(value)),
+            startTime: new Date(startTime).toISOString(),
+            durationHours: isVip ? undefined : parsedDurationHours,
+            isVip,
+          });
+
+          if (!cancelled) {
+            setCalculation(result);
+            setCalculationError(null);
+          }
+        } catch (error) {
+          if (!cancelled) {
+            setCalculation(null);
+            setCalculationError(error instanceof Error ? error.message : "So'rov bajarilmadi.");
+          }
+        } finally {
+          if (!cancelled) {
+            setIsCalculating(false);
+          }
+        }
+      })();
+    }, 250);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+    };
+  }, [assets, calculateBooking, isVip, missingCategoryLabels, parsedDurationHours, selectedAssetIds, selectedTariff, startTime]);
+
+  const handleCreateBooking = async () => {
     if (!selectedTariff) {
       toast({
         variant: 'destructive',
-        title: "Tarif tanlanmagan",
-        description: "Hisoblash uchun tarifni tanlang.",
+        title: 'Tarif tanlanmagan',
+        description: 'Booking yaratishdan oldin tarifni tanlang.',
       });
       return;
     }
@@ -75,37 +190,18 @@ export default function BandQilishPage() {
     if (selectedAssetIds.length === 0) {
       toast({
         variant: 'destructive',
-        title: "Jihoz tanlanmagan",
-        description: "Kamida bitta asset tanlang.",
+        title: 'Jihoz tanlanmagan',
+        description: 'Kamida bitta jihozni tanlang.',
       });
       return;
     }
 
-    try {
-      setIsCalculating(true);
-      const result = await calculateBooking({
-        tariffId: selectedTariff.backendId,
-        assetIds: selectedAssetIds
-          .map((assetId) => assets.find((asset) => asset.id === assetId)?.backendId)
-          .filter((value): value is number => Boolean(value)),
-        startTime: new Date(startTime).toISOString(),
-        endTime: new Date(endTime).toISOString(),
-      });
-
-      setCalculation(result);
-    } catch (error) {
+    if (!startTime) {
       toast({
         variant: 'destructive',
-        title: "Hisoblashda xatolik",
-        description: error instanceof Error ? error.message : "So'rov bajarilmadi.",
+        title: 'Boshlanish vaqti kiritilmagan',
+        description: 'Booking uchun boshlanish vaqtini kiriting.',
       });
-    } finally {
-      setIsCalculating(false);
-    }
-  };
-
-  const handleCreateBooking = async () => {
-    if (!selectedTariff) {
       return;
     }
 
@@ -118,6 +214,24 @@ export default function BandQilishPage() {
       return;
     }
 
+    if (!isVip && (!Number.isFinite(parsedDurationHours) || parsedDurationHours <= 0)) {
+      toast({
+        variant: 'destructive',
+        title: 'Davomiylik noto‘g‘ri',
+        description: 'Ijobiy duration kiriting yoki VIP rejimni tanlang.',
+      });
+      return;
+    }
+
+    if (missingCategoryLabels.length > 0) {
+      toast({
+        variant: 'destructive',
+        title: 'Tarif narxlari yetishmayapti',
+        description: `Quyidagi kategoriyalar uchun narx belgilang: ${missingCategoryLabels.join(', ')}.`,
+      });
+      return;
+    }
+
     try {
       setIsSubmitting(true);
       await createBooking({
@@ -126,24 +240,28 @@ export default function BandQilishPage() {
           .map((assetId) => assets.find((asset) => asset.id === assetId)?.backendId)
           .filter((value): value is number => Boolean(value)),
         startTime: new Date(startTime).toISOString(),
-        endTime: new Date(endTime).toISOString(),
+        durationHours: isVip ? undefined : parsedDurationHours,
+        isVip,
         status,
         debtName: status === 'debt_closed' ? debtName : undefined,
         debtPhoneNumber: status === 'debt_closed' ? debtPhoneNumber : undefined,
       });
 
       setCalculation(null);
+      setCalculationError(null);
       setSelectedAssetIds([]);
       setDebtName('');
       setDebtPhoneNumber('');
       toast({
-        title: "Aktiv seans yaratildi",
-        description: "Bron qilingan seans Aktiv seanslar bo'limiga yuborildi.",
+        title: isVip ? 'VIP seans yaratildi' : 'Aktiv seans yaratildi',
+        description: isVip
+          ? "VIP seans boshlatildi. Yakuniy summa seans tugaganda hisoblanadi."
+          : "Bron qilingan seans Aktiv seanslar bo'limiga yuborildi.",
       });
     } catch (error) {
       toast({
         variant: 'destructive',
-        title: "Booking yaratilmadi",
+        title: 'Booking yaratilmadi',
         description: error instanceof Error ? error.message : "So'rov bajarilmadi.",
       });
     } finally {
@@ -163,7 +281,7 @@ export default function BandQilishPage() {
                 </div>
                 <div>
                   <h2 className="text-sm font-black text-white uppercase tracking-widest">Tarifni tanlang</h2>
-                  <p className="text-[10px] text-white/40 font-bold uppercase tracking-widest mt-1">Backend tariflari bilan booking yarating</p>
+                  <p className="text-[10px] text-white/40 font-bold uppercase tracking-widest mt-1">Har bir jihoz kategoriyasi uchun alohida narx ishlatiladi</p>
                 </div>
               </div>
 
@@ -178,13 +296,23 @@ export default function BandQilishPage() {
                       key={tariff.id}
                       onClick={() => setSelectedTariffId(tariff.id)}
                       className={cn(
-                        'rounded-2xl border p-5 text-left transition-all bg-[#081616]',
+                        'rounded-2xl border p-5 text-left transition-all bg-[#081616] space-y-4',
                         selectedTariffId === tariff.id ? 'border-primary shadow-[0_0_25px_rgba(0,255,255,0.15)]' : 'border-white/5 hover:border-primary/20'
                       )}
                     >
-                      <p className="text-[9px] font-black text-primary/50 uppercase tracking-widest">Tarif #{tariff.backendId}</p>
-                      <h3 className="text-sm font-black text-white uppercase tracking-tight mt-2">{tariff.name}</h3>
-                      <p className="text-lg font-black text-primary mt-3">{tariff.hourlyPrice.toLocaleString()} UZS</p>
+                      <div>
+                        <p className="text-[9px] font-black text-primary/50 uppercase tracking-widest">Tarif #{tariff.backendId}</p>
+                        <h3 className="text-sm font-black text-white uppercase tracking-tight mt-2">{tariff.name}</h3>
+                        <p className="text-lg font-black text-primary mt-3">Boshlanish narxi {tariff.hourlyPrice.toLocaleString()} UZS</p>
+                      </div>
+                      <div className="space-y-2">
+                        {tariff.categoryPrices.map((price) => (
+                          <div key={price.id} className="flex items-center justify-between rounded-xl bg-white/5 border border-white/5 px-3 py-2">
+                            <span className="text-[10px] font-black text-white uppercase tracking-tight">{price.category}</span>
+                            <span className="text-[10px] font-black text-primary">{price.hourlyPrice.toLocaleString()} UZS</span>
+                          </div>
+                        ))}
+                      </div>
                     </button>
                   ))}
                 </div>
@@ -198,7 +326,7 @@ export default function BandQilishPage() {
                 </div>
                 <div>
                   <h2 className="text-sm font-black text-white uppercase tracking-widest">Jihozlarni tanlang</h2>
-                  <p className="text-[10px] text-white/40 font-bold uppercase tracking-widest mt-1">Booking bir yoki bir nechta assetga ulanadi</p>
+                  <p className="text-[10px] text-white/40 font-bold uppercase tracking-widest mt-1">Bir booking ichida bir nechta jihoz tanlash mumkin</p>
                 </div>
               </div>
 
@@ -215,35 +343,44 @@ export default function BandQilishPage() {
                         <h3 className="text-[10px] font-black text-white uppercase tracking-[0.2em]">Xona {roomNumber}</h3>
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        {roomAssets.map((asset) => (
-                          <button
-                            key={asset.id}
-                            onClick={() => toggleAsset(asset.id)}
-                            className={cn(
-                              'rounded-xl border p-4 text-left transition-all',
-                              selectedAssetIds.includes(asset.id) ? 'border-primary bg-primary/10' : 'border-white/5 bg-[#051111] hover:border-primary/20'
-                            )}
-                          >
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-3">
-                                <div className="h-9 w-9 flex items-center justify-center rounded-lg bg-white/5 border border-white/10">
-                                  {getAssetCategoryKind(asset.category) === 'console' ? (
-                                    <Gamepad2 className="h-4 w-4 text-primary" />
-                                  ) : (
-                                    <Monitor className="h-4 w-4 text-primary" />
-                                  )}
-                                </div>
-                                <div>
-                                  <p className="text-[10px] font-black text-white uppercase tracking-tight">{formatAssetCategoryLabel(asset.category)}</p>
-                                  <p className="text-[8px] text-white/40 font-bold uppercase tracking-widest">Asset #{asset.backendId}</p>
-                                </div>
-                              </div>
-                              {selectedAssetIds.includes(asset.id) && (
-                                <Badge className="bg-primary text-black font-black">Tanlandi</Badge>
+                        {roomAssets.map((asset) => {
+                          const assetRate = tariffPriceMap.get(normalizeAssetCategoryValue(asset.category).toLowerCase());
+
+                          return (
+                            <button
+                              key={asset.id}
+                              onClick={() => toggleAsset(asset.id)}
+                              className={cn(
+                                'rounded-xl border p-4 text-left transition-all',
+                                selectedAssetIds.includes(asset.id) ? 'border-primary bg-primary/10' : 'border-white/5 bg-[#051111] hover:border-primary/20'
                               )}
-                            </div>
-                          </button>
-                        ))}
+                            >
+                              <div className="flex items-center justify-between gap-3">
+                                <div className="flex items-center gap-3 min-w-0">
+                                  <div className="h-9 w-9 flex items-center justify-center rounded-lg bg-white/5 border border-white/10 shrink-0">
+                                    {getAssetCategoryKind(asset.category) === 'console' ? (
+                                      <Gamepad2 className="h-4 w-4 text-primary" />
+                                    ) : (
+                                      <Monitor className="h-4 w-4 text-primary" />
+                                    )}
+                                  </div>
+                                  <div className="min-w-0">
+                                    <p className="text-[10px] font-black text-white uppercase tracking-tight truncate">{formatAssetCategoryLabel(asset.category)}</p>
+                                    <p className="text-[8px] text-white/40 font-bold uppercase tracking-widest">Jihoz #{asset.backendId}</p>
+                                    {selectedTariff && assetRate !== undefined && (
+                                      <p className="text-[8px] text-primary font-black uppercase tracking-widest mt-1">
+                                        {assetRate.toLocaleString()} UZS / SOAT
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                                {selectedAssetIds.includes(asset.id) && (
+                                  <Badge className="bg-primary text-black font-black">Tanlandi</Badge>
+                                )}
+                              </div>
+                            </button>
+                          );
+                        })}
                       </div>
                     </div>
                   ))}
@@ -260,7 +397,7 @@ export default function BandQilishPage() {
                 </div>
                 <div>
                   <h2 className="text-sm font-black text-white uppercase tracking-widest">Booking ma'lumotlari</h2>
-                  <p className="text-[10px] text-white/40 font-bold uppercase tracking-widest mt-1">Vaqt oralig'i va to'lov holati</p>
+                  <p className="text-[10px] text-white/40 font-bold uppercase tracking-widest mt-1">Boshlanish va duration yoki VIP rejimi</p>
                 </div>
               </div>
 
@@ -269,9 +406,62 @@ export default function BandQilishPage() {
                   <Label className="text-[10px] font-black uppercase tracking-widest text-primary/60">Boshlanish vaqti</Label>
                   <Input type="datetime-local" value={startTime} onChange={(e) => setStartTime(e.target.value)} className="h-12 bg-[#051111] border-white/5 rounded-xl font-bold px-4 text-sm" />
                 </div>
-                <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase tracking-widest text-primary/60">Tugash vaqti</Label>
-                  <Input type="datetime-local" value={endTime} onChange={(e) => setEndTime(e.target.value)} className="h-12 bg-[#051111] border-white/5 rounded-xl font-bold px-4 text-sm" />
+
+                <div className="space-y-3">
+                  <Label className="text-[10px] font-black uppercase tracking-widest text-primary/60">Duration</Label>
+                  <div className="grid grid-cols-3 gap-3">
+                    {durationOptions.map((option) => (
+                      <button
+                        key={option}
+                        onClick={() => {
+                          setIsVip(false);
+                          setDurationHoursInput(String(option));
+                        }}
+                        className={cn(
+                          'h-11 rounded-xl border font-black uppercase tracking-widest text-[10px] transition-all',
+                          !isVip && Number(durationHoursInput) === option
+                            ? 'bg-primary text-black border-primary'
+                            : 'bg-[#051111] border-white/5 text-white/60'
+                        )}
+                      >
+                        {option} SOAT
+                      </button>
+                    ))}
+                    <button
+                      onClick={() => setIsVip(true)}
+                      className={cn(
+                        'h-11 rounded-xl border font-black uppercase tracking-widest text-[10px] transition-all flex items-center justify-center gap-2 col-span-3',
+                        isVip ? 'bg-amber-400 text-black border-amber-400' : 'bg-[#051111] border-white/5 text-white/60'
+                      )}
+                    >
+                      <Crown className="h-4 w-4" /> VIP
+                    </button>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-primary/60">Custom Duration (soat)</Label>
+                    <Input
+                      type="number"
+                      step="0.5"
+                      min="0.5"
+                      disabled={isVip}
+                      value={durationHoursInput}
+                      onChange={(e) => {
+                        setIsVip(false);
+                        setDurationHoursInput(e.target.value);
+                      }}
+                      className="h-12 bg-[#051111] border-white/5 rounded-xl font-bold px-4 text-sm disabled:opacity-50"
+                    />
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-white/5 bg-[#051111] p-4 space-y-2">
+                  <div className="flex items-center gap-2 text-primary">
+                    <Timer className="h-4 w-4" />
+                    <span className="text-[10px] font-black uppercase tracking-widest">Tugash Preview</span>
+                  </div>
+                  <p className="text-sm font-black text-white">
+                    {formatDateTimePreview(calculation?.endTime ?? localEndTimePreview)}
+                  </p>
                 </div>
 
                 <div className="space-y-3">
@@ -318,26 +508,68 @@ export default function BandQilishPage() {
                   <span className="text-[10px] font-black text-primary uppercase tracking-[0.2em]">Hisob-kitob</span>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-[8px] font-black text-white/30 uppercase tracking-widest">Davomiyligi</p>
-                    <p className="text-xl font-black text-white mt-2">{calculation?.durationMinutes ?? 0} min</p>
+                {missingCategoryLabels.length > 0 ? (
+                  <div className="rounded-2xl border border-destructive/20 bg-destructive/10 p-4 text-destructive text-sm font-bold">
+                    Quyidagi kategoriyalar uchun tarif narxi yo'q: {missingCategoryLabels.join(', ')}.
                   </div>
-                  <div>
-                    <p className="text-[8px] font-black text-white/30 uppercase tracking-widest">Jami</p>
-                    <p className="text-xl font-black text-primary mt-2">{(calculation?.totalCost ?? 0).toLocaleString()} UZS</p>
+                ) : calculationError ? (
+                  <div className="rounded-2xl border border-destructive/20 bg-destructive/10 p-4 text-destructive text-sm font-bold">
+                    {calculationError}
                   </div>
-                </div>
+                ) : calculation ? (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-white/60">
+                      <span>Soatlik Jami</span>
+                      <span className="text-primary">{calculation.hourlyRateTotal.toLocaleString()} UZS</span>
+                    </div>
+                    {!calculation.isVip ? (
+                      <>
+                        <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-white/60">
+                          <span>Duration</span>
+                          <span className="text-white">{calculation.durationHours} soat</span>
+                        </div>
+                        <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-white/60">
+                          <span>Jami</span>
+                          <span className="text-primary text-lg">{calculation.totalCost.toLocaleString()} UZS</span>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="rounded-2xl border border-amber-400/20 bg-amber-400/10 p-4 text-amber-100 text-sm font-bold">
+                        VIP seans uchun yakuniy summa session tugaganda actual vaqt bo'yicha hisoblanadi.
+                      </div>
+                    )}
+                    <div className="space-y-2 pt-2">
+                      {calculation.assetBreakdown.map((asset) => (
+                        <div key={asset.id} className="flex items-center justify-between rounded-xl bg-white/5 border border-white/5 px-3 py-2">
+                          <span className="text-[10px] font-black text-white uppercase tracking-tight">{asset.category}</span>
+                          <span className="text-[10px] font-black text-primary">{asset.hourlyPrice.toLocaleString()} UZS</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="rounded-2xl border border-dashed border-white/10 bg-[#051111] p-5 text-center">
+                    <p className="text-[10px] font-black text-white/40 uppercase tracking-[0.3em]">
+                      Tarif, jihoz va duration tanlang
+                    </p>
+                  </div>
+                )}
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <Button disabled={isCalculating} onClick={() => void handleCalculate()} className="h-12 bg-white/5 hover:bg-primary hover:text-black border border-white/10 text-white font-black uppercase tracking-[0.2em] rounded-xl transition-all">
-                  HISOBLASH
-                </Button>
-                <Button disabled={isSubmitting} onClick={() => void handleCreateBooking()} className="h-12 bg-primary text-black font-black uppercase tracking-[0.2em] rounded-xl shadow-[0_10px_30px_rgba(0,255,255,0.2)] hover:bg-primary/90 transition-all">
-                  SAQLASH <CheckCircle2 className="ml-2 h-4 w-4" />
-                </Button>
-              </div>
+              <Button
+                disabled={
+                  isSubmitting ||
+                  isCalculating ||
+                  !selectedTariff ||
+                  selectedAssetIds.length === 0 ||
+                  missingCategoryLabels.length > 0 ||
+                  Boolean(calculationError)
+                }
+                onClick={() => void handleCreateBooking()}
+                className="w-full h-12 bg-primary text-black font-black uppercase tracking-[0.3em] rounded-xl shadow-[0_10px_30px_rgba(0,255,255,0.2)] hover:bg-primary/90 transition-all active:scale-[0.98] text-xs"
+              >
+                {isSubmitting ? 'SAQLANMOQDA...' : isVip ? 'VIP SEANSNI BOSHLASH' : 'BOOKINGNI YARATISH'}
+              </Button>
             </section>
           </div>
         </div>

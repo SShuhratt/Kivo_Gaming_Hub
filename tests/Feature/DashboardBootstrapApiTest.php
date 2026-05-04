@@ -23,6 +23,11 @@ class DashboardBootstrapApiTest extends TestCase
             'name' => 'Night Boost',
             'hourly_cost' => 45000,
         ]);
+        $tariff->categoryPrices()->create([
+            'category' => 'Computer',
+            'category_key' => 'computer',
+            'hourly_price' => 45000,
+        ]);
 
         $activeAsset = Asset::create([
             'category' => 'Computer',
@@ -41,6 +46,7 @@ class DashboardBootstrapApiTest extends TestCase
         Service::create([
             'game_name' => 'CS2',
             'room_id' => 7,
+            'cost' => 15000,
         ]);
 
         Warehouse::create([
@@ -57,14 +63,22 @@ class DashboardBootstrapApiTest extends TestCase
             'tariff_id' => $tariff->id,
             'tariff_name_snapshot' => $tariff->name,
             'hourly_rate_snapshot' => 45000,
-            'asset_snapshot' => [['id' => $activeAsset->id, 'category' => 'Computer', 'room_id' => 7, 'room_number' => '7']],
+            'asset_snapshot' => [[
+                'id' => $activeAsset->id,
+                'category' => 'Computer',
+                'room_id' => 7,
+                'room_number' => '7',
+                'hourly_price' => 45000,
+            ]],
             'asset_stats_recorded' => true,
             'start_time' => '2026-04-28T10:00:00+05:00',
             'end_time' => '2030-04-28T12:00:00+05:00',
             'duration_minutes' => 120,
+            'requested_duration_hours' => 2,
             'total_cost' => 90000,
             'status' => 'submitted',
             'session_status' => 'active',
+            'is_vip' => false,
         ]);
         $activeBooking->assets()->sync([$activeAsset->id]);
 
@@ -72,15 +86,23 @@ class DashboardBootstrapApiTest extends TestCase
             'tariff_id' => $tariff->id,
             'tariff_name_snapshot' => $tariff->name,
             'hourly_rate_snapshot' => 45000,
-            'asset_snapshot' => [['id' => $completedAsset->id, 'category' => 'PS', 'room_id' => 8, 'room_number' => '8']],
+            'asset_snapshot' => [[
+                'id' => $completedAsset->id,
+                'category' => 'PS',
+                'room_id' => 8,
+                'room_number' => '8',
+                'hourly_price' => 45000,
+            ]],
             'asset_stats_recorded' => true,
             'start_time' => '2026-04-28T13:00:00+05:00',
             'end_time' => '2026-04-28T15:00:00+05:00',
             'ended_at' => '2026-04-28T15:00:00+05:00',
             'duration_minutes' => 120,
+            'requested_duration_hours' => 2,
             'total_cost' => 90000,
             'status' => 'submitted',
             'session_status' => 'completed',
+            'is_vip' => false,
         ]);
         $completedBooking->assets()->sync([$completedAsset->id]);
 
@@ -95,7 +117,13 @@ class DashboardBootstrapApiTest extends TestCase
             'end_time' => '2026-04-28T15:00:00+05:00',
             'duration_minutes' => 120,
             'total_cost' => 90000,
-            'asset_snapshot' => [['id' => $completedAsset->id, 'category' => 'PS', 'room_id' => 8, 'room_number' => '8']],
+            'asset_snapshot' => [[
+                'id' => $completedAsset->id,
+                'category' => 'PS',
+                'room_id' => 8,
+                'room_number' => '8',
+                'hourly_price' => 45000,
+            ]],
             'assets_count' => 1,
         ]);
 
@@ -105,13 +133,19 @@ class DashboardBootstrapApiTest extends TestCase
             ->assertOk()
             ->assertJsonPath('services.0.room_id', 7)
             ->assertJsonPath('services.0.items.0', 'CS2')
+            ->assertJsonPath('services.0.service_entries.0.cost', 15000)
             ->assertJsonPath('tariffs.0.backend_id', $tariff->id)
+            ->assertJsonPath('tariffs.0.category_prices.0.category', 'Computer')
+            ->assertJsonPath('tariffs.0.category_prices.0.hourly_price', 45000)
             ->assertJsonPath('assets.0.room_id', 7)
             ->assertJsonPath('companies.0.name', 'Pepsi')
             ->assertJsonPath('summary.active_sessions', 1)
             ->assertJsonPath('summary.total_session_devices', 2)
             ->assertJsonPath('sales.0.total', 90000)
-            ->assertJsonPath('sessions.0.session_status', 'active');
+            ->assertJsonPath('sessions.0.session_status', 'active')
+            ->assertJsonPath('sessions.0.requested_duration_hours', 2)
+            ->assertJsonPath('sessions.0.is_vip', false)
+            ->assertJsonPath('sections.5.name', 'Jihozlar');
     }
 
     protected function authHeaders(): array

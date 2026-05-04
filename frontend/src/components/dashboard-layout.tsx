@@ -77,7 +77,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
     { name: 'Aktiv seanslar', icon: Clock3, href: '/aktiv-seanslar' },
     { name: 'Kassa', icon: ShoppingCart, href: '/kassa' },
     { name: 'Savdo', icon: Banknote, href: '/savdo' },
-    { name: 'Kompyuterlar', icon: Monitor, href: '/kompyuterlar' },
+    { name: 'Jihozlar', icon: Monitor, href: '/kompyuterlar' },
     { name: 'Ombor', icon: Database, href: '/ombor' },
     { name: 'Xizmatlar', icon: Wrench, href: '/xizmatlar' },
     { name: 'Tariflar', icon: CreditCard, href: '/tariflar' },
