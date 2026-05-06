@@ -57,7 +57,13 @@ export type DashboardBootstrapResponse = {
     id: string;
     backend_id: number;
     name: string;
+    rate: number | null;
     price: number;
+    requirements: Record<string, number>;
+    manual_priority: number | null;
+    savings_ratio: number;
+    is_recommendable: boolean;
+    is_bundle: boolean;
     assets_count: number;
   }>;
   rooms: Array<{
@@ -348,7 +354,17 @@ export function getDashboardBootstrap(token: string) {
   });
 }
 
-export function createServiceRequest(token: string, payload: { name: string; price: number }) {
+export function createServiceRequest(
+  token: string,
+  payload: {
+    name: string;
+    rate?: number;
+    price?: number;
+    requirements?: Record<string, number>;
+    manual_priority?: number | null;
+    is_recommendable?: boolean;
+  }
+) {
   return apiRequest('/services', {
     method: 'POST',
     token,
@@ -356,7 +372,18 @@ export function createServiceRequest(token: string, payload: { name: string; pri
   });
 }
 
-export function updateServiceRequest(token: string, serviceId: number, payload: { name?: string; price?: number }) {
+export function updateServiceRequest(
+  token: string,
+  serviceId: number,
+  payload: {
+    name?: string;
+    rate?: number;
+    price?: number;
+    requirements?: Record<string, number>;
+    manual_priority?: number | null;
+    is_recommendable?: boolean;
+  }
+) {
   return apiRequest(`/services/${serviceId}`, {
     method: 'PATCH',
     token,
@@ -493,7 +520,12 @@ export function deleteManufacturerRequest(token: string, manufacturerId: number)
 export function calculateBookingRequest(
   token: string,
   payload: {
-    asset_ids: number[];
+    asset_ids?: number[];
+    cart_items?: Array<{
+      service_id: number;
+      quantity: number;
+    }>;
+    selected_bundle_service_ids?: number[];
     start_time: string;
     duration_hours?: number;
     end_time?: string;
@@ -505,8 +537,31 @@ export function calculateBookingRequest(
     duration_hours: number | null;
     hourly_rate_total: number;
     total_cost: number;
+    total_price: number;
+    hourly_total_price: number;
     is_vip: boolean;
     end_time: string | null;
+    cart: Array<{
+      service_id: number;
+      service_name: string;
+      service_key: string;
+      quantity: number;
+      rate: number;
+    }>;
+    breakdown: Array<{
+      type: 'bundle' | 'residual';
+      phase: 'explicit_selection' | 'admin_override' | 'best_value' | 'residual';
+      service_id: number;
+      service_name: string;
+      service_key: string;
+      quantity: number;
+      rate: number;
+      subtotal: number;
+      requirements: Record<string, number>;
+      manual_priority: number | null;
+      savings_ratio: number;
+      is_recommendable: boolean;
+    }>;
     asset_breakdown: Array<{
       id: number;
       name: string;
@@ -528,7 +583,12 @@ export function calculateBookingRequest(
 export function createBookingRequest(
   token: string,
   payload: {
-    asset_ids: number[];
+    asset_ids?: number[];
+    cart_items?: Array<{
+      service_id: number;
+      quantity: number;
+    }>;
+    selected_bundle_service_ids?: number[];
     start_time: string;
     duration_hours?: number;
     end_time?: string;

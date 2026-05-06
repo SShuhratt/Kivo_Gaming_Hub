@@ -157,6 +157,8 @@ class SessionLifecycleService
             'debt_name' => $booking->debt_name,
             'debt_phone_number' => $booking->debt_phone_number,
             'asset_snapshot' => $snapshot,
+            'cart_snapshot' => $booking->cart_snapshot,
+            'pricing_breakdown_snapshot' => $booking->pricing_breakdown_snapshot,
             'assets_count' => count($snapshot),
         ];
     }

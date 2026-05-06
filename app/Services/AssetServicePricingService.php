@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Asset;
+use App\Models\Service;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\Exceptions\HttpResponseException;
 
@@ -13,7 +14,7 @@ class AssetServicePricingService
     ) {
     }
 
-    public function buildPricedAssetSnapshot(Collection $assets): array
+    public function buildPricedAssetSnapshot(Collection $assets, ?array $effectiveRatesByAssetId = null): array
     {
         $assets->loadMissing(['room', 'service']);
 
@@ -28,16 +29,18 @@ class AssetServicePricingService
                 mb_strtolower((string) $asset->name),
                 $asset->id,
             ))
-            ->map(function (Asset $asset) use (&$errors) {
+            ->map(function (Asset $asset) use (&$errors, $orderMap, $effectiveRatesByAssetId) {
                 $label = $asset->name ?: 'Asset #'.$asset->id;
 
                 if (! $asset->room) {
                     $errors['asset_ids'][] = "{$label} is not assigned to a room.";
                 }
 
-                if (! $asset->service || $asset->service->name === null || $asset->service->price === null) {
+                if (! $asset->service || $asset->service->name === null || $asset->service->rate === null) {
                     $errors['asset_ids'][] = "{$label} has no valid service price.";
                 }
+
+                $effectiveRate = $effectiveRatesByAssetId[$asset->id] ?? $asset->service?->rate;
 
                 return [
                     'id' => $asset->id,
@@ -49,8 +52,8 @@ class AssetServicePricingService
                     'room_name' => $asset->room?->name,
                     'room_number' => $asset->room?->name ?? ($asset->room_id ? (string) $asset->room_id : null),
                     'asset_order' => $orderMap[$asset->id] ?? null,
-                    'hourly_price' => $asset->service?->price !== null
-                        ? round((float) $asset->service->price, 2)
+                    'hourly_price' => $effectiveRate !== null
+                        ? round((float) $effectiveRate, 2)
                         : null,
                 ];
             })
@@ -89,6 +92,17 @@ class AssetServicePricingService
             'hourly_rate_total' => $hourlyRateTotal,
             'total_cost' => round($hourlyRateTotal * $durationHours, 2),
         ];
+    }
+
+    public function snapshotFromServiceCart(
+        Collection $assets,
+        array $cart,
+        array $serviceHourlyAllocations,
+        BookingAssetAllocator $assetAllocator,
+    ): array {
+        $effectiveRatesByAssetId = $assetAllocator->distributeEffectiveHourlyRates($assets, $serviceHourlyAllocations);
+
+        return $this->buildPricedAssetSnapshot($assets, $effectiveRatesByAssetId);
     }
 
     protected function abortBadRequest(array $errors): never

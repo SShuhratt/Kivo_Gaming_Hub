@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Api\Concerns\ValidatesApiRequests;
 use App\Http\Controllers\Controller;
 use App\Models\Asset;
+use App\Models\Service;
 use App\Services\ServiceSetupGuard;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -76,6 +77,10 @@ class AssetController extends Controller
 
     protected function resolveAssetData(array $validated): array
     {
+        if (isset($validated['service_id']) && $validated['service_id'] !== null) {
+            $this->assertBaseServiceSelection((int) $validated['service_id']);
+        }
+
         $data = [
             'name' => $validated['asset_name'] ?? $validated['name'] ?? null,
             'service_id' => $validated['service_id'] ?? null,
@@ -85,7 +90,10 @@ class AssetController extends Controller
         ];
 
         if (isset($validated['category_name']) && $validated['category_name'] !== '') {
-            $service = \App\Models\Service::firstOrCreate(['name' => $validated['category_name']]);
+            $service = Service::firstOrCreate(
+                ['name' => trim((string) $validated['category_name'])],
+                ['rate' => null, 'requirements' => null],
+            );
             $data['service_id'] = $service->id;
         }
 
@@ -98,6 +106,17 @@ class AssetController extends Controller
         }
 
         return array_filter($data, fn($v) => $v !== null);
+    }
+
+    protected function assertBaseServiceSelection(int $serviceId): void
+    {
+        $service = Service::query()->find($serviceId);
+
+        if ($service && $service->is_bundle) {
+            $this->abortBadRequest([
+                'service_id' => ['Assets can only be linked to base services, not bundles.'],
+            ]);
+        }
     }
 
     public function destroy(Asset $asset)

@@ -36,7 +36,13 @@ class DashboardController extends Controller
                 'id' => (string) $service->id,
                 'backend_id' => $service->id,
                 'name' => $service->name,
-                'price' => (float) $service->price,
+                'rate' => $service->rate !== null ? (float) $service->rate : null,
+                'price' => $service->rate !== null ? (float) $service->rate : null,
+                'requirements' => $service->requirements ?? [],
+                'manual_priority' => $service->manual_priority,
+                'savings_ratio' => (float) $service->savings_ratio,
+                'is_recommendable' => (bool) $service->is_recommendable,
+                'is_bundle' => (bool) $service->is_bundle,
                 'assets_count' => $service->assets_count,
             ])
             ->values();
@@ -122,7 +128,7 @@ class DashboardController extends Controller
                 'active_sessions' => $sessions->where('session_status', 'active')->count(),
                 'total_session_devices' => $assets->count(),
                 'services_count' => $services->count(),
-                'services_ready' => $services->isNotEmpty(),
+                'services_ready' => $services->contains(fn (array $service) => ! $service['is_bundle'] && $service['rate'] !== null),
                 'rooms_count' => $rooms->count(),
                 'sales_total_today' => (float) Trade::query()
                     ->where('end_time', '>=', $today)
@@ -159,7 +165,7 @@ class DashboardController extends Controller
             'category' => $asset->category,
             'service_id' => $asset->service_id,
             'service_name' => $asset->service?->name,
-            'service_price' => $asset->service?->price !== null ? (float) $asset->service->price : null,
+            'service_price' => $asset->service?->rate !== null ? (float) $asset->service->rate : null,
             'room_id' => $asset->room_id,
             'room_name' => $asset->room?->name,
             'room_number' => $asset->room?->name ?? ($asset->room_id ? (string) $asset->room_id : null),

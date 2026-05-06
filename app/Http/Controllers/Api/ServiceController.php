@@ -19,34 +19,32 @@ class ServiceController extends Controller
                 ->withCount('assets')
                 ->orderBy('name')
                 ->get()
+                ->map(fn (Service $service) => $this->formatService($service))
+                ->values(),
         );
     }
 
     public function store(Request $request)
     {
-        $validated = $this->validateApi($request, [
-            'name' => 'required|string|max:255',
-            'price' => 'required|numeric|min:0',
-        ]);
+        $validated = $this->validateApi($request, $this->rules());
 
-        return response()->json(Service::create($validated)->loadCount('assets'), 201);
+        $service = Service::create($this->payloadFromValidation($validated))->loadCount('assets');
+
+        return response()->json($this->formatService($service), 201);
     }
 
     public function show(Service $service)
     {
-        return response()->json($service->loadCount('assets'));
+        return response()->json($this->formatService($service->loadCount('assets')));
     }
 
     public function update(Request $request, Service $service)
     {
-        $validated = $this->validateApi($request, [
-            'name' => 'sometimes|required|string|max:255',
-            'price' => 'sometimes|required|numeric|min:0',
-        ]);
+        $validated = $this->validateApi($request, $this->rules(false));
 
-        $service->update($validated);
+        $service->update($this->payloadFromValidation($validated));
 
-        return response()->json($service->fresh()->loadCount('assets'));
+        return response()->json($this->formatService($service->fresh()->loadCount('assets')));
     }
 
     public function destroy(Service $service)
@@ -71,5 +69,56 @@ class ServiceController extends Controller
                 'message' => 'Failed to delete service.',
             ], 500);
         }
+    }
+
+    protected function rules(bool $isCreate = true): array
+    {
+        $rateRule = $isCreate
+            ? 'nullable|required_without:price|numeric|min:0'
+            : 'sometimes|nullable|required_without:price|numeric|min:0';
+        $priceRule = $isCreate
+            ? 'nullable|required_without:rate|numeric|min:0'
+            : 'sometimes|nullable|required_without:rate|numeric|min:0';
+
+        return [
+            'name' => $isCreate ? 'required|string|max:255' : 'sometimes|required|string|max:255',
+            'rate' => $rateRule,
+            'price' => $priceRule,
+            'requirements' => 'sometimes|nullable|array',
+            'requirements.*' => 'integer|min:1',
+            'manual_priority' => 'sometimes|nullable|integer',
+            'is_recommendable' => 'sometimes|boolean',
+        ];
+    }
+
+    protected function payloadFromValidation(array $validated): array
+    {
+        $rate = array_key_exists('rate', $validated)
+            ? $validated['rate']
+            : ($validated['price'] ?? null);
+
+        return array_filter([
+            'name' => isset($validated['name']) ? trim((string) $validated['name']) : null,
+            'rate' => $rate !== null ? round((float) $rate, 2) : null,
+            'requirements' => $validated['requirements'] ?? null,
+            'manual_priority' => $validated['manual_priority'] ?? null,
+            'is_recommendable' => $validated['is_recommendable'] ?? false,
+        ], fn ($value) => $value !== null);
+    }
+
+    protected function formatService(Service $service): array
+    {
+        return [
+            'id' => $service->id,
+            'name' => $service->name,
+            'rate' => $service->rate,
+            'price' => $service->rate,
+            'requirements' => $service->requirements ?? [],
+            'manual_priority' => $service->manual_priority,
+            'savings_ratio' => (float) $service->savings_ratio,
+            'is_recommendable' => (bool) $service->is_recommendable,
+            'is_bundle' => (bool) $service->is_bundle,
+            'assets_count' => $service->assets_count ?? $service->assets()->count(),
+        ];
     }
 }

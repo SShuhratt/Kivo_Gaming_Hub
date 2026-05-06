@@ -21,6 +21,8 @@ class Trade extends Model
         'debt_name',
         'debt_phone_number',
         'asset_snapshot',
+        'cart_snapshot',
+        'pricing_breakdown_snapshot',
         'assets_count',
     ];
 
@@ -28,6 +30,8 @@ class Trade extends Model
         'start_time' => 'datetime',
         'end_time' => 'datetime',
         'asset_snapshot' => 'array',
+        'cart_snapshot' => 'array',
+        'pricing_breakdown_snapshot' => 'array',
         'hourly_rate' => 'float',
         'total_cost' => 'float',
     ];

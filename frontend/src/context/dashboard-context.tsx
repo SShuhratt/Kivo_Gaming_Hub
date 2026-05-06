@@ -66,7 +66,13 @@ export interface ServiceItem {
   id: string;
   backendId: number;
   name: string;
+  rate: number | null;
   price: number;
+  requirements: Record<string, number>;
+  manualPriority: number | null;
+  savingsRatio: number;
+  isRecommendable: boolean;
+  isBundle: boolean;
   assetsCount: number;
 }
 
@@ -154,8 +160,31 @@ export interface BookingCalculation {
   durationHours: number | null;
   hourlyRateTotal: number;
   totalCost: number;
+  totalPrice: number;
+  hourlyTotalPrice: number;
   isVip: boolean;
   endTime: string | null;
+  cart: Array<{
+    serviceId: number;
+    serviceName: string;
+    serviceKey: string;
+    quantity: number;
+    rate: number;
+  }>;
+  breakdown: Array<{
+    type: 'bundle' | 'residual';
+    phase: 'explicit_selection' | 'admin_override' | 'best_value' | 'residual';
+    serviceId: number;
+    serviceName: string;
+    serviceKey: string;
+    quantity: number;
+    rate: number;
+    subtotal: number;
+    requirements: Record<string, number>;
+    manualPriority: number | null;
+    savingsRatio: number;
+    isRecommendable: boolean;
+  }>;
   assetBreakdown: Array<{
     id: number;
     name: string;
@@ -184,7 +213,13 @@ interface DashboardContextType {
   login: (phoneNumber: string, password: string) => Promise<void>;
   logout: () => void;
   refreshDashboard: () => Promise<void>;
-  createService: (payload: { name: string; price: number }) => Promise<void>;
+  createService: (payload: {
+    name: string;
+    rate: number;
+    requirements?: Record<string, number>;
+    manualPriority?: number | null;
+    isRecommendable?: boolean;
+  }) => Promise<void>;
   deleteService: (service: ServiceItem) => Promise<void>;
   createRoom: (payload: { name: string }) => Promise<void>;
   deleteRoom: (room: RoomRecord) => Promise<void>;
@@ -218,14 +253,18 @@ interface DashboardContextType {
   deleteWarehouseProduct: (backendId: number) => Promise<void>;
   deleteManufacturer: (company: WarehouseCompany) => Promise<void>;
   calculateBooking: (payload: {
-    assetIds: number[];
+    assetIds?: number[];
+    cartItems?: Array<{ serviceId: number; quantity: number }>;
+    selectedBundleServiceIds?: number[];
     startTime: string;
     durationHours?: number;
     endTime?: string;
     isVip?: boolean;
   }) => Promise<BookingCalculation>;
   createBooking: (payload: {
-    assetIds: number[];
+    assetIds?: number[];
+    cartItems?: Array<{ serviceId: number; quantity: number }>;
+    selectedBundleServiceIds?: number[];
     startTime: string;
     durationHours?: number;
     endTime?: string;
@@ -295,7 +334,13 @@ function mapBootstrapPayload(payload: DashboardBootstrapResponse) {
       id: service.id,
       backendId: service.backend_id,
       name: service.name,
+      rate: service.rate,
       price: service.price,
+      requirements: service.requirements ?? {},
+      manualPriority: service.manual_priority,
+      savingsRatio: service.savings_ratio,
+      isRecommendable: service.is_recommendable,
+      isBundle: service.is_bundle,
       assetsCount: service.assets_count,
     })),
     rooms: payload.rooms.map((room) => ({
@@ -473,20 +518,36 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
   );
 
   const createService = useCallback(
-    async ({ name, price }: { name: string; price: number }) => {
+    async ({
+      name,
+      rate,
+      requirements,
+      manualPriority,
+      isRecommendable,
+    }: {
+      name: string;
+      rate: number;
+      requirements?: Record<string, number>;
+      manualPriority?: number | null;
+      isRecommendable?: boolean;
+    }) => {
       const activeToken = requireToken();
 
       if (!name.trim()) {
         throw new Error('Service name is required.');
       }
 
-      if (!Number.isFinite(price) || price < 0) {
+      if (!Number.isFinite(rate) || rate < 0) {
         throw new Error('Service price must be zero or greater.');
       }
 
       await createServiceRequest(activeToken, {
         name: name.trim(),
-        price,
+        rate,
+        price: rate,
+        requirements,
+        manual_priority: manualPriority,
+        is_recommendable: isRecommendable,
       });
 
       await refreshDashboard();
@@ -677,12 +738,16 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
   const calculateBooking = useCallback(
     async ({
       assetIds,
+      cartItems,
+      selectedBundleServiceIds,
       startTime,
       durationHours,
       endTime,
       isVip,
     }: {
-      assetIds: number[];
+      assetIds?: number[];
+      cartItems?: Array<{ serviceId: number; quantity: number }>;
+      selectedBundleServiceIds?: number[];
       startTime: string;
       durationHours?: number;
       endTime?: string;
@@ -691,6 +756,11 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       const activeToken = requireToken();
       const response = await calculateBookingRequest(activeToken, {
         asset_ids: assetIds,
+        cart_items: cartItems?.map((item) => ({
+          service_id: item.serviceId,
+          quantity: item.quantity,
+        })),
+        selected_bundle_service_ids: selectedBundleServiceIds,
         start_time: startTime,
         duration_hours: durationHours,
         end_time: endTime,
@@ -702,8 +772,31 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
         durationHours: response.duration_hours,
         hourlyRateTotal: response.hourly_rate_total,
         totalCost: response.total_cost,
+        totalPrice: response.total_price,
+        hourlyTotalPrice: response.hourly_total_price,
         isVip: response.is_vip,
         endTime: response.end_time,
+        cart: response.cart.map((item) => ({
+          serviceId: item.service_id,
+          serviceName: item.service_name,
+          serviceKey: item.service_key,
+          quantity: item.quantity,
+          rate: item.rate,
+        })),
+        breakdown: response.breakdown.map((line) => ({
+          type: line.type,
+          phase: line.phase,
+          serviceId: line.service_id,
+          serviceName: line.service_name,
+          serviceKey: line.service_key,
+          quantity: line.quantity,
+          rate: line.rate,
+          subtotal: line.subtotal,
+          requirements: line.requirements,
+          manualPriority: line.manual_priority,
+          savingsRatio: line.savings_ratio,
+          isRecommendable: line.is_recommendable,
+        })),
         assetBreakdown: response.asset_breakdown.map((asset) => ({
           id: asset.id,
           name: asset.name,
@@ -723,6 +816,8 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
   const createBooking = useCallback(
     async ({
       assetIds,
+      cartItems,
+      selectedBundleServiceIds,
       startTime,
       durationHours,
       endTime,
@@ -731,7 +826,9 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       debtName,
       debtPhoneNumber,
     }: {
-      assetIds: number[];
+      assetIds?: number[];
+      cartItems?: Array<{ serviceId: number; quantity: number }>;
+      selectedBundleServiceIds?: number[];
       startTime: string;
       durationHours?: number;
       endTime?: string;
@@ -744,6 +841,11 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
 
       await createBookingRequest(activeToken, {
         asset_ids: assetIds,
+        cart_items: cartItems?.map((item) => ({
+          service_id: item.serviceId,
+          quantity: item.quantity,
+        })),
+        selected_bundle_service_ids: selectedBundleServiceIds,
         start_time: startTime,
         duration_hours: durationHours,
         end_time: endTime,

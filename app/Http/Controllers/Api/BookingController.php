@@ -8,10 +8,14 @@ use App\Http\Controllers\Controller;
 use App\Models\Asset;
 use App\Models\Booking;
 use App\Services\AssetServicePricingService;
+use App\Services\BookingAssetAllocator;
+use App\Services\PriceCalculator;
 use App\Services\ServiceSetupGuard;
 use App\Services\SessionLifecycleService;
 use Carbon\Carbon;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -54,33 +58,38 @@ class BookingController extends Controller
 
     public function calculate(
         Request $request,
+        PriceCalculator $priceCalculator,
         AssetServicePricingService $assetServicePricing,
         ServiceSetupGuard $serviceSetupGuard
-    )
-    {
+    ) {
         $serviceSetupGuard->ensureServicesExist();
 
-        $validated = $this->validateApi($request, [
-            'asset_ids' => 'required|array|min:1',
-            'asset_ids.*' => 'required|integer|distinct|exists:assets,id',
-            'start_time' => 'required|date',
-            'end_time' => 'nullable|date|after:start_time',
-            'duration_hours' => 'nullable|numeric|min:0.1',
-            'is_vip' => 'sometimes|boolean',
-        ]);
-
+        $validated = $this->validateApi($request, $this->rules(false));
         $timing = $this->resolveTiming($validated);
-        $assets = $this->resolveAssets($validated['asset_ids']);
-        $snapshot = $assetServicePricing->buildPricedAssetSnapshot($assets);
-        $summary = $assetServicePricing->summarizeSnapshot($snapshot, $timing['duration_hours']);
+
+        [$cart, $assets] = $this->resolvePricingInputs($validated, $priceCalculator, false);
+        $pricing = $priceCalculator->calculate($cart, $validated['selected_bundle_service_ids'] ?? []);
+
+        $snapshot = $assets->isNotEmpty()
+            ? $assetServicePricing->buildPricedAssetSnapshot(
+                $assets,
+                app(BookingAssetAllocator::class)->distributeEffectiveHourlyRates($assets, $pricing['service_hourly_allocations']),
+            )
+            : [];
+
+        $summary = $this->summarizePricing($pricing['hourly_rate_total'], $timing['duration_hours']);
 
         return response()->json([
             'duration_minutes' => $summary['duration_minutes'],
             'duration_hours' => $summary['duration_hours'],
             'hourly_rate_total' => $summary['hourly_rate_total'],
             'total_cost' => $summary['total_cost'],
+            'total_price' => $summary['total_cost'],
+            'hourly_total_price' => $pricing['total_price'],
             'is_vip' => $timing['is_vip'],
             'end_time' => $timing['end_time']?->toISOString(),
+            'cart' => $pricing['cart'],
+            'breakdown' => $pricing['breakdown'],
             'asset_breakdown' => collect($snapshot)->map(fn ($asset) => [
                 'id' => $asset['id'],
                 'name' => $asset['name'],
@@ -98,35 +107,46 @@ class BookingController extends Controller
     public function store(
         Request $request,
         SessionLifecycleService $sessionLifecycle,
+        PriceCalculator $priceCalculator,
+        BookingAssetAllocator $assetAllocator,
         AssetServicePricingService $assetServicePricing,
         ServiceSetupGuard $serviceSetupGuard
     ) {
         $serviceSetupGuard->ensureServicesExist();
 
-        $validated = $this->validateApi($request, [
-            'asset_ids' => 'required|array|min:1',
-            'asset_ids.*' => 'required|integer|distinct|exists:assets,id',
-            'start_time' => 'required|date',
-            'end_time' => 'nullable|date|after:start_time',
-            'duration_hours' => 'nullable|numeric|min:0.1',
-            'is_vip' => 'sometimes|boolean',
-            'status' => 'required|in:submitted,debt_closed',
-            'debt_name' => 'required_if:status,debt_closed|nullable|string',
-            'debt_phone_number' => 'required_if:status,debt_closed|nullable|string',
-        ]);
-
+        $validated = $this->validateApi($request, $this->rules(true));
         $timing = $this->resolveTiming($validated);
 
-        $booking = DB::transaction(function () use ($validated, $timing, $assetServicePricing) {
-            $assets = $this->resolveAssets($validated['asset_ids']);
-            $snapshot = $assetServicePricing->buildPricedAssetSnapshot($assets);
+        $booking = DB::transaction(function () use (
+            $validated,
+            $timing,
+            $priceCalculator,
+            $assetAllocator,
+            $assetServicePricing,
+        ) {
+            [$cart, $selectedAssets] = $this->resolvePricingInputs($validated, $priceCalculator, true);
+            $pricing = $priceCalculator->calculate($cart, $validated['selected_bundle_service_ids'] ?? []);
+
+            $assets = $selectedAssets->isNotEmpty()
+                ? $selectedAssets
+                : $assetAllocator->allocateFromCart($cart);
+
+            $snapshot = $assetServicePricing->snapshotFromServiceCart(
+                $assets,
+                $pricing['cart'],
+                $pricing['service_hourly_allocations'],
+                $assetAllocator,
+            );
             $summary = $assetServicePricing->summarizeSnapshot($snapshot, $timing['duration_hours']);
 
             $booking = Booking::create([
                 'tariff_id' => null,
-                'tariff_name_snapshot' => 'Service pricing',
+                'tariff_name_snapshot' => $this->pricingLabel($pricing['breakdown']),
                 'hourly_rate_snapshot' => $summary['hourly_rate_total'],
                 'asset_snapshot' => $snapshot,
+                'cart_snapshot' => $pricing['cart'],
+                'pricing_breakdown_snapshot' => $pricing['breakdown'],
+                'selected_bundle_service_ids' => $validated['selected_bundle_service_ids'] ?? [],
                 'asset_stats_recorded' => false,
                 'start_time' => $timing['start_time'],
                 'end_time' => $timing['end_time'],
@@ -141,7 +161,7 @@ class BookingController extends Controller
                 'debt_phone_number' => $validated['debt_phone_number'] ?? null,
             ]);
 
-            $booking->assets()->sync($validated['asset_ids']);
+            $booking->assets()->sync($assets->pluck('id'));
 
             return $booking;
         });
@@ -213,7 +233,53 @@ class BookingController extends Controller
         ], 405);
     }
 
-    protected function resolveAssets(array $assetIds)
+    protected function rules(bool $isCreate): array
+    {
+        return [
+            'asset_ids' => 'nullable|array|min:1|required_without:cart_items',
+            'asset_ids.*' => 'required|integer|distinct|exists:assets,id',
+            'cart_items' => 'nullable|array|min:1|required_without:asset_ids',
+            'cart_items.*.service_id' => 'required|integer|exists:services,id',
+            'cart_items.*.quantity' => 'required|integer|min:1',
+            'selected_bundle_service_ids' => 'sometimes|array',
+            'selected_bundle_service_ids.*' => 'required|integer|exists:services,id',
+            'start_time' => 'required|date',
+            'end_time' => 'nullable|date|after:start_time',
+            'duration_hours' => 'nullable|numeric|min:0.1',
+            'is_vip' => 'sometimes|boolean',
+            'status' => $isCreate ? 'required|in:submitted,debt_closed' : 'sometimes|in:submitted,debt_closed',
+            'debt_name' => 'required_if:status,debt_closed|nullable|string',
+            'debt_phone_number' => 'required_if:status,debt_closed|nullable|string',
+        ];
+    }
+
+    protected function resolvePricingInputs(
+        array $validated,
+        PriceCalculator $priceCalculator,
+        bool $validateAvailability,
+    ): array {
+        $usesCartItems = isset($validated['cart_items']) && is_array($validated['cart_items']) && $validated['cart_items'] !== [];
+
+        if ($usesCartItems) {
+            return [
+                $priceCalculator->buildCartFromRequestedServices($validated['cart_items']),
+                collect(),
+            ];
+        }
+
+        $assets = $this->resolveAssets($validated['asset_ids'] ?? []);
+
+        if ($validateAvailability) {
+            app(BookingAssetAllocator::class)->validateAssetSelectionAvailability($assets);
+        }
+
+        return [
+            $priceCalculator->buildCartFromAssets($assets),
+            $assets,
+        ];
+    }
+
+    protected function resolveAssets(array $assetIds): Collection
     {
         return Asset::query()
             ->with(['room', 'service'])
@@ -278,6 +344,34 @@ class BookingController extends Controller
         $this->abortBadRequest([
             'duration_hours' => ['Duration is required unless VIP is selected.'],
         ]);
+    }
+
+    protected function summarizePricing(float $hourlyRateTotal, ?float $durationHours): array
+    {
+        if ($durationHours === null) {
+            return [
+                'duration_hours' => null,
+                'duration_minutes' => 0,
+                'hourly_rate_total' => round($hourlyRateTotal, 2),
+                'total_cost' => 0,
+            ];
+        }
+
+        $durationHours = round($durationHours, 2);
+
+        return [
+            'duration_hours' => $durationHours,
+            'duration_minutes' => (int) round($durationHours * 60),
+            'hourly_rate_total' => round($hourlyRateTotal, 2),
+            'total_cost' => round($hourlyRateTotal * $durationHours, 2),
+        ];
+    }
+
+    protected function pricingLabel(array $breakdown): string
+    {
+        return collect($breakdown)->contains(fn (array $line) => $line['type'] === 'bundle')
+            ? 'Dynamic bundle pricing'
+            : 'Service pricing';
     }
 
     protected function abortBadRequest(array $errors): never

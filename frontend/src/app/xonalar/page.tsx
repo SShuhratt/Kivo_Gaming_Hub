@@ -39,6 +39,7 @@ export default function XonalarPage() {
   const [assetDraft, setAssetDraft] = useState({ name: '', serviceId: '' });
   const [isSavingRoom, setIsSavingRoom] = useState(false);
   const [isSavingAsset, setIsSavingAsset] = useState(false);
+  const baseServices = useMemo(() => services.filter((service) => !service.isBundle), [services]);
 
   const filteredRooms = useMemo(() => {
     const query = roomSearch.trim().toLowerCase();
@@ -124,7 +125,7 @@ export default function XonalarPage() {
   };
 
   const handleOpenAssetModal = (roomId: string) => {
-    if (!servicesReady || services.length === 0) {
+    if (!servicesReady || baseServices.length === 0) {
       toast({
         variant: 'destructive',
         title: 'Xizmatlar topilmadi',
@@ -521,9 +522,9 @@ export default function XonalarPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="rounded-xl border-white/10 bg-[#0a1a1a] text-white">
-                    {services.map((service) => (
+                    {baseServices.map((service) => (
                       <SelectItem key={service.id} value={String(service.backendId)} className="text-[10px] font-black uppercase">
-                        {service.name} • {service.price.toLocaleString()} UZS
+                        {service.name} • {(service.rate ?? service.price).toLocaleString()} UZS
                       </SelectItem>
                     ))}
                   </SelectContent>

@@ -49,6 +49,6 @@ class Asset extends Model
 
     public function getServicePriceAttribute(): ?float
     {
-        return $this->service?->price;
+        return $this->service?->rate;
     }
 }

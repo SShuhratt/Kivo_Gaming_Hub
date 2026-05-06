@@ -12,7 +12,10 @@ class ServiceSetupGuard
 
     public function servicesReady(): bool
     {
-        return Service::query()->exists();
+        return Service::query()
+            ->baseServices()
+            ->whereNotNull('rate')
+            ->exists();
     }
 
     public function ensureServicesExist(): void
