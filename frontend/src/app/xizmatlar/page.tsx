@@ -24,7 +24,7 @@ const emptyRequirementDraft = (): RequirementDraft => ({
 });
 
 export default function XizmatlarPage() {
-  const { services, createService, deleteService, isCheckingAuth } = useDashboard();
+  const { services: allServices = [], createService, deleteService, isCheckingAuth } = useDashboard();
   const { toast } = useToast();
   const [isServiceModalOpen, setIsServiceModalOpen] = useState(false);
   const [serviceSearch, setServiceSearch] = useState('');
@@ -38,25 +38,25 @@ export default function XizmatlarPage() {
   const [requirementDrafts, setRequirementDrafts] = useState<RequirementDraft[]>([emptyRequirementDraft()]);
   const [isSaving, setIsSaving] = useState(false);
 
-  const baseServices = useMemo(() => getBaseServices(services), [services]);
-  const bundleServices = useMemo(() => getBundleServices(services), [services]);
+  const baseServices = useMemo(() => getBaseServices(allServices), [allServices]);
+  const bundleServices = useMemo(() => getBundleServices(allServices), [allServices]);
 
   const filteredServices = useMemo(() => {
     const query = serviceSearch.trim().toLowerCase();
 
     if (!query) {
-      return services;
+      return allServices;
     }
 
-    return services.filter((service) =>
+    return allServices.filter((service) =>
       [
         service.name,
         String(service.rate ?? service.price),
-        formatBundleRequirements(service.requirements, services),
+        formatBundleRequirements(service.requirements, allServices),
         service.isBundle ? 'bundle' : 'service',
       ].some((value) => value.toLowerCase().includes(query)),
     );
-  }, [serviceSearch, services]);
+  }, [serviceSearch, allServices]);
 
   const filteredBaseServices = filteredServices.filter((service) => !service.isBundle);
   const filteredBundleServices = filteredServices.filter((service) => service.isBundle);
@@ -157,7 +157,7 @@ export default function XizmatlarPage() {
   return (
     <DashboardLayout>
       <div className="animate-in fade-in slide-in-from-bottom-2 duration-500 space-y-6">
-        {services.length === 0 ? (
+        {allServices.length === 0 ? (
           <div className="relative flex min-h-[400px] flex-col items-center justify-center rounded-[32px] border border-dashed border-primary/10 bg-[#061414]/20 text-center backdrop-blur-sm">
             <div className="flex flex-col items-center space-y-6">
               <div className="flex h-20 w-20 items-center justify-center rounded-full border border-primary/10 bg-primary/5 shadow-[0_0_40px_rgba(0,255,255,0.03)]">
@@ -330,7 +330,7 @@ export default function XizmatlarPage() {
 
                         <div className="rounded-2xl border border-white/5 bg-[#051111] px-4 py-3">
                           <p className="text-[8px] font-black uppercase tracking-widest text-white/30">Tarkibi</p>
-                          <p className="mt-2 text-sm font-black text-white">{formatBundleRequirements(service.requirements, services)}</p>
+                          <p className="mt-2 text-sm font-black text-white">{formatBundleRequirements(service.requirements, allServices)}</p>
                         </div>
 
                         <div className="grid grid-cols-2 gap-3">
