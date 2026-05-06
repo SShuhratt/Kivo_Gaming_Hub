@@ -188,20 +188,20 @@ export default function XizmatlarPage() {
                   </p>
                 </div>
                 <div className="grid gap-3 sm:grid-cols-[320px_auto]">
-                  <div className="space-y-2">
-                    <Label className="text-[9px] font-black uppercase tracking-[0.2em] text-primary/60">
+                    <Label htmlFor="service-search" className="text-[9px] font-black uppercase tracking-[0.2em] text-primary/60">
                       Xizmatlarni qidirish
                     </Label>
                     <div className="relative">
                       <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/25" />
                       <Input
+                        id="service-search"
+                        name="service-search"
                         aria-label="Xizmat qidirish"
                         value={serviceSearch}
                         onChange={(event) => setServiceSearch(event.target.value)}
                         className="h-11 rounded-xl border-white/5 bg-[#051111] pl-11 text-sm font-bold"
                       />
                     </div>
-                  </div>
                   <Button
                     onClick={() => setIsServiceModalOpen(true)}
                     className="h-11 self-end rounded-xl bg-primary px-6 font-black uppercase tracking-[0.2em] text-black"
@@ -407,7 +407,7 @@ export default function XizmatlarPage() {
 
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label className="text-[9px] font-black uppercase tracking-[0.2em] text-primary/60">
+                  <Label htmlFor="service-name" className="text-[9px] font-black uppercase tracking-[0.2em] text-primary/60">
                     {draft.isBundle ? 'Bundle nomi' : 'Xizmat nomi'}
                   </Label>
                   <Input
@@ -420,7 +420,7 @@ export default function XizmatlarPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-[9px] font-black uppercase tracking-[0.2em] text-primary/60">Soatlik narx (UZS)</Label>
+                  <Label htmlFor="service-rate" className="text-[9px] font-black uppercase tracking-[0.2em] text-primary/60">Soatlik narx (UZS)</Label>
                   <Input
                     id="service-rate"
                     name="service-rate"
@@ -451,7 +451,7 @@ export default function XizmatlarPage() {
                       {requirementDrafts.map((row, index) => (
                         <div key={`requirement-${index}`} className="grid gap-3 md:grid-cols-[1fr_140px_auto]">
                           <div className="space-y-2">
-                            <Label className="text-[9px] font-black uppercase tracking-[0.2em] text-primary/60">Xizmat</Label>
+                            <Label htmlFor={`requirement-service-${index}`} className="text-[9px] font-black uppercase tracking-[0.2em] text-primary/60">Xizmat</Label>
                             <select
                               id={`requirement-service-${index}`}
                               name={`requirement-service-${index}`}
@@ -474,7 +474,7 @@ export default function XizmatlarPage() {
                             </select>
                           </div>
                           <div className="space-y-2">
-                            <Label className="text-[9px] font-black uppercase tracking-[0.2em] text-primary/60">Miqdor</Label>
+                            <Label htmlFor={`requirement-quantity-${index}`} className="text-[9px] font-black uppercase tracking-[0.2em] text-primary/60">Miqdor</Label>
                             <Input
                               id={`requirement-quantity-${index}`}
                               name={`requirement-quantity-${index}`}
@@ -512,7 +512,7 @@ export default function XizmatlarPage() {
 
                   <div className="grid gap-4 md:grid-cols-2">
                     <div className="space-y-2">
-                      <Label className="text-[9px] font-black uppercase tracking-[0.2em] text-primary/60">Admin priority</Label>
+                      <Label htmlFor="service-priority" className="text-[9px] font-black uppercase tracking-[0.2em] text-primary/60">Admin priority</Label>
                       <Input
                         id="service-priority"
                         name="service-priority"

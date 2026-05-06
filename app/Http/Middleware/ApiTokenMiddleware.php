@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use App\Models\User;
 use App\Services\JwtService;
+use Illuminate\Support\Facades\Log;
 use Closure;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -20,6 +21,11 @@ class ApiTokenMiddleware
         $token = $request->bearerToken();
 
         if (! $token) {
+            Log::warning('API Request missing bearer token', [
+                'path' => $request->path(),
+                'method' => $request->method(),
+                'ip' => $request->ip(),
+            ]);
             return $this->unauthorizedResponse('JWT bearer token is missing.');
         }
 

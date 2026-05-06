@@ -402,8 +402,10 @@ export default function BandQilishPage() {
 
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label className="text-[9px] font-black uppercase tracking-[0.2em] text-primary/60">Boshlanish vaqti</Label>
+                  <Label htmlFor="start-time" className="text-[9px] font-black uppercase tracking-[0.2em] text-primary/60">Boshlanish vaqti</Label>
                   <Input
+                    id="start-time"
+                    name="start-time"
                     type="datetime-local"
                     value={startTime}
                     onChange={(event) => setStartTime(event.target.value)}
@@ -435,11 +437,12 @@ export default function BandQilishPage() {
 
                   {!isVip ? (
                     <div className="space-y-3">
-                      <Label className="text-[9px] font-black uppercase tracking-[0.2em] text-primary/60">Davomiylik (soat)</Label>
+                      <Label htmlFor="duration-hours" className="text-[9px] font-black uppercase tracking-[0.2em] text-primary/60">Davomiylik (soat)</Label>
                       <div className="grid grid-cols-5 gap-2">
                         {durationOptions.map((value) => (
                           <button
                             key={value}
+                            type="button"
                             onClick={() => setDurationHoursInput(String(value))}
                             className={cn(
                               'h-11 rounded-xl border text-[11px] font-black transition-all',
@@ -453,6 +456,8 @@ export default function BandQilishPage() {
                         ))}
                       </div>
                       <Input
+                        id="duration-hours"
+                        name="duration-hours"
                         type="number"
                         min="0.1"
                         step="0.1"
@@ -490,8 +495,10 @@ export default function BandQilishPage() {
                 {status === 'debt_closed' ? (
                   <div className="space-y-3">
                     <div className="space-y-2">
-                      <Label className="text-[9px] font-black uppercase tracking-[0.2em] text-primary/60">Qarz ismi</Label>
+                      <Label htmlFor="debt-name" className="text-[9px] font-black uppercase tracking-[0.2em] text-primary/60">Qarz ismi</Label>
                       <Input
+                        id="debt-name"
+                        name="debt-name"
                         aria-label="Qarz ismi"
                         value={debtName}
                         onChange={(event) => setDebtName(event.target.value)}
@@ -499,8 +506,10 @@ export default function BandQilishPage() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label className="text-[9px] font-black uppercase tracking-[0.2em] text-primary/60">Qarz telefoni</Label>
+                      <Label htmlFor="debt-phone" className="text-[9px] font-black uppercase tracking-[0.2em] text-primary/60">Qarz telefoni</Label>
                       <Input
+                        id="debt-phone"
+                        name="debt-phone"
                         aria-label="Qarz telefoni"
                         value={debtPhoneNumber}
                         onChange={(event) => setDebtPhoneNumber(event.target.value)}
