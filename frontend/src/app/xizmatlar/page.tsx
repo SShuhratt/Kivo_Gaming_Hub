@@ -4,72 +4,56 @@ import React, { useState } from 'react';
 import { DeleteConfirmButton } from '@/components/delete-confirm-button';
 import { DashboardLayout } from '@/components/dashboard-layout';
 import { useDashboard } from '@/context/dashboard-context';
-import { Plus, Wrench, Key, Trash2 } from 'lucide-react';
+import { Plus, Wrench, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 
-function parseServiceNames(value: string) {
-  return value
-    .split(/[\s,]+/)
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
-
 export default function XizmatlarPage() {
-  const { services, createServiceRoom, deleteServiceRoom, isCheckingAuth } = useDashboard();
+  const { services, createService, deleteService, isCheckingAuth } = useDashboard();
   const { toast } = useToast();
   const [isServiceModalOpen, setIsServiceModalOpen] = useState(false);
-  const [newService, setNewService] = useState({ names: '', roomNumber: '', cost: '' });
+  const [draft, setDraft] = useState({ name: '', price: '' });
   const [isSaving, setIsSaving] = useState(false);
 
   if (isCheckingAuth) return null;
 
-  const handleAddService = async () => {
-    const parsedItems = parseServiceNames(newService.names);
-    const parsedCost = Number(newService.cost);
+  const handleCreateService = async () => {
+    const price = Number(draft.price);
 
-    if (parsedItems.length === 0) {
+    if (!draft.name.trim()) {
       toast({
         variant: 'destructive',
-        title: 'Xizmat nomi kiritilmagan',
-        description: "Kamida bitta xizmat nomini kiriting.",
+        title: 'Kategoriya nomi kiritilmagan',
+        description: "Xizmat kategoriyasi nomini kiriting.",
       });
       return;
     }
 
-    if (!newService.roomNumber) {
+    if (!Number.isFinite(price) || price < 0) {
       toast({
         variant: 'destructive',
-        title: "Xona raqami kiritilmagan",
-        description: 'Xizmatlarni qaysi xonaga biriktirishni kiriting.',
-      });
-      return;
-    }
-
-    if (!Number.isFinite(parsedCost) || parsedCost < 0) {
-      toast({
-        variant: 'destructive',
-        title: 'Xizmat narxi noto‘g‘ri',
-        description: 'Xizmat uchun 0 yoki undan katta narx kiriting.',
+        title: 'Narx noto‘g‘ri',
+        description: '0 yoki undan katta narx kiriting.',
       });
       return;
     }
 
     try {
       setIsSaving(true);
-      await createServiceRoom({
-        roomNumber: newService.roomNumber,
-        items: parsedItems,
-        cost: parsedCost,
+      await createService({
+        name: draft.name,
+        price,
       });
 
-      setNewService({ names: '', roomNumber: '', cost: '' });
+      setDraft({ name: '', price: '' });
       setIsServiceModalOpen(false);
-      toast({ title: 'Muvaffaqiyatli!', description: `${newService.roomNumber}-xona xizmatlari qo'shildi.` });
+      toast({
+        title: "Xizmat qo'shildi",
+        description: `${draft.name} kategoriyasi saqlandi.`,
+      });
     } catch (error) {
       toast({
         variant: 'destructive',
@@ -91,9 +75,9 @@ export default function XizmatlarPage() {
                 <Wrench className="h-8 w-8 text-primary opacity-20" />
               </div>
               <div className="space-y-1.5 mb-2">
-                <h3 className="text-base font-black text-white uppercase tracking-tight">XIZMATLAR RO'YXATI BO'SH</h3>
-                <p className="text-[10px] text-[#444f4f] font-medium max-w-[240px] mx-auto leading-relaxed uppercase tracking-[0.2em]">
-                  Xizmatlarni vergul yoki bo'sh joy bilan kiriting va bitta narx bilan saqlang.
+                <h3 className="text-base font-black text-white uppercase tracking-tight">XIZMAT KATEGORIYALARI BO'SH</h3>
+                <p className="text-[10px] text-[#444f4f] font-medium max-w-[260px] mx-auto leading-relaxed uppercase tracking-[0.2em]">
+                  Avval kategoriya va soatlik narxni kiriting. Shu kategoriyalar keyin xonadagi jihozlarga biriktiriladi.
                 </p>
               </div>
               <Button
@@ -107,21 +91,25 @@ export default function XizmatlarPage() {
         ) : (
           <>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-              {services.map((room) => (
-                <div key={room.id} className="bg-[#0a1515]/60 border border-white/5 p-5 rounded-2xl space-y-4 hover:border-primary/30 transition-all shadow-xl backdrop-blur-md group relative">
-                  <div className="flex items-center justify-between border-b border-white/5 pb-3">
-                    <div className="flex items-center gap-3">
-                      <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-primary/5 border border-primary/20 shadow-[0_0_10px_rgba(0,255,255,0.05)]">
-                        <Key className="h-4 w-4 text-primary" />
-                      </div>
-                      <h4 className="text-sm font-black text-white uppercase tracking-tight">XONA {room.roomNumber}</h4>
+              {services.map((service) => (
+                <div
+                  key={service.id}
+                  className="bg-[#0a1515]/60 border border-white/5 p-5 rounded-2xl space-y-4 hover:border-primary/30 transition-all shadow-xl backdrop-blur-md"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="space-y-2">
+                      <p className="text-[9px] font-black text-primary/50 uppercase tracking-[0.3em]">KATEGORIYA</p>
+                      <h4 className="text-sm font-black text-white uppercase tracking-tight">{service.name}</h4>
                     </div>
                     <DeleteConfirmButton
-                      itemName={`Xona ${room.roomNumber}`}
+                      itemName={service.name}
                       onConfirm={async () => {
                         try {
-                          await deleteServiceRoom(room);
-                          toast({ title: "O'chirildi", description: `Xona ${room.roomNumber} xizmatlari olib tashlandi.` });
+                          await deleteService(service);
+                          toast({
+                            title: "O'chirildi",
+                            description: `${service.name} kategoriyasi olib tashlandi.`,
+                          });
                         } catch (error) {
                           toast({
                             variant: 'destructive',
@@ -132,21 +120,25 @@ export default function XizmatlarPage() {
                         }
                       }}
                     >
-                      <button className="h-7 w-7 flex items-center justify-center rounded-lg hover:bg-destructive/10 text-destructive/40 hover:text-destructive transition-all">
+                      <button className="h-8 w-8 flex items-center justify-center rounded-lg hover:bg-destructive/10 text-destructive/40 hover:text-destructive transition-all">
                         <Trash2 className="h-4 w-4" />
                       </button>
                     </DeleteConfirmButton>
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    {room.items.map((item) => (
-                      <Badge key={item.id} className="bg-primary/5 text-primary border-primary/10 px-2.5 py-1 text-[9px] font-black uppercase tracking-widest rounded-lg">
-                        {item.name} • {item.cost.toLocaleString()} UZS
-                      </Badge>
-                    ))}
+
+                  <div className="rounded-2xl border border-white/5 bg-[#051111] px-4 py-3">
+                    <p className="text-[8px] font-black text-white/30 uppercase tracking-widest">Narx</p>
+                    <p className="text-lg font-black text-primary mt-2">{service.price.toLocaleString()} UZS</p>
+                  </div>
+
+                  <div className="rounded-2xl border border-white/5 bg-white/5 px-4 py-3">
+                    <p className="text-[8px] font-black text-white/30 uppercase tracking-widest">Bog'langan jihozlar</p>
+                    <p className="text-sm font-black text-white mt-2">{service.assetsCount}</p>
                   </div>
                 </div>
               ))}
             </div>
+
             <button
               onClick={() => setIsServiceModalOpen(true)}
               className="fixed bottom-10 right-10 h-14 w-14 bg-primary text-black rounded-2xl shadow-[0_15px_40px_rgba(0,255,255,0.4)] flex items-center justify-center hover:scale-110 active:scale-95 transition-all z-30 group"
@@ -159,44 +151,38 @@ export default function XizmatlarPage() {
         <Dialog open={isServiceModalOpen} onOpenChange={setIsServiceModalOpen}>
           <DialogContent className="bg-[#0a1f1f] border-white/10 text-white max-w-sm rounded-3xl p-8 shadow-2xl backdrop-blur-xl">
             <DialogHeader className="space-y-2">
-              <DialogTitle className="text-base font-black uppercase tracking-tight">YANGI XIZMAT</DialogTitle>
+              <DialogTitle className="text-base font-black uppercase tracking-tight">YANGI XIZMAT KATEGORIYASI</DialogTitle>
               <DialogDescription className="text-[9px] text-muted-foreground/60 font-medium uppercase tracking-[0.2em]">
-                Xizmatlarni `,` yoki bo'sh joy bilan ajrating.
+                Jihozlar aynan shu ro'yxatdagi kategoriyalardan birini tanlaydi.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-6 py-6">
               <div className="space-y-2">
-                <Label className="text-[9px] font-black uppercase tracking-[0.2em] text-primary/60">Xizmat Nomlari</Label>
+                <Label className="text-[9px] font-black uppercase tracking-[0.2em] text-primary/60">Kategoriya nomi</Label>
                 <Input
-                  placeholder="M: FIFA, UFC yoki FIFA UFC"
-                  value={newService.names}
-                  onChange={(e) => setNewService({ ...newService, names: e.target.value })}
+                  placeholder="M: Computer yoki PS5"
+                  value={draft.name}
+                  onChange={(e) => setDraft((current) => ({ ...current, name: e.target.value }))}
                   className="h-12 bg-[#051111] border-white/5 rounded-xl font-bold px-4 text-sm"
                 />
               </div>
               <div className="space-y-2">
-                <Label className="text-[9px] font-black uppercase tracking-[0.2em] text-primary/60">Xizmat Narxi (UZS)</Label>
+                <Label className="text-[9px] font-black uppercase tracking-[0.2em] text-primary/60">Narxi (UZS)</Label>
                 <Input
                   type="number"
                   placeholder="M: 20000"
-                  value={newService.cost}
-                  onChange={(e) => setNewService({ ...newService, cost: e.target.value })}
-                  className="h-12 bg-[#051111] border-white/5 rounded-xl font-bold px-4 text-sm"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-[9px] font-black uppercase tracking-[0.2em] text-primary/60">Xona Raqami</Label>
-                <Input
-                  type="number"
-                  placeholder="M: 1"
-                  value={newService.roomNumber}
-                  onChange={(e) => setNewService({ ...newService, roomNumber: e.target.value })}
+                  value={draft.price}
+                  onChange={(e) => setDraft((current) => ({ ...current, price: e.target.value }))}
                   className="h-12 bg-[#051111] border-white/5 rounded-xl font-bold px-4 text-sm"
                 />
               </div>
             </div>
             <DialogFooter>
-              <Button disabled={isSaving} onClick={() => void handleAddService()} className="w-full h-12 bg-primary text-black font-black uppercase tracking-[0.3em] rounded-xl shadow-[0_10px_30px_rgba(0,255,255,0.2)] hover:bg-primary/90 transition-all active:scale-[0.98] text-xs">
+              <Button
+                disabled={isSaving}
+                onClick={() => void handleCreateService()}
+                className="w-full h-12 bg-primary text-black font-black uppercase tracking-[0.3em] rounded-xl shadow-[0_10px_30px_rgba(0,255,255,0.2)] hover:bg-primary/90 transition-all active:scale-[0.98] text-xs"
+              >
                 SAQLASH
               </Button>
             </DialogFooter>

@@ -1,32 +1,18 @@
 <?php
 
-<<<<<<< ours
 use App\Http\Controllers\Api\AssetController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BookingController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\ManufacturerController;
+use App\Http\Controllers\Api\RoomController;
 use App\Http\Controllers\Api\ServiceController;
 use App\Http\Controllers\Api\TariffController;
 use App\Http\Controllers\Api\TestMailController;
 use App\Http\Controllers\Api\TradeController;
 use App\Http\Controllers\Api\WarehouseController;
-=======
-use App\Http\Controllers\Api\{
-    AssetController,
-    AuthController,
-    BookingController,
-    DashboardController,
-    RoomController,
-    ServiceController,
-    TariffController,
-    TradeController,
-    WarehouseController
-};
->>>>>>> theirs
 use Illuminate\Support\Facades\Route;
 
-// Auth Routes
 Route::post('/auth/register', [AuthController::class, 'register'])
     ->defaults('openapiOperation', 'registerUser');
 Route::post('/auth/login', [AuthController::class, 'login'])
@@ -41,47 +27,26 @@ Route::post('/auth/reset-password', [AuthController::class, 'resetPassword'])
 Route::post('/auth/test-mail', TestMailController::class)
     ->defaults('openapiOperation', 'sendTestMail');
 
-// Protected Routes
 Route::middleware('api.token')->group(function () {
-
-    // Dashboard
     Route::get('/dashboard/bootstrap', [DashboardController::class, 'bootstrap'])
         ->defaults('openapiOperation', 'getDashboardBootstrap');
 
-    // Finance/Trades
     Route::get('/trades', [TradeController::class, 'index'])
         ->defaults('openapiOperation', 'listTrades');
 
-<<<<<<< ours
-<<<<<<< ours
-<<<<<<< ours
-<<<<<<< ours
-    // Assets CRUD
-=======
-=======
->>>>>>> theirs
-=======
->>>>>>> theirs
-=======
->>>>>>> theirs
+    Route::get('/rooms', [RoomController::class, 'index'])
+        ->defaults('openapiOperation', 'listRooms');
+    Route::post('/rooms', [RoomController::class, 'store'])
+        ->defaults('openapiOperation', 'createRoom');
+    Route::get('/rooms/{room}', [RoomController::class, 'show'])
+        ->defaults('openapiOperation', 'getRoom');
+    Route::put('/rooms/{room}', [RoomController::class, 'update'])
+        ->defaults('openapiOperation', 'replaceRoom');
+    Route::patch('/rooms/{room}', [RoomController::class, 'update'])
+        ->defaults('openapiOperation', 'updateRoom');
+    Route::delete('/rooms/{room}', [RoomController::class, 'destroy'])
+        ->defaults('openapiOperation', 'deleteRoom');
 
-    Route::get('/rooms', [RoomController::class, 'index']);
-    Route::post('/rooms', [RoomController::class, 'store']);
-    Route::get('/rooms/{room}', [RoomController::class, 'show']);
-    Route::put('/rooms/{room}', [RoomController::class, 'update']);
-    Route::patch('/rooms/{room}', [RoomController::class, 'update']);
-    Route::delete('/rooms/{room}', [RoomController::class, 'destroy']);
-
-<<<<<<< ours
-<<<<<<< ours
-<<<<<<< ours
->>>>>>> theirs
-=======
->>>>>>> theirs
-=======
->>>>>>> theirs
-=======
->>>>>>> theirs
     Route::get('/assets', [AssetController::class, 'index'])
         ->defaults('openapiOperation', 'listAssets');
     Route::post('/assets', [AssetController::class, 'store'])
@@ -95,7 +60,6 @@ Route::middleware('api.token')->group(function () {
     Route::delete('/assets/{asset}', [AssetController::class, 'destroy'])
         ->defaults('openapiOperation', 'deleteAsset');
 
-    // Warehouse CRUD
     Route::get('/warehouse', [WarehouseController::class, 'index'])
         ->defaults('openapiOperation', 'listWarehouseItems');
     Route::post('/warehouse', [WarehouseController::class, 'store'])
@@ -111,7 +75,6 @@ Route::middleware('api.token')->group(function () {
     Route::delete('/manufacturers/{manufacturer}', [ManufacturerController::class, 'destroy'])
         ->defaults('openapiOperation', 'deleteManufacturer');
 
-    // Services CRUD
     Route::get('/services', [ServiceController::class, 'index'])
         ->defaults('openapiOperation', 'listServices');
     Route::post('/services', [ServiceController::class, 'store'])
@@ -125,7 +88,6 @@ Route::middleware('api.token')->group(function () {
     Route::delete('/services/{service}', [ServiceController::class, 'destroy'])
         ->defaults('openapiOperation', 'deleteService');
 
-    // Bookings
     Route::get('/bookings', [BookingController::class, 'index'])
         ->defaults('openapiOperation', 'listBookings');
     Route::post('/bookings/calculate', [BookingController::class, 'calculate'])
@@ -140,6 +102,7 @@ Route::middleware('api.token')->group(function () {
         ->defaults('openapiOperation', 'updateBooking');
     Route::delete('/bookings/{booking}', [BookingController::class, 'destroy'])
         ->defaults('openapiOperation', 'deleteBooking');
+
     Route::get('/sessions', [BookingController::class, 'index'])
         ->defaults('openapiOperation', 'listSessions');
     Route::get('/sessions/{booking}', [BookingController::class, 'show'])
@@ -149,7 +112,6 @@ Route::middleware('api.token')->group(function () {
     Route::delete('/sessions/{booking}', [BookingController::class, 'destroy'])
         ->defaults('openapiOperation', 'deleteSession');
 
-    // Tariffs CRUD
     Route::get('/tariffs', [TariffController::class, 'index'])
         ->defaults('openapiOperation', 'listTariffs');
     Route::post('/tariffs', [TariffController::class, 'store'])

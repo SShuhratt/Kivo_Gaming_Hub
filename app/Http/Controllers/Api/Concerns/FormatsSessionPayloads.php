@@ -98,15 +98,14 @@ trait FormatsSessionPayloads
 
     protected function roomLabelFromAssets(array $assets): string
     {
-        $roomIds = collect($assets)
-            ->pluck('room_id')
-            ->filter(fn ($roomId) => $roomId !== null)
+        $roomLabels = collect($assets)
+            ->map(fn ($asset) => $asset['room_name'] ?? $asset['room_number'] ?? $asset['room_id'] ?? null)
+            ->filter(fn ($label) => $label !== null && $label !== '')
             ->unique()
-            ->sort()
             ->values();
 
-        return $roomIds->isNotEmpty()
-            ? 'Xona '.$roomIds->implode(', ')
+        return $roomLabels->isNotEmpty()
+            ? $roomLabels->implode(', ')
             : 'Xona N/A';
     }
 
@@ -118,7 +117,9 @@ trait FormatsSessionPayloads
                     'id' => $asset['id'] ?? null,
                     'name' => $asset['name'] ?? null,
                     'category' => $asset['category'] ?? null,
+                    'service_id' => $asset['service_id'] ?? null,
                     'room_id' => $asset['room_id'] ?? null,
+                    'room_name' => $asset['room_name'] ?? null,
                     'room_number' => isset($asset['room_number']) ? (string) $asset['room_number'] : (isset($asset['room_id']) ? (string) $asset['room_id'] : null),
                     'hourly_price' => array_key_exists('hourly_price', $asset) ? (float) $asset['hourly_price'] : null,
                 ])
@@ -131,8 +132,10 @@ trait FormatsSessionPayloads
                 'id' => $asset->id,
                 'name' => $asset->name,
                 'category' => $asset->category,
+                'service_id' => $asset->service_id,
                 'room_id' => $asset->room_id,
-                'room_number' => (string) $asset->room_id,
+                'room_name' => $asset->room?->name,
+                'room_number' => $asset->room?->name ?? ($asset->room_id ? (string) $asset->room_id : null),
                 'hourly_price' => null,
             ])
             ->values()

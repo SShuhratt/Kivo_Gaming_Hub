@@ -140,15 +140,15 @@ class TariffController extends Controller
         }
 
         $assetCategories = Asset::query()
-            ->select('category')
-            ->distinct()
-            ->orderBy('category')
+            ->with('service')
             ->get()
             ->map(fn (Asset $asset) => [
-                'category' => trim((string) $asset->category),
+                'category' => trim((string) ($asset->service?->name ?? $asset->category)),
                 'hourly_price' => round((float) $validated['hourly_cost'], 2),
             ])
             ->filter(fn (array $row) => $row['category'] !== '')
+            ->unique(fn (array $row) => mb_strtolower($row['category']))
+            ->sortBy('category')
             ->values()
             ->all();
 

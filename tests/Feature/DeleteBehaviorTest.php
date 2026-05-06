@@ -5,6 +5,8 @@ namespace Tests\Feature;
 use App\Models\Asset;
 use App\Models\Booking;
 use App\Models\Manufacturer;
+use App\Models\Room;
+use App\Models\Service;
 use App\Models\Tariff;
 use App\Models\Trade;
 use App\Models\User;
@@ -24,9 +26,12 @@ class DeleteBehaviorTest extends TestCase
             'hourly_cost' => 50000,
         ]);
 
+        $room = Room::create(['name' => 'Opshiy zal']);
+        $service = Service::create(['name' => 'Computer', 'price' => 20000]);
         $asset = Asset::create([
-            'category' => 'Computer',
-            'room_id' => 9,
+            'name' => 'computer1',
+            'service_id' => $service->id,
+            'room_id' => $room->id,
         ]);
 
         $booking = Booking::create([

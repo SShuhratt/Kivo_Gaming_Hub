@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Asset;
 use App\Models\Booking;
 use App\Models\Manufacturer;
+use App\Models\Room;
 use App\Models\Service;
 use App\Models\Tariff;
 use App\Models\Trade;
@@ -23,28 +24,17 @@ class DashboardController extends Controller
     {
         $sessionLifecycle->syncElapsedSessions();
 
-        $groupedServices = Service::query()
-            ->orderBy('room_id')
-            ->orderBy('game_name')
+        $services = Service::query()
+            ->withCount('assets')
+            ->orderBy('name')
             ->get()
-            ->groupBy('room_id')
-            ->map(function ($roomServices, $roomId) {
-                return [
-                    'id' => (string) $roomId,
-                    'room_id' => (int) $roomId,
-                    'room_number' => (string) $roomId,
-                    'items' => $roomServices->pluck('game_name')->values()->all(),
-                    'service_entries' => $roomServices->map(function (Service $service) {
-                        return [
-                            'id' => (string) $service->id,
-                            'backend_id' => $service->id,
-                            'name' => $service->game_name,
-                            'cost' => (float) $service->cost,
-                        ];
-                    })->values()->all(),
-                    'service_ids' => $roomServices->pluck('id')->values()->all(),
-                ];
-            })
+            ->map(fn (Service $service) => [
+                'id' => (string) $service->id,
+                'backend_id' => $service->id,
+                'name' => $service->name,
+                'price' => (float) $service->price,
+                'assets_count' => $service->assets_count,
+            ])
             ->values();
 
         $tariffs = Tariff::query()
@@ -68,20 +58,36 @@ class DashboardController extends Controller
             })
             ->values();
 
-        $assets = Asset::query()
+        $assetCollection = Asset::query()
+            ->with(['room', 'service'])
             ->orderBy('room_id')
-            ->orderBy('category')
+            ->orderBy('service_id')
+            ->orderBy('name')
+            ->get();
+
+        $assets = $assetCollection
+            ->map(fn (Asset $asset) => $this->serializeAsset($asset))
+            ->values();
+
+        $rooms = Room::query()
+            ->with(['assets.room', 'assets.service'])
+            ->orderBy('name')
             ->get()
-            ->map(function (Asset $asset) {
+            ->map(function (Room $room) {
                 return [
-                    'id' => (string) $asset->id,
-                    'backend_id' => $asset->id,
-                    'name' => $asset->name,
-                    'category' => $asset->category,
-                    'room_id' => $asset->room_id,
-                    'room_number' => (string) $asset->room_id,
-                    'total_usage_duration_minutes' => $asset->total_usage_duration_minutes,
-                    'total_earned_money' => (float) $asset->total_earned_money,
+                    'id' => (string) $room->id,
+                    'backend_id' => $room->id,
+                    'name' => $room->name,
+                    'assets' => $room->assets
+                        ->sortBy(fn (Asset $asset) => sprintf(
+                            '%s|%s|%010d',
+                            mb_strtolower((string) ($asset->service?->name ?? '')),
+                            mb_strtolower((string) $asset->name),
+                            $asset->id,
+                        ))
+                        ->map(fn (Asset $asset) => $this->serializeAsset($asset))
+                        ->values()
+                        ->all(),
                 ];
             })
             ->values();
@@ -113,7 +119,7 @@ class DashboardController extends Controller
             ->values();
 
         $sessions = Booking::query()
-            ->with(['assets', 'tariff.categoryPrices', 'trade'])
+            ->with(['assets.room', 'assets.service', 'tariff.categoryPrices', 'trade'])
             ->orderByRaw("case when session_status = 'active' then 0 else 1 end")
             ->latest('start_time')
             ->get();
@@ -125,11 +131,6 @@ class DashboardController extends Controller
             ->values();
 
         $today = Carbon::now()->startOfDay();
-        $roomsCount = collect($groupedServices)
-            ->pluck('room_id')
-            ->merge(collect($assets)->pluck('room_id'))
-            ->unique()
-            ->count();
 
         return response()->json([
             'user' => $request->user(),
@@ -137,12 +138,13 @@ class DashboardController extends Controller
                 'active_sessions' => $sessions->where('session_status', 'active')->count(),
                 'total_session_devices' => $assets->count(),
                 'pending_sessions' => $tariffs->count(),
-                'rooms_count' => $roomsCount,
+                'rooms_count' => $rooms->count(),
                 'sales_total_today' => (float) Trade::query()
                     ->where('end_time', '>=', $today)
                     ->sum('total_cost'),
             ],
-            'services' => $groupedServices,
+            'services' => $services,
+            'rooms' => $rooms,
             'tariffs' => $tariffs,
             'sales' => $sales,
             'sessions' => $sessions->map(fn (Booking $booking) => $this->formatSession($booking))->values(),
@@ -154,23 +156,7 @@ class DashboardController extends Controller
                 ['key' => 'sessions', 'name' => 'Aktiv seanslar', 'path' => '/aktiv-seanslar'],
                 ['key' => 'cashier', 'name' => 'Kassa', 'path' => '/kassa'],
                 ['key' => 'sales', 'name' => 'Savdo', 'path' => '/savdo'],
-<<<<<<< ours
-<<<<<<< ours
-<<<<<<< ours
-<<<<<<< ours
-                ['key' => 'assets', 'name' => 'Jihozlar', 'path' => '/kompyuterlar'],
-=======
                 ['key' => 'rooms', 'name' => 'Xonalar', 'path' => '/xonalar'],
->>>>>>> theirs
-=======
-                ['key' => 'rooms', 'name' => 'Xonalar', 'path' => '/xonalar'],
->>>>>>> theirs
-=======
-                ['key' => 'rooms', 'name' => 'Xonalar', 'path' => '/xonalar'],
->>>>>>> theirs
-=======
-                ['key' => 'rooms', 'name' => 'Xonalar', 'path' => '/xonalar'],
->>>>>>> theirs
                 ['key' => 'inventory', 'name' => 'Ombor', 'path' => '/ombor'],
                 ['key' => 'services', 'name' => 'Xizmatlar', 'path' => '/xizmatlar'],
                 ['key' => 'tariffs', 'name' => 'Tariflar', 'path' => '/tariflar'],
@@ -179,5 +165,23 @@ class DashboardController extends Controller
                 ['key' => 'analytics', 'name' => 'Analitika', 'path' => '/analitika'],
             ],
         ]);
+    }
+
+    protected function serializeAsset(Asset $asset): array
+    {
+        return [
+            'id' => (string) $asset->id,
+            'backend_id' => $asset->id,
+            'name' => $asset->name,
+            'category' => $asset->category,
+            'service_id' => $asset->service_id,
+            'service_name' => $asset->service?->name,
+            'service_price' => $asset->service?->price !== null ? (float) $asset->service->price : null,
+            'room_id' => $asset->room_id,
+            'room_name' => $asset->room?->name,
+            'room_number' => $asset->room?->name ?? ($asset->room_id ? (string) $asset->room_id : null),
+            'total_usage_duration_minutes' => $asset->total_usage_duration_minutes,
+            'total_earned_money' => (float) $asset->total_earned_money,
+        ];
     }
 }

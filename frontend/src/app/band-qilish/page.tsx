@@ -3,22 +3,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { DashboardLayout } from '@/components/dashboard-layout';
 import { useDashboard } from '@/context/dashboard-context';
-import {
-  Receipt,
-  Calendar as CalendarIcon,
-  Zap,
-  AlertCircle,
-  Monitor,
-  Gamepad2,
-  Timer,
-  Crown,
-} from 'lucide-react';
+import { AlertCircle, Calendar as CalendarIcon, Crown, Monitor, Receipt, Timer, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { formatAssetCategoryLabel, getAssetCategoryKind, normalizeAssetCategoryValue } from '@/lib/asset-category';
 import { cn } from '@/lib/utils';
 
 function toLocalDateTimeValue(date: Date) {
@@ -43,10 +32,9 @@ function formatDateTimePreview(value: string | null) {
 const durationOptions = [0.5, 1, 2, 2.5, 3];
 
 export default function BandQilishPage() {
-  const { tariffs, assets, calculateBooking, createBooking, isCheckingAuth } = useDashboard();
+  const { assets, calculateBooking, createBooking, isCheckingAuth } = useDashboard();
   const { toast } = useToast();
 
-  const [selectedTariffId, setSelectedTariffId] = useState<string | null>(null);
   const [selectedAssetIds, setSelectedAssetIds] = useState<string[]>([]);
   const [startTime, setStartTime] = useState(() => toLocalDateTimeValue(new Date()));
   const [durationHoursInput, setDurationHoursInput] = useState('1');
@@ -63,46 +51,16 @@ export default function BandQilishPage() {
     const groups = new Map<string, typeof assets>();
 
     for (const asset of assets) {
-      const key = asset.roomNumber;
+      const key = asset.roomNumber || 'Xona N/A';
       const current = groups.get(key) ?? [];
       groups.set(key, [...current, asset]);
     }
 
-    return Array.from(groups.entries()).sort((a, b) => Number(a[0]) - Number(b[0]));
+    return Array.from(groups.entries()).sort((left, right) => left[0].localeCompare(right[0]));
   }, [assets]);
 
-  const selectedTariff = tariffs.find((tariff) => tariff.id === selectedTariffId) ?? null;
   const selectedAssets = assets.filter((asset) => selectedAssetIds.includes(asset.id));
   const parsedDurationHours = Number(durationHoursInput);
-
-  const tariffPriceMap = useMemo(() => {
-    if (!selectedTariff) {
-      return new Map<string, number>();
-    }
-
-    return new Map(
-      selectedTariff.categoryPrices.map((price) => [normalizeAssetCategoryValue(price.category).toLowerCase(), price.hourlyPrice])
-    );
-  }, [selectedTariff]);
-
-  const missingCategoryLabels = useMemo(() => {
-    if (!selectedTariff || selectedTariff.categoryPrices.length === 0) {
-      return [];
-    }
-
-    const labels = new Map<string, string>();
-
-    for (const asset of selectedAssets) {
-      const normalizedCategory = normalizeAssetCategoryValue(asset.category);
-      const key = normalizedCategory.toLowerCase();
-
-      if (!tariffPriceMap.has(key)) {
-        labels.set(key, normalizedCategory);
-      }
-    }
-
-    return Array.from(labels.values());
-  }, [selectedAssets, selectedTariff, tariffPriceMap]);
 
   const localEndTimePreview = useMemo(() => {
     if (isVip || !Number.isFinite(parsedDurationHours) || parsedDurationHours <= 0 || !startTime) {
@@ -121,7 +79,7 @@ export default function BandQilishPage() {
   };
 
   useEffect(() => {
-    if (!selectedTariff || selectedAssetIds.length === 0 || !startTime) {
+    if (selectedAssetIds.length === 0 || !startTime) {
       setCalculation(null);
       setCalculationError(null);
       return;
@@ -133,19 +91,12 @@ export default function BandQilishPage() {
       return;
     }
 
-    if (missingCategoryLabels.length > 0) {
-      setCalculation(null);
-      setCalculationError(`Tanlangan tarifda quyidagi kategoriyalar uchun narx yo'q: ${missingCategoryLabels.join(', ')}.`);
-      return;
-    }
-
     let cancelled = false;
     const timeoutId = window.setTimeout(() => {
       void (async () => {
         try {
           setIsCalculating(true);
           const result = await calculateBooking({
-            tariffId: selectedTariff.backendId,
             assetIds: selectedAssetIds
               .map((assetId) => assets.find((asset) => asset.id === assetId)?.backendId)
               .filter((value): value is number => Boolean(value)),
@@ -175,18 +126,9 @@ export default function BandQilishPage() {
       cancelled = true;
       window.clearTimeout(timeoutId);
     };
-  }, [assets, calculateBooking, isVip, missingCategoryLabels, parsedDurationHours, selectedAssetIds, selectedTariff, startTime]);
+  }, [assets, calculateBooking, isVip, parsedDurationHours, selectedAssetIds, startTime]);
 
   const handleCreateBooking = async () => {
-    if (!selectedTariff) {
-      toast({
-        variant: 'destructive',
-        title: 'Tarif tanlanmagan',
-        description: 'Booking yaratishdan oldin tarifni tanlang.',
-      });
-      return;
-    }
-
     if (selectedAssetIds.length === 0) {
       toast({
         variant: 'destructive',
@@ -223,19 +165,9 @@ export default function BandQilishPage() {
       return;
     }
 
-    if (missingCategoryLabels.length > 0) {
-      toast({
-        variant: 'destructive',
-        title: 'Tarif narxlari yetishmayapti',
-        description: `Quyidagi kategoriyalar uchun narx belgilang: ${missingCategoryLabels.join(', ')}.`,
-      });
-      return;
-    }
-
     try {
       setIsSubmitting(true);
       await createBooking({
-        tariffId: selectedTariff.backendId,
         assetIds: selectedAssetIds
           .map((assetId) => assets.find((asset) => asset.id === assetId)?.backendId)
           .filter((value): value is number => Boolean(value)),
@@ -280,43 +212,22 @@ export default function BandQilishPage() {
                   <Receipt className="h-5 w-5 text-primary" />
                 </div>
                 <div>
-                  <h2 className="text-sm font-black text-white uppercase tracking-widest">Tarifni tanlang</h2>
-                  <p className="text-[10px] text-white/40 font-bold uppercase tracking-widest mt-1">Har bir jihoz kategoriyasi uchun alohida narx ishlatiladi</p>
+                  <h2 className="text-sm font-black text-white uppercase tracking-widest">Hisob-kitob manbai</h2>
+                  <p className="text-[10px] text-white/40 font-bold uppercase tracking-widest mt-1">
+                    Tarif hisobi vaqtincha o'chirilgan. Booking jami tanlangan jihozlarning xizmat narxlaridan olinadi.
+                  </p>
                 </div>
               </div>
 
-              {tariffs.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-white/5 min-h-[180px] flex items-center justify-center bg-[#061414]/20">
-                  <p className="text-[10px] font-black text-[#444f4f] uppercase tracking-[0.5em]">Tariflar mavjud emas</p>
+              <div className="rounded-2xl border border-primary/15 bg-primary/5 px-4 py-4 flex items-start gap-3">
+                <AlertCircle className="h-4 w-4 text-primary mt-0.5" />
+                <div className="space-y-1">
+                  <p className="text-[10px] font-black text-white uppercase tracking-widest">Service-category pricing active</p>
+                  <p className="text-[11px] text-white/60 leading-relaxed">
+                    Har bir tanlangan jihoz o'zining xizmat kategoriyasi narxini olib keladi, keyin vaqtga ko'paytiriladi.
+                  </p>
                 </div>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {tariffs.map((tariff) => (
-                    <button
-                      key={tariff.id}
-                      onClick={() => setSelectedTariffId(tariff.id)}
-                      className={cn(
-                        'rounded-2xl border p-5 text-left transition-all bg-[#081616] space-y-4',
-                        selectedTariffId === tariff.id ? 'border-primary shadow-[0_0_25px_rgba(0,255,255,0.15)]' : 'border-white/5 hover:border-primary/20'
-                      )}
-                    >
-                      <div>
-                        <p className="text-[9px] font-black text-primary/50 uppercase tracking-widest">Tarif #{tariff.backendId}</p>
-                        <h3 className="text-sm font-black text-white uppercase tracking-tight mt-2">{tariff.name}</h3>
-                        <p className="text-lg font-black text-primary mt-3">Boshlanish narxi {tariff.hourlyPrice.toLocaleString()} UZS</p>
-                      </div>
-                      <div className="space-y-2">
-                        {tariff.categoryPrices.map((price) => (
-                          <div key={price.id} className="flex items-center justify-between rounded-xl bg-white/5 border border-white/5 px-3 py-2">
-                            <span className="text-[10px] font-black text-white uppercase tracking-tight">{price.category}</span>
-                            <span className="text-[10px] font-black text-primary">{price.hourlyPrice.toLocaleString()} UZS</span>
-                          </div>
-                        ))}
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
+              </div>
             </section>
 
             <section className="bg-[#0a1f1f]/50 border border-white/5 rounded-3xl p-6 space-y-5 shadow-xl">
@@ -332,55 +243,41 @@ export default function BandQilishPage() {
 
               {assetsByRoom.length === 0 ? (
                 <div className="rounded-2xl border border-dashed border-white/5 min-h-[180px] flex items-center justify-center bg-[#061414]/20">
-                  <p className="text-[10px] font-black text-[#444f4f] uppercase tracking-[0.5em]">Avval jihoz yarating</p>
+                  <p className="text-[10px] font-black text-[#444f4f] uppercase tracking-[0.5em]">Avval xonaga jihoz yarating</p>
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {assetsByRoom.map(([roomNumber, roomAssets]) => (
-                    <div key={roomNumber} className="rounded-2xl border border-white/5 bg-[#081616] p-4 space-y-3">
+                  {assetsByRoom.map(([roomLabel, roomAssets]) => (
+                    <div key={roomLabel} className="rounded-2xl border border-white/5 bg-[#081616] p-4 space-y-3">
                       <div className="flex items-center gap-2">
                         <div className="h-2 w-2 rounded-full bg-primary" />
-                        <h3 className="text-[10px] font-black text-white uppercase tracking-[0.2em]">Xona {roomNumber}</h3>
+                        <h3 className="text-[10px] font-black text-white uppercase tracking-[0.2em]">{roomLabel}</h3>
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        {roomAssets.map((asset) => {
-                          const assetRate = tariffPriceMap.get(normalizeAssetCategoryValue(asset.category).toLowerCase());
-
-                          return (
-                            <button
-                              key={asset.id}
-                              onClick={() => toggleAsset(asset.id)}
-                              className={cn(
-                                'rounded-xl border p-4 text-left transition-all',
-                                selectedAssetIds.includes(asset.id) ? 'border-primary bg-primary/10' : 'border-white/5 bg-[#051111] hover:border-primary/20'
-                              )}
-                            >
-                              <div className="flex items-center justify-between gap-3">
-                                <div className="flex items-center gap-3 min-w-0">
-                                  <div className="h-9 w-9 flex items-center justify-center rounded-lg bg-white/5 border border-white/10 shrink-0">
-                                    {getAssetCategoryKind(asset.category) === 'console' ? (
-                                      <Gamepad2 className="h-4 w-4 text-primary" />
-                                    ) : (
-                                      <Monitor className="h-4 w-4 text-primary" />
-                                    )}
-                                  </div>
-                                  <div className="min-w-0">
-                                    <p className="text-[10px] font-black text-white uppercase tracking-tight truncate">{formatAssetCategoryLabel(asset.category)}</p>
-                                    <p className="text-[8px] text-white/40 font-bold uppercase tracking-widest">Jihoz #{asset.backendId}</p>
-                                    {selectedTariff && assetRate !== undefined && (
-                                      <p className="text-[8px] text-primary font-black uppercase tracking-widest mt-1">
-                                        {assetRate.toLocaleString()} UZS / SOAT
-                                      </p>
-                                    )}
-                                  </div>
-                                </div>
-                                {selectedAssetIds.includes(asset.id) && (
-                                  <Badge className="bg-primary text-black font-black">Tanlandi</Badge>
-                                )}
+                        {roomAssets.map((asset) => (
+                          <button
+                            key={asset.id}
+                            onClick={() => toggleAsset(asset.id)}
+                            className={cn(
+                              'rounded-xl border p-4 text-left transition-all',
+                              selectedAssetIds.includes(asset.id)
+                                ? 'border-primary bg-primary/10'
+                                : 'border-white/5 bg-[#051111] hover:border-primary/20'
+                            )}
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="space-y-2 min-w-0">
+                                <p className="text-sm font-black text-white uppercase tracking-tight truncate">{asset.name}</p>
+                                <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest">
+                                  {asset.serviceName ?? asset.category}
+                                </p>
                               </div>
-                            </button>
-                          );
-                        })}
+                              <Badge className="bg-primary/10 text-primary border-primary/10 text-[9px] font-black uppercase">
+                                {(asset.servicePrice ?? 0).toLocaleString()} UZS
+                              </Badge>
+                            </div>
+                          </button>
+                        ))}
                       </div>
                     </div>
                   ))}
@@ -396,179 +293,178 @@ export default function BandQilishPage() {
                   <CalendarIcon className="h-5 w-5 text-primary" />
                 </div>
                 <div>
-                  <h2 className="text-sm font-black text-white uppercase tracking-widest">Booking ma'lumotlari</h2>
-                  <p className="text-[10px] text-white/40 font-bold uppercase tracking-widest mt-1">Boshlanish va duration yoki VIP rejimi</p>
+                  <h2 className="text-sm font-black text-white uppercase tracking-widest">Seans parametrlari</h2>
+                  <p className="text-[10px] text-white/40 font-bold uppercase tracking-widest mt-1">VIP seanslar yakunda real vaqt bilan hisoblanadi</p>
                 </div>
               </div>
 
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase tracking-widest text-primary/60">Boshlanish vaqti</Label>
-                  <Input type="datetime-local" value={startTime} onChange={(e) => setStartTime(e.target.value)} className="h-12 bg-[#051111] border-white/5 rounded-xl font-bold px-4 text-sm" />
+                  <label className="text-[9px] font-black text-primary/60 uppercase tracking-[0.2em]">Boshlanish vaqti</label>
+                  <Input
+                    type="datetime-local"
+                    value={startTime}
+                    onChange={(event) => setStartTime(event.target.value)}
+                    className="h-12 bg-[#051111] border-white/5 rounded-xl font-bold"
+                  />
                 </div>
 
-                <div className="space-y-3">
-                  <Label className="text-[10px] font-black uppercase tracking-widest text-primary/60">Duration</Label>
-                  <div className="grid grid-cols-3 gap-3">
-                    {durationOptions.map((option) => (
-                      <button
-                        key={option}
-                        onClick={() => {
-                          setIsVip(false);
-                          setDurationHoursInput(String(option));
-                        }}
-                        className={cn(
-                          'h-11 rounded-xl border font-black uppercase tracking-widest text-[10px] transition-all',
-                          !isVip && Number(durationHoursInput) === option
-                            ? 'bg-primary text-black border-primary'
-                            : 'bg-[#051111] border-white/5 text-white/60'
-                        )}
-                      >
-                        {option} SOAT
-                      </button>
-                    ))}
-                    <button
-                      onClick={() => setIsVip(true)}
-                      className={cn(
-                        'h-11 rounded-xl border font-black uppercase tracking-widest text-[10px] transition-all flex items-center justify-center gap-2 col-span-3',
-                        isVip ? 'bg-amber-400 text-black border-amber-400' : 'bg-[#051111] border-white/5 text-white/60'
-                      )}
-                    >
-                      <Crown className="h-4 w-4" /> VIP
-                    </button>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase tracking-widest text-primary/60">Custom Duration (soat)</Label>
+                <div className="rounded-2xl border border-white/5 bg-[#051111] p-4 space-y-3">
+                  <button
+                    onClick={() => setIsVip((current) => !current)}
+                    className={cn(
+                      'w-full rounded-2xl border px-4 py-3 flex items-center justify-between transition-all',
+                      isVip ? 'border-primary bg-primary/10' : 'border-white/5 bg-white/5 hover:border-primary/20'
+                    )}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="h-9 w-9 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center">
+                        <Crown className="h-4 w-4 text-primary" />
+                      </div>
+                      <div className="text-left">
+                        <p className="text-[10px] font-black text-white uppercase tracking-widest">VIP rejim</p>
+                        <p className="text-[10px] text-white/40">Yakuniy narx seans tugaganda aniqlanadi</p>
+                      </div>
+                    </div>
+                    <Badge className={isVip ? 'bg-primary text-black' : 'bg-white/5 text-white/40 border-white/10'}>
+                      {isVip ? 'ON' : 'OFF'}
+                    </Badge>
+                  </button>
+
+                  {!isVip ? (
+                    <div className="space-y-3">
+                      <label className="text-[9px] font-black text-primary/60 uppercase tracking-[0.2em]">Davomiylik (soat)</label>
+                      <div className="grid grid-cols-5 gap-2">
+                        {durationOptions.map((value) => (
+                          <button
+                            key={value}
+                            onClick={() => setDurationHoursInput(String(value))}
+                            className={cn(
+                              'h-11 rounded-xl border text-[11px] font-black transition-all',
+                              durationHoursInput === String(value)
+                                ? 'border-primary bg-primary text-black'
+                                : 'border-white/5 bg-[#051111] text-white/60 hover:border-primary/20'
+                            )}
+                          >
+                            {value}
+                          </button>
+                        ))}
+                      </div>
+                      <Input
+                        type="number"
+                        min="0.1"
+                        step="0.1"
+                        value={durationHoursInput}
+                        onChange={(event) => setDurationHoursInput(event.target.value)}
+                        className="h-12 bg-[#051111] border-white/5 rounded-xl font-bold"
+                      />
+                    </div>
+                  ) : null}
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    onClick={() => setStatus('submitted')}
+                    className={cn(
+                      'rounded-2xl border px-4 py-4 text-left transition-all',
+                      status === 'submitted' ? 'border-primary bg-primary/10' : 'border-white/5 bg-[#051111] hover:border-primary/20'
+                    )}
+                  >
+                    <p className="text-[10px] font-black text-white uppercase tracking-widest">To'langan</p>
+                    <p className="text-[10px] text-white/40 mt-1">Darhol yopiladi</p>
+                  </button>
+                  <button
+                    onClick={() => setStatus('debt_closed')}
+                    className={cn(
+                      'rounded-2xl border px-4 py-4 text-left transition-all',
+                      status === 'debt_closed' ? 'border-primary bg-primary/10' : 'border-white/5 bg-[#051111] hover:border-primary/20'
+                    )}
+                  >
+                    <p className="text-[10px] font-black text-white uppercase tracking-widest">Qarz</p>
+                    <p className="text-[10px] text-white/40 mt-1">Mijoz ma'lumoti bilan</p>
+                  </button>
+                </div>
+
+                {status === 'debt_closed' ? (
+                  <div className="space-y-3">
                     <Input
-                      type="number"
-                      step="0.5"
-                      min="0.5"
-                      disabled={isVip}
-                      value={durationHoursInput}
-                      onChange={(e) => {
-                        setIsVip(false);
-                        setDurationHoursInput(e.target.value);
-                      }}
-                      className="h-12 bg-[#051111] border-white/5 rounded-xl font-bold px-4 text-sm disabled:opacity-50"
+                      placeholder="Qarz nomi"
+                      value={debtName}
+                      onChange={(event) => setDebtName(event.target.value)}
+                      className="h-12 bg-[#051111] border-white/5 rounded-xl font-bold"
+                    />
+                    <Input
+                      placeholder="Telefon raqami"
+                      value={debtPhoneNumber}
+                      onChange={(event) => setDebtPhoneNumber(event.target.value)}
+                      className="h-12 bg-[#051111] border-white/5 rounded-xl font-bold"
                     />
                   </div>
-                </div>
-
-                <div className="rounded-2xl border border-white/5 bg-[#051111] p-4 space-y-2">
-                  <div className="flex items-center gap-2 text-primary">
-                    <Timer className="h-4 w-4" />
-                    <span className="text-[10px] font-black uppercase tracking-widest">Tugash Preview</span>
-                  </div>
-                  <p className="text-sm font-black text-white">
-                    {formatDateTimePreview(calculation?.endTime ?? localEndTimePreview)}
-                  </p>
-                </div>
-
-                <div className="space-y-3">
-                  <Label className="text-[10px] font-black uppercase tracking-widest text-primary/60">Yopish turi</Label>
-                  <div className="grid grid-cols-2 gap-3">
-                    <button
-                      onClick={() => setStatus('submitted')}
-                      className={cn(
-                        'h-12 rounded-xl border font-black uppercase tracking-widest text-[10px] transition-all',
-                        status === 'submitted' ? 'bg-primary text-black border-primary' : 'bg-[#051111] border-white/5 text-white/60'
-                      )}
-                    >
-                      TO'LANGAN
-                    </button>
-                    <button
-                      onClick={() => setStatus('debt_closed')}
-                      className={cn(
-                        'h-12 rounded-xl border font-black uppercase tracking-widest text-[10px] transition-all',
-                        status === 'debt_closed' ? 'bg-destructive text-white border-destructive' : 'bg-[#051111] border-white/5 text-white/60'
-                      )}
-                    >
-                      QARZ
-                    </button>
-                  </div>
-                </div>
-
-                {status === 'debt_closed' && (
-                  <div className="space-y-4 rounded-2xl border border-destructive/20 bg-destructive/5 p-4">
-                    <div className="flex items-center gap-2 text-destructive">
-                      <AlertCircle className="h-4 w-4" />
-                      <span className="text-[10px] font-black uppercase tracking-widest">Qarz ma'lumotlari</span>
-                    </div>
-                    <Input placeholder="Mijoz ismi" value={debtName} onChange={(e) => setDebtName(e.target.value)} className="h-11 bg-[#051111] border-white/5 rounded-xl font-bold px-4 text-sm" />
-                    <Input placeholder="+998 90 123 45 67" value={debtPhoneNumber} onChange={(e) => setDebtPhoneNumber(e.target.value)} className="h-11 bg-[#051111] border-white/5 rounded-xl font-bold px-4 text-sm" />
-                  </div>
-                )}
+                ) : null}
               </div>
             </section>
 
             <section className="bg-[#0a1f1f]/50 border border-white/5 rounded-3xl p-6 space-y-5 shadow-xl">
-              <div className="rounded-2xl border border-primary/10 bg-primary/5 p-5 space-y-4">
-                <div className="flex items-center gap-2">
-                  <Zap className="h-4 w-4 text-primary" />
-                  <span className="text-[10px] font-black text-primary uppercase tracking-[0.2em]">Hisob-kitob</span>
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 flex items-center justify-center rounded-xl bg-primary/5 border border-primary/20">
+                  <Zap className="h-5 w-5 text-primary" />
                 </div>
+                <div>
+                  <h2 className="text-sm font-black text-white uppercase tracking-widest">Hisob-kitob</h2>
+                  <p className="text-[10px] text-white/40 font-bold uppercase tracking-widest mt-1">Server tomonidan qayta tekshiriladi</p>
+                </div>
+              </div>
 
-                {missingCategoryLabels.length > 0 ? (
-                  <div className="rounded-2xl border border-destructive/20 bg-destructive/10 p-4 text-destructive text-sm font-bold">
-                    Quyidagi kategoriyalar uchun tarif narxi yo'q: {missingCategoryLabels.join(', ')}.
+              <div className="rounded-2xl border border-white/5 bg-[#051111] p-4 space-y-4">
+                <div className="flex items-center justify-between text-[11px] font-bold text-white/60">
+                  <span>Tanlangan jihozlar</span>
+                  <span>{selectedAssets.length}</span>
+                </div>
+                <div className="flex items-center justify-between text-[11px] font-bold text-white/60">
+                  <span>{isVip ? 'VIP holati' : 'Rejadagi tugash'}</span>
+                  <span>{formatDateTimePreview(calculation?.endTime ?? localEndTimePreview)}</span>
+                </div>
+                <div className="flex items-center justify-between text-[11px] font-bold text-white/60">
+                  <span>Soatlik jami</span>
+                  <span>{(calculation?.hourlyRateTotal ?? 0).toLocaleString()} UZS</span>
+                </div>
+                <div className="pt-4 border-t border-white/5 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Timer className="h-4 w-4 text-primary" />
+                    <span className="text-[10px] font-black text-white uppercase tracking-widest">Jami summa</span>
                   </div>
-                ) : calculationError ? (
-                  <div className="rounded-2xl border border-destructive/20 bg-destructive/10 p-4 text-destructive text-sm font-bold">
-                    {calculationError}
-                  </div>
-                ) : calculation ? (
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-white/60">
-                      <span>Soatlik Jami</span>
-                      <span className="text-primary">{calculation.hourlyRateTotal.toLocaleString()} UZS</span>
+                  <span className="text-primary text-lg font-black">
+                    {isVip && !calculation ? 'Seans yakunida' : `${(calculation?.totalCost ?? 0).toLocaleString()} UZS`}
+                  </span>
+                </div>
+              </div>
+
+              {calculationError ? (
+                <div className="rounded-2xl border border-destructive/20 bg-destructive/10 px-4 py-3 text-[11px] text-destructive">
+                  {calculationError}
+                </div>
+              ) : null}
+
+              <div className="space-y-2">
+                {(calculation?.assetBreakdown ?? []).map((asset) => (
+                  <div key={asset.id} className="rounded-xl border border-white/5 bg-[#051111] px-4 py-3 flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-[11px] font-black text-white uppercase tracking-tight">{asset.name}</p>
+                      <p className="text-[10px] text-white/40 uppercase tracking-widest mt-1">
+                        {asset.category} • {asset.roomName ?? asset.roomNumber}
+                      </p>
                     </div>
-                    {!calculation.isVip ? (
-                      <>
-                        <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-white/60">
-                          <span>Duration</span>
-                          <span className="text-white">{calculation.durationHours} soat</span>
-                        </div>
-                        <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-white/60">
-                          <span>Jami</span>
-                          <span className="text-primary text-lg">{calculation.totalCost.toLocaleString()} UZS</span>
-                        </div>
-                      </>
-                    ) : (
-                      <div className="rounded-2xl border border-amber-400/20 bg-amber-400/10 p-4 text-amber-100 text-sm font-bold">
-                        VIP seans uchun yakuniy summa session tugaganda actual vaqt bo'yicha hisoblanadi.
-                      </div>
-                    )}
-                    <div className="space-y-2 pt-2">
-                      {calculation.assetBreakdown.map((asset) => (
-                        <div key={asset.id} className="flex items-center justify-between rounded-xl bg-white/5 border border-white/5 px-3 py-2">
-                          <span className="text-[10px] font-black text-white uppercase tracking-tight">{asset.category}</span>
-                          <span className="text-[10px] font-black text-primary">{asset.hourlyPrice.toLocaleString()} UZS</span>
-                        </div>
-                      ))}
-                    </div>
+                    <span className="text-[10px] font-black text-primary">{asset.hourlyPrice.toLocaleString()} UZS</span>
                   </div>
-                ) : (
-                  <div className="rounded-2xl border border-dashed border-white/10 bg-[#051111] p-5 text-center">
-                    <p className="text-[10px] font-black text-white/40 uppercase tracking-[0.3em]">
-                      Tarif, jihoz va duration tanlang
-                    </p>
-                  </div>
-                )}
+                ))}
               </div>
 
               <Button
-                disabled={
-                  isSubmitting ||
-                  isCalculating ||
-                  !selectedTariff ||
-                  selectedAssetIds.length === 0 ||
-                  missingCategoryLabels.length > 0 ||
-                  Boolean(calculationError)
-                }
+                disabled={isSubmitting || isCalculating || selectedAssetIds.length === 0}
                 onClick={() => void handleCreateBooking()}
-                className="w-full h-12 bg-primary text-black font-black uppercase tracking-[0.3em] rounded-xl shadow-[0_10px_30px_rgba(0,255,255,0.2)] hover:bg-primary/90 transition-all active:scale-[0.98] text-xs"
+                className="w-full h-12 bg-primary text-black font-black uppercase tracking-[0.3em] rounded-xl"
               >
-                {isSubmitting ? 'SAQLANMOQDA...' : isVip ? 'VIP SEANSNI BOSHLASH' : 'BOOKINGNI YARATISH'}
+                {isSubmitting ? 'SAQLANMOQDA...' : isVip ? 'VIP SEANS BOSHLASH' : 'BOOKING YARATISH'}
               </Button>
             </section>
           </div>

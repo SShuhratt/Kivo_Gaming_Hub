@@ -2,7 +2,8 @@
 
 namespace Tests\Feature;
 
-use App\Models\Asset;
+use App\Models\Room;
+use App\Models\Service;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
@@ -12,49 +13,63 @@ class AssetCategoryFlexibilityTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_assets_accept_and_return_custom_categories(): void
+    public function test_assets_must_reference_existing_service_categories_and_rooms(): void
     {
+        $room = Room::create(['name' => 'Opshiy zal']);
+        $service = Service::create(['name' => 'Computer', 'price' => 20000]);
+
         $createResponse = $this->postJson('/api/assets', [
-            'category' => 'VR headset',
-            'room_id' => 14,
+            'name' => 'computer1',
+            'service_id' => $service->id,
+            'room_id' => $room->id,
         ], $this->authHeaders());
 
         $assetId = $createResponse
             ->assertCreated()
-            ->assertJsonPath('category', 'VR headset')
-            ->assertJsonPath('room_id', 14)
+            ->assertJsonPath('name', 'computer1')
+            ->assertJsonPath('category', 'Computer')
+            ->assertJsonPath('room.id', $room->id)
+            ->assertJsonPath('service.id', $service->id)
             ->json('id');
 
+        $updatedService = Service::create(['name' => 'PS5', 'price' => 35000]);
+
         $this->patchJson("/api/assets/{$assetId}", [
-            'category' => 'Racing simulator',
+            'name' => 'ps5(1)',
+            'service_id' => $updatedService->id,
         ], $this->authHeaders())
             ->assertOk()
-            ->assertJsonPath('category', 'Racing simulator');
+            ->assertJsonPath('name', 'ps5(1)')
+            ->assertJsonPath('category', 'PS5');
 
         $this->assertDatabaseHas('assets', [
             'id' => $assetId,
-            'category' => 'Racing simulator',
-            'room_id' => 14,
+            'name' => 'ps5(1)',
+            'service_id' => $updatedService->id,
+            'room_id' => $room->id,
         ]);
 
         $this->getJson('/api/dashboard/bootstrap', $this->authHeaders())
             ->assertOk()
             ->assertJsonFragment([
                 'backend_id' => $assetId,
-                'category' => 'Racing simulator',
-                'room_id' => 14,
-                'room_number' => '14',
+                'name' => 'ps5(1)',
+                'category' => 'PS5',
+                'room_name' => 'Opshiy zal',
             ]);
+    }
 
-        Asset::create([
-            'category' => 'Computer',
-            'room_id' => 15,
-        ]);
+    public function test_asset_creation_fails_for_missing_service_category(): void
+    {
+        $room = Room::create(['name' => '2-xona']);
 
-        $this->assertDatabaseHas('assets', [
-            'category' => 'Computer',
-            'room_id' => 15,
-        ]);
+        $this->postJson('/api/assets', [
+            'name' => 'computer2',
+            'service_id' => 9999,
+            'room_id' => $room->id,
+        ], $this->authHeaders())
+            ->assertStatus(400)
+            ->assertJsonPath('errors.service_id.0', 'The selected service id is invalid.');
     }
 
     protected function authHeaders(): array

@@ -12,76 +12,51 @@ class ServiceController extends Controller
 {
     use ValidatesApiRequests;
 
-    public function index() { return response()->json(Service::all()); }
+    public function index()
+    {
+        return response()->json(
+            Service::query()
+                ->withCount('assets')
+                ->orderBy('name')
+                ->get()
+        );
+    }
 
     public function store(Request $request)
     {
         $validated = $this->validateApi($request, [
-<<<<<<< ours
-<<<<<<< ours
-<<<<<<< ours
-<<<<<<< ours
-            'game_name' => 'required|string',
-            'room_id' => 'required|integer',
-            'cost' => 'required|numeric|min:0',
-=======
             'name' => 'required|string|max:255',
             'price' => 'required|numeric|min:0',
->>>>>>> theirs
-=======
-            'name' => 'required|string|max:255',
-            'price' => 'required|numeric|min:0',
->>>>>>> theirs
-=======
-            'name' => 'required|string|max:255',
-            'price' => 'required|numeric|min:0',
->>>>>>> theirs
-=======
-            'name' => 'required|string|max:255',
-            'price' => 'required|numeric|min:0',
->>>>>>> theirs
         ]);
 
-        return response()->json(Service::create($validated), 201);
+        return response()->json(Service::create($validated)->loadCount('assets'), 201);
     }
 
-    public function show(Service $service) { return response()->json($service); }
+    public function show(Service $service)
+    {
+        return response()->json($service->loadCount('assets'));
+    }
 
     public function update(Request $request, Service $service)
     {
         $validated = $this->validateApi($request, [
-<<<<<<< ours
-<<<<<<< ours
-<<<<<<< ours
-<<<<<<< ours
-            'game_name' => 'sometimes|required|string',
-            'room_id' => 'sometimes|required|integer',
-            'cost' => 'sometimes|required|numeric|min:0',
-=======
             'name' => 'sometimes|required|string|max:255',
             'price' => 'sometimes|required|numeric|min:0',
->>>>>>> theirs
-=======
-            'name' => 'sometimes|required|string|max:255',
-            'price' => 'sometimes|required|numeric|min:0',
->>>>>>> theirs
-=======
-            'name' => 'sometimes|required|string|max:255',
-            'price' => 'sometimes|required|numeric|min:0',
->>>>>>> theirs
-=======
-            'name' => 'sometimes|required|string|max:255',
-            'price' => 'sometimes|required|numeric|min:0',
->>>>>>> theirs
         ]);
 
         $service->update($validated);
 
-        return response()->json($service);
+        return response()->json($service->fresh()->loadCount('assets'));
     }
 
     public function destroy(Service $service)
     {
+        if ($service->assets()->exists()) {
+            return response()->json([
+                'message' => 'Delete or recategorize assets before deleting this service category.',
+            ], 409);
+        }
+
         try {
             $service->delete();
 

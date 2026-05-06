@@ -7,36 +7,14 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Service extends Model
 {
-<<<<<<< ours
-<<<<<<< ours
-<<<<<<< ours
-<<<<<<< ours
-    protected $fillable = ['game_name', 'room_id', 'cost'];
+    protected $fillable = ['name', 'price'];
 
     protected $casts = [
-        'cost' => 'float',
+        'price' => 'float',
     ];
-=======
-=======
->>>>>>> theirs
-=======
->>>>>>> theirs
-=======
->>>>>>> theirs
-    protected $fillable = ['name', 'price'];
 
     public function assets(): HasMany
     {
         return $this->hasMany(Asset::class);
     }
-<<<<<<< ours
-<<<<<<< ours
-<<<<<<< ours
->>>>>>> theirs
-=======
->>>>>>> theirs
-=======
->>>>>>> theirs
-=======
->>>>>>> theirs
 }

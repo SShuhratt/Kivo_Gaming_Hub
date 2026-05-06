@@ -115,7 +115,7 @@ export default function AktivSeanslarPage() {
                       </div>
                       <h4 className="text-lg font-black text-white uppercase tracking-tight">{session.roomLabel}</h4>
                       <p className="text-[10px] font-bold text-primary/60 uppercase tracking-widest">
-                        {session.assetsCount} jihoz • {session.tariff.name ?? 'Tarif yo‘q'}
+                        {session.assetsCount} jihoz • {session.tariff.name === 'Service category pricing' ? 'Xizmat narxi' : session.tariff.name ?? 'Xizmat narxi'}
                       </p>
                     </div>
 
@@ -234,7 +234,7 @@ export default function AktivSeanslarPage() {
                       </div>
                       <h4 className="text-lg font-black text-white uppercase tracking-tight">{session.roomLabel}</h4>
                       <p className="text-[10px] font-bold text-primary/60 uppercase tracking-widest">
-                        {session.assetsCount} jihoz • {session.tariff.name ?? 'Tarif yo‘q'}
+                        {session.assetsCount} jihoz • {session.tariff.name === 'Service category pricing' ? 'Xizmat narxi' : session.tariff.name ?? 'Xizmat narxi'}
                       </p>
                     </div>
 

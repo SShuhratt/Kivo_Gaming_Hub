@@ -13,7 +13,12 @@ class RoomController extends Controller
 
     public function index()
     {
-        return response()->json(Room::query()->with('assets.service')->get());
+        return response()->json(
+            Room::query()
+                ->with(['assets.room', 'assets.service'])
+                ->orderBy('name')
+                ->get()
+        );
     }
 
     public function store(Request $request)
@@ -27,7 +32,7 @@ class RoomController extends Controller
 
     public function show(Room $room)
     {
-        return response()->json($room->load('assets.service'));
+        return response()->json($room->load(['assets.room', 'assets.service']));
     }
 
     public function update(Request $request, Room $room)
@@ -43,6 +48,12 @@ class RoomController extends Controller
 
     public function destroy(Room $room)
     {
+        if ($room->assets()->exists()) {
+            return response()->json([
+                'message' => 'Delete or move room assets before deleting this room.',
+            ], 409);
+        }
+
         $room->delete();
 
         return response()->json(null, 204);

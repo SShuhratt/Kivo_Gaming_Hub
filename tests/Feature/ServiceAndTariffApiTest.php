@@ -12,15 +12,23 @@ class ServiceAndTariffApiTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_service_cost_is_required(): void
+    public function test_service_price_is_required_and_room_number_is_not_needed(): void
     {
         $this->postJson('/api/services', [
-            'game_name' => 'FIFA',
-            'room_id' => 7,
+            'name' => 'Computer',
         ], $this->authHeaders())
             ->assertStatus(400)
             ->assertJsonPath('message', 'Bad request.')
-            ->assertJsonPath('errors.cost.0', 'The cost field is required.');
+            ->assertJsonPath('errors.price.0', 'The price field is required.');
+
+        $this->postJson('/api/services', [
+            'name' => 'Computer',
+            'price' => 20000,
+        ], $this->authHeaders())
+            ->assertCreated()
+            ->assertJsonPath('name', 'Computer')
+            ->assertJsonPath('price', 20000)
+            ->assertJsonMissingPath('room_id');
     }
 
     public function test_tariff_can_store_and_update_category_prices(): void

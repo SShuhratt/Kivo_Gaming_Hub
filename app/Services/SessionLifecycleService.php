@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\DB;
 class SessionLifecycleService
 {
     public function __construct(
-        protected TariffPricingService $tariffPricing,
+        protected AssetServicePricingService $assetServicePricing,
     ) {
     }
 
@@ -32,7 +32,7 @@ class SessionLifecycleService
         return DB::transaction(function () use ($bookingId, $endedAt) {
             /** @var Booking $lockedBooking */
             $lockedBooking = Booking::query()
-                ->with(['assets', 'tariff.categoryPrices', 'trade'])
+                ->with(['assets.service', 'assets.room', 'tariff.categoryPrices', 'trade'])
                 ->lockForUpdate()
                 ->findOrFail($bookingId);
 
@@ -78,7 +78,7 @@ class SessionLifecycleService
                 $this->tradePayload($lockedBooking, $snapshot),
             );
 
-            return $lockedBooking->fresh(['assets', 'tariff.categoryPrices', 'trade']);
+            return $lockedBooking->fresh(['assets.room', 'assets.service', 'tariff.categoryPrices', 'trade']);
         });
     }
 
@@ -114,7 +114,7 @@ class SessionLifecycleService
         }
 
         if ((float) $booking->hourly_rate_snapshot > 0) {
-            return round((float) $booking->hourly_rate_snapshot * max(1, count($snapshot)), 2);
+            return round((float) $booking->hourly_rate_snapshot, 2);
         }
 
         return 0;
@@ -162,24 +162,30 @@ class SessionLifecycleService
 
     protected function buildAssetSnapshot(Booking $booking): array
     {
-        if ($booking->tariff) {
+        if ($booking->assets->isNotEmpty()) {
             try {
-                return $this->tariffPricing->buildAssetSnapshot($booking->tariff, $booking->assets);
+                return $this->assetServicePricing->buildPricedAssetSnapshot($booking->assets);
             } catch (\Throwable) {
-                // Fall back to a minimal snapshot if the tariff no longer has matching category prices.
+                // Fall back to a minimal snapshot if legacy assets no longer have valid pricing links.
             }
         }
 
         return $booking->assets
-            ->sortBy([
-                ['room_id', 'asc'],
-                ['id', 'asc'],
-            ])
+            ->loadMissing(['room', 'service'])
+            ->sortBy(fn ($asset) => sprintf(
+                '%s|%s|%010d',
+                mb_strtolower((string) ($asset->room?->name ?? '')),
+                mb_strtolower((string) $asset->name),
+                $asset->id,
+            ))
             ->map(fn ($asset) => [
                 'id' => $asset->id,
+                'name' => $asset->name,
                 'category' => $asset->category,
+                'service_id' => $asset->service_id,
                 'room_id' => $asset->room_id,
-                'room_number' => (string) $asset->room_id,
+                'room_name' => $asset->room?->name,
+                'room_number' => $asset->room?->name ?? ($asset->room_id ? (string) $asset->room_id : null),
                 'hourly_price' => null,
             ])
             ->values()

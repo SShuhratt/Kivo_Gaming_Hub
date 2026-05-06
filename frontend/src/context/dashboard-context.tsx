@@ -8,6 +8,7 @@ import {
   calculateBookingRequest,
   createAssetRequest,
   createBookingRequest,
+  createRoomRequest,
   createServiceRequest,
   createTariffRequest,
   createWarehouseItemRequest,
@@ -65,15 +66,15 @@ export interface ServiceItem {
   id: string;
   backendId: number;
   name: string;
-  cost: number;
+  price: number;
+  assetsCount: number;
 }
 
-export interface ServiceRoom {
+export interface RoomRecord {
   id: string;
-  roomId: number;
-  roomNumber: string;
-  items: ServiceItem[];
-  serviceIds: number[];
+  backendId: number;
+  name: string;
+  assets: AssetDevice[];
 }
 
 export interface TariffCategoryPrice {
@@ -95,7 +96,11 @@ export interface AssetDevice {
   backendId: number;
   name: string;
   category: string;
-  roomId: number;
+  serviceId: number | null;
+  serviceName: string | null;
+  servicePrice: number | null;
+  roomId: number | null;
+  roomName: string | null;
   roomNumber: string;
   totalUsageDurationMinutes: number;
   totalEarnedMoney: number;
@@ -121,8 +126,11 @@ export interface SaleRecord {
 
 export interface SessionAssetSnapshot {
   id: number | null;
+  name: string | null;
   category: string | null;
+  serviceId?: number | null;
   roomId: number | null;
+  roomName: string | null;
   roomNumber: string | null;
   hourlyPrice: number | null;
 }
@@ -162,8 +170,10 @@ export interface BookingCalculation {
   endTime: string | null;
   assetBreakdown: Array<{
     id: number;
+    name: string;
     category: string;
     roomId: number;
+    roomName: string | null;
     roomNumber: string;
     hourlyPrice: number;
   }>;
@@ -172,7 +182,8 @@ export interface BookingCalculation {
 interface DashboardContextType {
   currentUser: SessionUser | null;
   summary: DashboardSummary;
-  services: ServiceRoom[];
+  services: ServiceItem[];
+  rooms: RoomRecord[];
   tariffs: Tariff[];
   sales: SaleRecord[];
   sessions: SessionRecord[];
@@ -183,13 +194,14 @@ interface DashboardContextType {
   login: (phoneNumber: string, password: string) => Promise<void>;
   logout: () => void;
   refreshDashboard: () => Promise<void>;
-  createServiceRoom: (payload: { roomNumber: string; items: string[]; cost: number }) => Promise<void>;
-  deleteServiceRoom: (room: ServiceRoom) => Promise<void>;
+  createService: (payload: { name: string; price: number }) => Promise<void>;
+  deleteService: (service: ServiceItem) => Promise<void>;
+  createRoom: (payload: { name: string }) => Promise<void>;
   createTariff: (payload: { name: string; categoryPrices: Array<{ category: string; hourlyPrice: number }> }) => Promise<void>;
   updateTariff: (payload: { backendId: number; name: string; categoryPrices: Array<{ category: string; hourlyPrice: number }> }) => Promise<void>;
   deleteTariff: (tariff: Tariff) => Promise<void>;
-  createAsset: (payload: { name: string; category: string; roomId: number }) => Promise<void>;
-  updateAsset: (payload: { backendId: number; name: string; category: string; roomId: number }) => Promise<void>;
+  createAsset: (payload: { name: string; serviceId: number; roomId: number }) => Promise<void>;
+  updateAsset: (payload: { backendId: number; name: string; serviceId: number; roomId: number }) => Promise<void>;
   deleteAsset: (asset: AssetDevice) => Promise<void>;
   saveWarehouseProduct: (payload: {
     backendId?: number;
@@ -204,7 +216,6 @@ interface DashboardContextType {
   deleteWarehouseProduct: (backendId: number) => Promise<void>;
   deleteManufacturer: (company: WarehouseCompany) => Promise<void>;
   calculateBooking: (payload: {
-    tariffId: number;
     assetIds: number[];
     startTime: string;
     durationHours?: number;
@@ -212,7 +223,7 @@ interface DashboardContextType {
     isVip?: boolean;
   }) => Promise<BookingCalculation>;
   createBooking: (payload: {
-    tariffId: number;
+    tariffId?: number;
     assetIds: number[];
     startTime: string;
     durationHours?: number;
@@ -274,6 +285,23 @@ function normalizeCategoryPricePayload(
   return normalizedRows;
 }
 
+function mapAssetDevice(asset: DashboardBootstrapResponse['assets'][number]): AssetDevice {
+  return {
+    id: asset.id,
+    backendId: asset.backend_id,
+    name: asset.name,
+    category: asset.category ?? asset.service_name ?? 'Jihoz',
+    serviceId: asset.service_id,
+    serviceName: asset.service_name,
+    servicePrice: asset.service_price,
+    roomId: asset.room_id,
+    roomName: asset.room_name,
+    roomNumber: asset.room_name ?? asset.room_number ?? 'Xona N/A',
+    totalUsageDurationMinutes: asset.total_usage_duration_minutes,
+    totalEarnedMoney: asset.total_earned_money,
+  };
+}
+
 function mapBootstrapPayload(payload: DashboardBootstrapResponse) {
   return {
     currentUser: mapUser(payload.user),
@@ -286,15 +314,16 @@ function mapBootstrapPayload(payload: DashboardBootstrapResponse) {
     },
     services: payload.services.map((service) => ({
       id: service.id,
-      roomId: service.room_id,
-      roomNumber: service.room_number,
-      items: service.service_entries.map((entry) => ({
-        id: entry.id,
-        backendId: entry.backend_id,
-        name: entry.name,
-        cost: entry.cost,
-      })),
-      serviceIds: service.service_ids,
+      backendId: service.backend_id,
+      name: service.name,
+      price: service.price,
+      assetsCount: service.assets_count,
+    })),
+    rooms: payload.rooms.map((room) => ({
+      id: room.id,
+      backendId: room.backend_id,
+      name: room.name,
+      assets: room.assets.map(mapAssetDevice),
     })),
     tariffs: payload.tariffs.map((tariff) => ({
       id: tariff.id,
@@ -349,9 +378,12 @@ function mapBootstrapPayload(payload: DashboardBootstrapResponse) {
       },
       assets: session.assets.map((asset) => ({
         id: asset.id,
+        name: asset.name,
         category: asset.category,
+        serviceId: asset.service_id,
         roomId: asset.room_id,
-        roomNumber: asset.room_number,
+        roomName: asset.room_name,
+        roomNumber: asset.room_name ?? asset.room_number,
         hourlyPrice: asset.hourly_price,
       })),
     })),
@@ -371,23 +403,15 @@ function mapBootstrapPayload(payload: DashboardBootstrapResponse) {
         sellingPrice: product.selling_price,
       })),
     })),
-    assets: payload.assets.map((asset) => ({
-      id: asset.id,
-      backendId: asset.backend_id,
-      name: asset.name,
-      category: asset.category,
-      roomId: asset.room_id,
-      roomNumber: asset.room_number,
-      totalUsageDurationMinutes: asset.total_usage_duration_minutes,
-      totalEarnedMoney: asset.total_earned_money,
-    })),
+    assets: payload.assets.map(mapAssetDevice),
   };
 }
 
 export function DashboardProvider({ children }: { children: React.ReactNode }) {
   const [currentUser, setCurrentUser] = useState<SessionUser | null>(null);
   const [summary, setSummary] = useState<DashboardSummary>(emptySummary);
-  const [services, setServices] = useState<ServiceRoom[]>([]);
+  const [services, setServices] = useState<ServiceItem[]>([]);
+  const [rooms, setRooms] = useState<RoomRecord[]>([]);
   const [tariffs, setTariffs] = useState<Tariff[]>([]);
   const [sales, setSales] = useState<SaleRecord[]>([]);
   const [sessions, setSessions] = useState<SessionRecord[]>([]);
@@ -400,6 +424,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     setCurrentUser(null);
     setSummary(emptySummary);
     setServices([]);
+    setRooms([]);
     setTariffs([]);
     setSales([]);
     setSessions([]);
@@ -431,6 +456,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
         setCurrentUser(mapped.currentUser);
         setSummary(mapped.summary);
         setServices(mapped.services);
+        setRooms(mapped.rooms);
         setTariffs(mapped.tariffs);
         setSales(mapped.sales);
         setSessions(mapped.sessions);
@@ -480,39 +506,50 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     [refreshDashboard]
   );
 
-  const createServiceRoom = useCallback(
-    async ({ roomNumber, items, cost }: { roomNumber: string; items: string[]; cost: number }) => {
+  const createService = useCallback(
+    async ({ name, price }: { name: string; price: number }) => {
       const activeToken = requireToken();
-      const parsedRoomNumber = Number(roomNumber);
 
-      if (!Number.isFinite(parsedRoomNumber) || parsedRoomNumber <= 0) {
-        throw new Error('Room number must be a positive number.');
+      if (!name.trim()) {
+        throw new Error('Service name is required.');
       }
 
-      if (!Number.isFinite(cost) || cost < 0) {
-        throw new Error('Service cost must be zero or greater.');
+      if (!Number.isFinite(price) || price < 0) {
+        throw new Error('Service price must be zero or greater.');
       }
 
-      await Promise.all(
-        items.map((item) =>
-          createServiceRequest(activeToken, {
-            game_name: item,
-            room_id: parsedRoomNumber,
-            cost,
-          })
-        )
-      );
+      await createServiceRequest(activeToken, {
+        name: name.trim(),
+        price,
+      });
 
       await refreshDashboard();
     },
     [refreshDashboard, requireToken]
   );
 
-  const deleteServiceRoom = useCallback(
-    async (room: ServiceRoom) => {
+  const deleteService = useCallback(
+    async (service: ServiceItem) => {
       const activeToken = requireToken();
 
-      await Promise.all(room.serviceIds.map((serviceId) => deleteServiceRequest(activeToken, serviceId)));
+      await deleteServiceRequest(activeToken, service.backendId);
+      await refreshDashboard();
+    },
+    [refreshDashboard, requireToken]
+  );
+
+  const createRoom = useCallback(
+    async ({ name }: { name: string }) => {
+      const activeToken = requireToken();
+
+      if (!name.trim()) {
+        throw new Error('Room name is required.');
+      }
+
+      await createRoomRequest(activeToken, {
+        name: name.trim(),
+      });
+
       await refreshDashboard();
     },
     [refreshDashboard, requireToken]
@@ -589,26 +626,25 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
   );
 
   const createAsset = useCallback(
-    async ({ name, category, roomId }: { name: string; category: string; roomId: number }) => {
+    async ({ name, serviceId, roomId }: { name: string; serviceId: number; roomId: number }) => {
       const activeToken = requireToken();
       const normalizedName = name.trim();
-      const normalizedCategory = category.trim();
 
       if (!normalizedName) {
         throw new Error('Asset name is required.');
       }
 
-      if (!normalizedCategory) {
-        throw new Error('Asset category is required.');
+      if (!Number.isFinite(serviceId) || serviceId <= 0) {
+        throw new Error('Service category is required.');
       }
 
       if (!Number.isFinite(roomId) || roomId <= 0) {
-        throw new Error('Room number must be a positive number.');
+        throw new Error('Room is required.');
       }
 
       await createAssetRequest(activeToken, {
         name: normalizedName,
-        category: normalizedCategory,
+        service_id: serviceId,
         room_id: roomId,
       });
 
@@ -618,26 +654,25 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
   );
 
   const updateAsset = useCallback(
-    async ({ backendId, name, category, roomId }: { backendId: number; name: string; category: string; roomId: number }) => {
+    async ({ backendId, name, serviceId, roomId }: { backendId: number; name: string; serviceId: number; roomId: number }) => {
       const activeToken = requireToken();
       const normalizedName = name.trim();
-      const normalizedCategory = category.trim();
 
       if (!normalizedName) {
         throw new Error('Asset name is required.');
       }
 
-      if (!normalizedCategory) {
-        throw new Error('Asset category is required.');
+      if (!Number.isFinite(serviceId) || serviceId <= 0) {
+        throw new Error('Service category is required.');
       }
 
       if (!Number.isFinite(roomId) || roomId <= 0) {
-        throw new Error('Room number must be a positive number.');
+        throw new Error('Room is required.');
       }
 
       await updateAssetRequest(activeToken, backendId, {
         name: normalizedName,
-        category: normalizedCategory,
+        service_id: serviceId,
         room_id: roomId,
       });
 
@@ -711,14 +746,12 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
 
   const calculateBooking = useCallback(
     async ({
-      tariffId,
       assetIds,
       startTime,
       durationHours,
       endTime,
       isVip,
     }: {
-      tariffId: number;
       assetIds: number[];
       startTime: string;
       durationHours?: number;
@@ -727,7 +760,6 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     }) => {
       const activeToken = requireToken();
       const response = await calculateBookingRequest(activeToken, {
-        tariff_id: tariffId,
         asset_ids: assetIds,
         start_time: startTime,
         duration_hours: durationHours,
@@ -744,9 +776,11 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
         endTime: response.end_time,
         assetBreakdown: response.asset_breakdown.map((asset) => ({
           id: asset.id,
+          name: asset.name,
           category: asset.category,
           roomId: asset.room_id,
-          roomNumber: asset.room_number,
+          roomName: asset.room_name,
+          roomNumber: asset.room_name ?? asset.room_number,
           hourlyPrice: asset.hourly_price,
         })),
       };
@@ -766,7 +800,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       debtName,
       debtPhoneNumber,
     }: {
-      tariffId: number;
+      tariffId?: number;
       assetIds: number[];
       startTime: string;
       durationHours?: number;
@@ -820,6 +854,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       currentUser,
       summary,
       services,
+      rooms,
       tariffs,
       sales,
       sessions,
@@ -830,8 +865,9 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       login,
       logout,
       refreshDashboard: async () => refreshDashboard(),
-      createServiceRoom,
-      deleteServiceRoom,
+      createService,
+      deleteService,
+      createRoom,
       createTariff,
       updateTariff,
       deleteTariff,
@@ -852,12 +888,13 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       companies,
       createAsset,
       createBooking,
-      createServiceRoom,
+      createRoom,
+      createService,
       createTariff,
       currentUser,
       deleteAsset,
       deleteManufacturer,
-      deleteServiceRoom,
+      deleteService,
       deleteSession,
       deleteTariff,
       deleteWarehouseProduct,
@@ -866,6 +903,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       login,
       logout,
       refreshDashboard,
+      rooms,
       sales,
       saveWarehouseProduct,
       services,

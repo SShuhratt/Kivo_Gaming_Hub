@@ -4,8 +4,8 @@ namespace Tests\Feature;
 
 use App\Models\Asset;
 use App\Models\Booking;
+use App\Models\Room;
 use App\Models\Service;
-use App\Models\Tariff;
 use App\Models\Trade;
 use App\Models\User;
 use App\Models\Warehouse;
@@ -17,36 +17,27 @@ class DashboardBootstrapApiTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_dashboard_bootstrap_returns_frontend_ready_payload_with_active_and_completed_sessions(): void
+    public function test_dashboard_bootstrap_returns_frontend_ready_payload_with_rooms_services_and_sessions(): void
     {
-        $tariff = Tariff::create([
-            'name' => 'Night Boost',
-            'hourly_cost' => 45000,
-        ]);
-        $tariff->categoryPrices()->create([
-            'category' => 'Computer',
-            'category_key' => 'computer',
-            'hourly_price' => 45000,
-        ]);
+        $roomOne = Room::create(['name' => 'Opshiy zal']);
+        $roomTwo = Room::create(['name' => '2-xona']);
+        $computer = Service::create(['name' => 'Computer', 'price' => 20000]);
+        $ps5 = Service::create(['name' => 'PS5', 'price' => 35000]);
 
         $activeAsset = Asset::create([
-            'category' => 'Computer',
-            'room_id' => 7,
+            'name' => 'computer1',
+            'service_id' => $computer->id,
+            'room_id' => $roomOne->id,
             'total_usage_duration_minutes' => 180,
-            'total_earned_money' => 135000,
+            'total_earned_money' => 60000,
         ]);
 
         $completedAsset = Asset::create([
-            'category' => 'PS',
-            'room_id' => 8,
+            'name' => 'ps5(1)',
+            'service_id' => $ps5->id,
+            'room_id' => $roomTwo->id,
             'total_usage_duration_minutes' => 120,
-            'total_earned_money' => 90000,
-        ]);
-
-        Service::create([
-            'game_name' => 'CS2',
-            'room_id' => 7,
-            'cost' => 15000,
+            'total_earned_money' => 70000,
         ]);
 
         Warehouse::create([
@@ -60,22 +51,25 @@ class DashboardBootstrapApiTest extends TestCase
         ]);
 
         $activeBooking = Booking::create([
-            'tariff_id' => $tariff->id,
-            'tariff_name_snapshot' => $tariff->name,
-            'hourly_rate_snapshot' => 45000,
+            'tariff_id' => null,
+            'tariff_name_snapshot' => 'Service category pricing',
+            'hourly_rate_snapshot' => 20000,
             'asset_snapshot' => [[
                 'id' => $activeAsset->id,
+                'name' => $activeAsset->name,
                 'category' => 'Computer',
-                'room_id' => 7,
-                'room_number' => '7',
-                'hourly_price' => 45000,
+                'service_id' => $computer->id,
+                'room_id' => $roomOne->id,
+                'room_name' => $roomOne->name,
+                'room_number' => $roomOne->name,
+                'hourly_price' => 20000,
             ]],
             'asset_stats_recorded' => true,
             'start_time' => '2026-04-28T10:00:00+05:00',
             'end_time' => '2030-04-28T12:00:00+05:00',
             'duration_minutes' => 120,
             'requested_duration_hours' => 2,
-            'total_cost' => 90000,
+            'total_cost' => 40000,
             'status' => 'submitted',
             'session_status' => 'active',
             'is_vip' => false,
@@ -83,15 +77,18 @@ class DashboardBootstrapApiTest extends TestCase
         $activeBooking->assets()->sync([$activeAsset->id]);
 
         $completedBooking = Booking::create([
-            'tariff_id' => $tariff->id,
-            'tariff_name_snapshot' => $tariff->name,
-            'hourly_rate_snapshot' => 45000,
+            'tariff_id' => null,
+            'tariff_name_snapshot' => 'Service category pricing',
+            'hourly_rate_snapshot' => 35000,
             'asset_snapshot' => [[
                 'id' => $completedAsset->id,
-                'category' => 'PS',
-                'room_id' => 8,
-                'room_number' => '8',
-                'hourly_price' => 45000,
+                'name' => $completedAsset->name,
+                'category' => 'PS5',
+                'service_id' => $ps5->id,
+                'room_id' => $roomTwo->id,
+                'room_name' => $roomTwo->name,
+                'room_number' => $roomTwo->name,
+                'hourly_price' => 35000,
             ]],
             'asset_stats_recorded' => true,
             'start_time' => '2026-04-28T13:00:00+05:00',
@@ -99,7 +96,7 @@ class DashboardBootstrapApiTest extends TestCase
             'ended_at' => '2026-04-28T15:00:00+05:00',
             'duration_minutes' => 120,
             'requested_duration_hours' => 2,
-            'total_cost' => 90000,
+            'total_cost' => 70000,
             'status' => 'submitted',
             'session_status' => 'completed',
             'is_vip' => false,
@@ -108,21 +105,24 @@ class DashboardBootstrapApiTest extends TestCase
 
         Trade::create([
             'booking_id' => $completedBooking->id,
-            'tariff_id' => $tariff->id,
-            'tariff_name' => $tariff->name,
-            'hourly_rate' => 45000,
+            'tariff_id' => null,
+            'tariff_name' => 'Service category pricing',
+            'hourly_rate' => 35000,
             'payment_status' => 'submitted',
             'session_status' => 'completed',
             'start_time' => '2026-04-28T13:00:00+05:00',
             'end_time' => '2026-04-28T15:00:00+05:00',
             'duration_minutes' => 120,
-            'total_cost' => 90000,
+            'total_cost' => 70000,
             'asset_snapshot' => [[
                 'id' => $completedAsset->id,
-                'category' => 'PS',
-                'room_id' => 8,
-                'room_number' => '8',
-                'hourly_price' => 45000,
+                'name' => $completedAsset->name,
+                'category' => 'PS5',
+                'service_id' => $ps5->id,
+                'room_id' => $roomTwo->id,
+                'room_name' => $roomTwo->name,
+                'room_number' => $roomTwo->name,
+                'hourly_price' => 35000,
             ]],
             'assets_count' => 1,
         ]);
@@ -131,21 +131,22 @@ class DashboardBootstrapApiTest extends TestCase
 
         $response
             ->assertOk()
-            ->assertJsonPath('services.0.room_id', 7)
-            ->assertJsonPath('services.0.items.0', 'CS2')
-            ->assertJsonPath('services.0.service_entries.0.cost', 15000)
-            ->assertJsonPath('tariffs.0.backend_id', $tariff->id)
-            ->assertJsonPath('tariffs.0.category_prices.0.category', 'Computer')
-            ->assertJsonPath('tariffs.0.category_prices.0.hourly_price', 45000)
-            ->assertJsonPath('assets.0.room_id', 7)
+            ->assertJsonPath('services.0.name', 'Computer')
+            ->assertJsonPath('services.0.price', 20000)
+            ->assertJsonPath('rooms.0.name', '2-xona')
+            ->assertJsonPath('rooms.1.name', 'Opshiy zal')
+            ->assertJsonPath('rooms.1.assets.0.service_name', 'Computer')
+            ->assertJsonPath('assets.0.service_name', 'Computer')
+            ->assertJsonPath('assets.0.room_name', 'Opshiy zal')
             ->assertJsonPath('companies.0.name', 'Pepsi')
             ->assertJsonPath('summary.active_sessions', 1)
             ->assertJsonPath('summary.total_session_devices', 2)
-            ->assertJsonPath('sales.0.total', 90000)
+            ->assertJsonPath('summary.rooms_count', 2)
+            ->assertJsonPath('sales.0.total', 70000)
             ->assertJsonPath('sessions.0.session_status', 'active')
             ->assertJsonPath('sessions.0.requested_duration_hours', 2)
             ->assertJsonPath('sessions.0.is_vip', false)
-            ->assertJsonPath('sections.5.name', 'Jihozlar');
+            ->assertJsonPath('sections.5.name', 'Xonalar');
     }
 
     protected function authHeaders(): array

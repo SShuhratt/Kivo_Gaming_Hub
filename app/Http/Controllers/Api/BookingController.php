@@ -7,9 +7,8 @@ use App\Http\Controllers\Api\Concerns\ValidatesApiRequests;
 use App\Http\Controllers\Controller;
 use App\Models\Asset;
 use App\Models\Booking;
-use App\Models\Tariff;
+use App\Services\AssetServicePricingService;
 use App\Services\SessionLifecycleService;
-use App\Services\TariffPricingService;
 use Carbon\Carbon;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\Request;
@@ -30,7 +29,7 @@ class BookingController extends Controller
         $sessionLifecycle->syncElapsedSessions();
 
         $bookings = Booking::query()
-            ->with(['assets', 'tariff.categoryPrices', 'trade'])
+            ->with(['assets.room', 'assets.service', 'tariff.categoryPrices', 'trade'])
             ->when(
                 $validated['session_status'] ?? null,
                 fn ($query, $status) => $query->where('session_status', $status)
@@ -48,31 +47,15 @@ class BookingController extends Controller
     {
         $sessionLifecycle->syncElapsedSessions();
 
-        $booking->load(['assets', 'tariff.categoryPrices', 'trade']);
+        $booking->load(['assets.room', 'assets.service', 'tariff.categoryPrices', 'trade']);
 
         return response()->json($this->formatSession($booking));
     }
 
-    public function calculate(Request $request, TariffPricingService $tariffPricing)
+    public function calculate(Request $request, AssetServicePricingService $assetServicePricing)
     {
         $validated = $this->validateApi($request, [
-<<<<<<< ours
-<<<<<<< ours
-<<<<<<< ours
-<<<<<<< ours
-            'tariff_id' => 'required|exists:tariffs,id',
-=======
             'tariff_id' => 'nullable|exists:tariffs,id',
->>>>>>> theirs
-=======
-            'tariff_id' => 'nullable|exists:tariffs,id',
->>>>>>> theirs
-=======
-            'tariff_id' => 'nullable|exists:tariffs,id',
->>>>>>> theirs
-=======
-            'tariff_id' => 'nullable|exists:tariffs,id',
->>>>>>> theirs
             'asset_ids' => 'required|array|min:1',
             'asset_ids.*' => 'required|integer|distinct|exists:assets,id',
             'start_time' => 'required|date',
@@ -82,10 +65,9 @@ class BookingController extends Controller
         ]);
 
         $timing = $this->resolveTiming($validated);
-        $tariff = Tariff::query()->with('categoryPrices')->findOrFail($validated['tariff_id']);
         $assets = $this->resolveAssets($validated['asset_ids']);
-        $snapshot = $tariffPricing->buildAssetSnapshot($tariff, $assets);
-        $summary = $tariffPricing->summarizeSnapshot($snapshot, $timing['duration_hours']);
+        $snapshot = $assetServicePricing->buildPricedAssetSnapshot($assets);
+        $summary = $assetServicePricing->summarizeSnapshot($snapshot, $timing['duration_hours']);
 
         return response()->json([
             'duration_minutes' => $summary['duration_minutes'],
@@ -96,8 +78,10 @@ class BookingController extends Controller
             'end_time' => $timing['end_time']?->toISOString(),
             'asset_breakdown' => collect($snapshot)->map(fn ($asset) => [
                 'id' => $asset['id'],
+                'name' => $asset['name'],
                 'category' => $asset['category'],
                 'room_id' => $asset['room_id'],
+                'room_name' => $asset['room_name'],
                 'room_number' => $asset['room_number'],
                 'hourly_price' => (float) ($asset['hourly_price'] ?? 0),
             ])->values()->all(),
@@ -107,7 +91,7 @@ class BookingController extends Controller
     public function store(
         Request $request,
         SessionLifecycleService $sessionLifecycle,
-        TariffPricingService $tariffPricing
+        AssetServicePricingService $assetServicePricing
     ) {
         $validated = $this->validateApi($request, [
             'tariff_id' => 'nullable|exists:tariffs,id',
@@ -124,19 +108,15 @@ class BookingController extends Controller
 
         $timing = $this->resolveTiming($validated);
 
-        $booking = DB::transaction(function () use ($validated, $timing, $tariffPricing) {
+        $booking = DB::transaction(function () use ($validated, $timing, $assetServicePricing) {
             $assets = $this->resolveAssets($validated['asset_ids']);
-            $tariff = Tariff::query()->with('categoryPrices')->findOrFail($validated['tariff_id']);
-            $snapshot = $tariffPricing->buildAssetSnapshot($tariff, $assets);
-            $summary = $tariffPricing->summarizeSnapshot($snapshot, $timing['duration_hours']);
+            $snapshot = $assetServicePricing->buildPricedAssetSnapshot($assets);
+            $summary = $assetServicePricing->summarizeSnapshot($snapshot, $timing['duration_hours']);
 
             $booking = Booking::create([
-<<<<<<< ours
-<<<<<<< ours
-<<<<<<< ours
-<<<<<<< ours
-                'tariff_id' => $validated['tariff_id'],
-                'tariff_name_snapshot' => $tariff->name,
+                // Tariffs remain in the schema, but booking totals now come from service category prices.
+                'tariff_id' => $validated['tariff_id'] ?? null,
+                'tariff_name_snapshot' => 'Service category pricing',
                 'hourly_rate_snapshot' => $summary['hourly_rate_total'],
                 'asset_snapshot' => $snapshot,
                 'asset_stats_recorded' => false,
@@ -146,19 +126,6 @@ class BookingController extends Controller
                 'duration_minutes' => $summary['duration_minutes'],
                 'requested_duration_hours' => $summary['duration_hours'],
                 'total_cost' => $summary['total_cost'],
-=======
-=======
->>>>>>> theirs
-=======
->>>>>>> theirs
-=======
->>>>>>> theirs
-                'tariff_id' => $validated['tariff_id'] ?? Tariff::query()->value('id'),
-                'start_time' => $validated['start_time'],
-                'end_time' => $validated['end_time'],
-                'duration_minutes' => $calculation['duration_minutes'],
-                'total_cost' => $calculation['total_cost'],
->>>>>>> theirs
                 'status' => $validated['status'],
                 'session_status' => 'active',
                 'is_vip' => $timing['is_vip'],
@@ -168,31 +135,15 @@ class BookingController extends Controller
 
             $booking->assets()->sync($validated['asset_ids']);
 
-<<<<<<< ours
-<<<<<<< ours
-<<<<<<< ours
-<<<<<<< ours
             return $booking;
         });
-=======
-=======
->>>>>>> theirs
-=======
->>>>>>> theirs
-=======
->>>>>>> theirs
-            $assets = Asset::whereIn('id', $validated['asset_ids'])->lockForUpdate()->with('service')->get();
-            $assetCount = count($validated['asset_ids']);
-            $earnedPerAsset = $assetCount > 0 ? $calculation['total_cost'] / $assetCount : 0;
->>>>>>> theirs
 
         if (! $booking->is_vip && $booking->end_time && Carbon::parse($booking->end_time)->lessThanOrEqualTo(Carbon::now())) {
             $booking = $sessionLifecycle->completeBooking($booking);
         } else {
-            $booking->load(['assets', 'tariff.categoryPrices', 'trade']);
+            $booking->load(['assets.room', 'assets.service', 'tariff.categoryPrices', 'trade']);
         }
 
-<<<<<<< ours
         return response()->json($this->formatSession($booking), 201);
     }
 
@@ -217,9 +168,6 @@ class BookingController extends Controller
     {
         $sessionLifecycle->syncElapsedSessions();
 
-<<<<<<< ours
-<<<<<<< ours
-<<<<<<< ours
         $booking->load('trade');
 
         if ($booking->session_status === 'active') {
@@ -260,6 +208,7 @@ class BookingController extends Controller
     protected function resolveAssets(array $assetIds)
     {
         return Asset::query()
+            ->with(['room', 'service'])
             ->whereIn('id', $assetIds)
             ->orderBy('room_id')
             ->orderBy('id')
@@ -321,56 +270,13 @@ class BookingController extends Controller
         $this->abortBadRequest([
             'duration_hours' => ['Duration is required unless VIP is selected.'],
         ]);
-=======
-=======
->>>>>>> theirs
-=======
->>>>>>> theirs
-=======
->>>>>>> theirs
-            return response()->json($booking->load('assets.service', 'tariff'), 201);
-        });
->>>>>>> theirs
     }
 
     protected function abortBadRequest(array $errors): never
     {
-<<<<<<< ours
-<<<<<<< ours
-<<<<<<< ours
-<<<<<<< ours
         throw new HttpResponseException(response()->json([
             'message' => 'Bad request.',
             'errors' => $errors,
         ], 400));
-=======
-=======
->>>>>>> theirs
-=======
->>>>>>> theirs
-=======
->>>>>>> theirs
-        $start = Carbon::parse($payload['start_time']);
-        $end = Carbon::parse($payload['end_time']);
-        $durationMinutes = (int) $start->diffInMinutes($end);
-        $durationHours = $durationMinutes / 60;
-
-        // Tariff logic is intentionally bypassed; booking total is asset service prices only.
-        $assets = Asset::with('service')->whereIn('id', $payload['asset_ids'])->get();
-        $perHour = $assets->sum(function (Asset $asset) {
-            if (!$asset->service || $asset->service->price === null) {
-                abort(response()->json(['message' => 'Selected asset has no valid service price.'], 422));
-            }
-
-            return (float) $asset->service->price;
-        });
-
-        $totalCost = $durationHours * $perHour;
-
-        return [
-            'duration_minutes' => $durationMinutes,
-            'total_cost' => round($totalCost, 2),
-        ];
->>>>>>> theirs
     }
 }

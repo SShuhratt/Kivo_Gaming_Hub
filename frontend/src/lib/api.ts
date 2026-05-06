@@ -54,16 +54,29 @@ export type DashboardBootstrapResponse = {
   };
   services: Array<{
     id: string;
-    room_id: number;
-    room_number: string;
-    items: string[];
-    service_entries: Array<{
+    backend_id: number;
+    name: string;
+    price: number;
+    assets_count: number;
+  }>;
+  rooms: Array<{
+    id: string;
+    backend_id: number;
+    name: string;
+    assets: Array<{
       id: string;
       backend_id: number;
       name: string;
-      cost: number;
+      category: string | null;
+      service_id: number | null;
+      service_name: string | null;
+      service_price: number | null;
+      room_id: number | null;
+      room_name: string | null;
+      room_number: string | null;
+      total_usage_duration_minutes: number;
+      total_earned_money: number;
     }>;
-    service_ids: number[];
   }>;
   tariffs: Array<{
     id: string;
@@ -113,8 +126,11 @@ export type DashboardBootstrapResponse = {
     };
     assets: Array<{
       id: number | null;
+      name: string | null;
       category: string | null;
+      service_id?: number | null;
       room_id: number | null;
+      room_name: string | null;
       room_number: string | null;
       hourly_price: number | null;
     }>;
@@ -143,9 +159,13 @@ export type DashboardBootstrapResponse = {
     id: string;
     backend_id: number;
     name: string;
-    category: string;
-    room_id: number;
-    room_number: string;
+    category: string | null;
+    service_id: number | null;
+    service_name: string | null;
+    service_price: number | null;
+    room_id: number | null;
+    room_name: string | null;
+    room_number: string | null;
     total_usage_duration_minutes: number;
     total_earned_money: number;
   }>;
@@ -335,7 +355,7 @@ export function getDashboardBootstrap(token: string) {
   });
 }
 
-export function createServiceRequest(token: string, payload: { game_name: string; room_id: number; cost: number }) {
+export function createServiceRequest(token: string, payload: { name: string; price: number }) {
   return apiRequest('/services', {
     method: 'POST',
     token,
@@ -343,7 +363,7 @@ export function createServiceRequest(token: string, payload: { game_name: string
   });
 }
 
-export function updateServiceRequest(token: string, serviceId: number, payload: { game_name?: string; room_id?: number; cost?: number }) {
+export function updateServiceRequest(token: string, serviceId: number, payload: { name?: string; price?: number }) {
   return apiRequest(`/services/${serviceId}`, {
     method: 'PATCH',
     token,
@@ -400,7 +420,15 @@ export function deleteTariffRequest(token: string, tariffId: number) {
   });
 }
 
-export function createAssetRequest(token: string, payload: { name: string; category: string; room_id: number }) {
+export function createRoomRequest(token: string, payload: { name: string }) {
+  return apiRequest('/rooms', {
+    method: 'POST',
+    token,
+    body: payload,
+  });
+}
+
+export function createAssetRequest(token: string, payload: { name: string; service_id: number; room_id: number }) {
   return apiRequest('/assets', {
     method: 'POST',
     token,
@@ -413,7 +441,7 @@ export function updateAssetRequest(
   assetId: number,
   payload: {
     name?: string;
-    category?: string;
+    service_id?: number;
     room_id?: number;
   }
 ) {
@@ -487,7 +515,6 @@ export function deleteManufacturerRequest(token: string, manufacturerId: number)
 export function calculateBookingRequest(
   token: string,
   payload: {
-    tariff_id: number;
     asset_ids: number[];
     start_time: string;
     duration_hours?: number;
@@ -504,8 +531,10 @@ export function calculateBookingRequest(
     end_time: string | null;
     asset_breakdown: Array<{
       id: number;
+      name: string;
       category: string;
       room_id: number;
+      room_name: string | null;
       room_number: string;
       hourly_price: number;
     }>;
@@ -519,7 +548,7 @@ export function calculateBookingRequest(
 export function createBookingRequest(
   token: string,
   payload: {
-    tariff_id: number;
+    tariff_id?: number;
     asset_ids: number[];
     start_time: string;
     duration_hours?: number;

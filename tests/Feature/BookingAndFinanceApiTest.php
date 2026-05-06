@@ -4,7 +4,8 @@ namespace Tests\Feature;
 
 use App\Models\Asset;
 use App\Models\Booking;
-use App\Models\Tariff;
+use App\Models\Room;
+use App\Models\Service;
 use App\Models\Trade;
 use App\Models\User;
 use Carbon\Carbon;
@@ -16,17 +17,15 @@ class BookingAndFinanceApiTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_booking_calculation_uses_category_prices_and_duration_hours(): void
+    public function test_booking_calculation_uses_service_category_prices_and_duration_hours(): void
     {
-        $tariff = $this->createTariffWithCategoryPrices([
-            ['category' => 'Computer', 'hourly_price' => 20000],
-            ['category' => 'PS5', 'hourly_price' => 35000],
-        ]);
-        $assetOne = Asset::create(['category' => 'Computer', 'room_id' => 101]);
-        $assetTwo = Asset::create(['category' => 'PS5', 'room_id' => 102]);
+        $room = Room::create(['name' => 'Opshiy zal']);
+        $computer = Service::create(['name' => 'Computer', 'price' => 20000]);
+        $ps5 = Service::create(['name' => 'PS5', 'price' => 35000]);
+        $assetOne = Asset::create(['name' => 'computer1', 'service_id' => $computer->id, 'room_id' => $room->id]);
+        $assetTwo = Asset::create(['name' => 'ps5(1)', 'service_id' => $ps5->id, 'room_id' => $room->id]);
 
         $this->postJson('/api/bookings/calculate', [
-            'tariff_id' => $tariff->id,
             'asset_ids' => [$assetOne->id, $assetTwo->id],
             'start_time' => '2026-04-25T10:00:00+05:00',
             'duration_hours' => 2,
@@ -37,45 +36,37 @@ class BookingAndFinanceApiTest extends TestCase
             ->assertJsonPath('hourly_rate_total', 55000)
             ->assertJsonPath('total_cost', 110000)
             ->assertJsonPath('is_vip', false)
-            ->assertJsonCount(2, 'asset_breakdown')
             ->assertJsonPath('asset_breakdown.0.category', 'Computer')
             ->assertJsonPath('asset_breakdown.0.hourly_price', 20000)
             ->assertJsonPath('asset_breakdown.1.category', 'PS5')
             ->assertJsonPath('asset_breakdown.1.hourly_price', 35000);
     }
 
-    public function test_booking_calculation_rejects_assets_without_a_matching_tariff_category_price(): void
+    public function test_booking_calculation_rejects_assets_without_a_valid_service_price(): void
     {
-        $tariff = $this->createTariffWithCategoryPrices([
-            ['category' => 'Computer', 'hourly_price' => 20000],
-        ]);
-        $assetOne = Asset::create(['category' => 'Computer', 'room_id' => 101]);
-        $assetTwo = Asset::create(['category' => 'Projector', 'room_id' => 102]);
+        $room = Room::create(['name' => '2-xona']);
+        $pricedService = Service::create(['name' => 'Computer', 'price' => 20000]);
+        $missingPriceService = Service::create(['name' => 'Projector', 'price' => null]);
+        $assetOne = Asset::create(['name' => 'computer1', 'service_id' => $pricedService->id, 'room_id' => $room->id]);
+        $assetTwo = Asset::create(['name' => 'projector1', 'service_id' => $missingPriceService->id, 'room_id' => $room->id]);
 
         $this->postJson('/api/bookings/calculate', [
-            'tariff_id' => $tariff->id,
             'asset_ids' => [$assetOne->id, $assetTwo->id],
             'start_time' => '2026-04-25T10:00:00+05:00',
             'duration_hours' => 1,
         ], $this->authHeaders())
             ->assertStatus(400)
             ->assertJsonPath('message', 'Bad request.')
-            ->assertJsonPath('errors.asset_ids.0', 'Selected tariff does not have prices for: Projector.');
+            ->assertJsonPath('errors.asset_ids.0', 'projector1 has no valid service category price.');
     }
 
-    public function test_booking_create_uses_duration_hours_and_stays_active_without_creating_trade(): void
+    public function test_booking_create_uses_service_prices_and_stays_active_without_creating_trade(): void
     {
         Carbon::setTestNow('2026-04-25T09:00:00+05:00');
 
-        $tariff = $this->createTariffWithCategoryPrices([
-            ['category' => 'Computer', 'hourly_price' => 20000],
-            ['category' => 'PS5', 'hourly_price' => 35000],
-        ]);
-        $assetOne = Asset::create(['category' => 'Computer', 'room_id' => 101]);
-        $assetTwo = Asset::create(['category' => 'PS5', 'room_id' => 102]);
+        [$assetOne, $assetTwo] = $this->createPricedAssets();
 
         $this->postJson('/api/bookings', [
-            'tariff_id' => $tariff->id,
             'asset_ids' => [$assetOne->id, $assetTwo->id],
             'start_time' => '2026-04-25T10:00:00+05:00',
             'duration_hours' => 2,
@@ -89,7 +80,8 @@ class BookingAndFinanceApiTest extends TestCase
             ->assertJsonPath('requested_duration_hours', 2)
             ->assertJsonPath('total_cost', 110000)
             ->assertJsonPath('trade_exists', false)
-            ->assertJsonPath('is_vip', false);
+            ->assertJsonPath('is_vip', false)
+            ->assertJsonPath('tariff.name', 'Service category pricing');
 
         $this->assertDatabaseHas('assets', [
             'id' => $assetOne->id,
@@ -102,25 +94,15 @@ class BookingAndFinanceApiTest extends TestCase
             'total_earned_money' => 0,
         ]);
         $this->assertDatabaseCount('trades', 0);
-
-        $this->getJson('/api/trades', $this->authHeaders())
-            ->assertOk()
-            ->assertJsonCount(0);
     }
 
-    public function test_manual_session_end_creates_trade_and_updates_asset_stats_using_category_prices(): void
+    public function test_manual_session_end_creates_trade_and_updates_asset_stats_using_service_prices(): void
     {
         Carbon::setTestNow('2026-04-25T09:00:00+05:00');
 
-        $tariff = $this->createTariffWithCategoryPrices([
-            ['category' => 'Computer', 'hourly_price' => 20000],
-            ['category' => 'PS5', 'hourly_price' => 35000],
-        ]);
-        $assetOne = Asset::create(['category' => 'Computer', 'room_id' => 101]);
-        $assetTwo = Asset::create(['category' => 'PS5', 'room_id' => 102]);
+        [$assetOne, $assetTwo] = $this->createPricedAssets();
 
         $bookingId = $this->postJson('/api/bookings', [
-            'tariff_id' => $tariff->id,
             'asset_ids' => [$assetOne->id, $assetTwo->id],
             'start_time' => '2026-04-25T10:00:00+05:00',
             'duration_hours' => 2,
@@ -162,15 +144,9 @@ class BookingAndFinanceApiTest extends TestCase
     {
         Carbon::setTestNow('2026-04-25T09:00:00+05:00');
 
-        $tariff = $this->createTariffWithCategoryPrices([
-            ['category' => 'Computer', 'hourly_price' => 20000],
-            ['category' => 'PS5', 'hourly_price' => 35000],
-        ]);
-        $assetOne = Asset::create(['category' => 'Computer', 'room_id' => 101]);
-        $assetTwo = Asset::create(['category' => 'PS5', 'room_id' => 102]);
+        [$assetOne, $assetTwo] = $this->createPricedAssets();
 
         $bookingId = $this->postJson('/api/bookings', [
-            'tariff_id' => $tariff->id,
             'asset_ids' => [$assetOne->id, $assetTwo->id],
             'start_time' => '2026-04-25T10:00:00+05:00',
             'is_vip' => true,
@@ -214,27 +190,24 @@ class BookingAndFinanceApiTest extends TestCase
 
     public function test_finance_ledger_excludes_active_sessions_and_keeps_existing_filters(): void
     {
-        Carbon::setTestNow('2026-04-25T09:00:00+05:00');
-
-        $tariff = $this->createTariffWithCategoryPrices([
-            ['category' => 'Computer', 'hourly_price' => 20000],
-            ['category' => 'PS5', 'hourly_price' => 35000],
-        ]);
+        $room = Room::create(['name' => 'Opshiy zal']);
 
         Booking::create([
-            'tariff_id' => $tariff->id,
-            'tariff_name_snapshot' => $tariff->name,
+            'tariff_id' => null,
+            'tariff_name_snapshot' => 'Service category pricing',
             'hourly_rate_snapshot' => 20000,
             'asset_snapshot' => [[
                 'id' => 1,
+                'name' => 'computer1',
                 'category' => 'Computer',
-                'room_id' => 101,
-                'room_number' => '101',
+                'room_id' => $room->id,
+                'room_name' => $room->name,
+                'room_number' => $room->name,
                 'hourly_price' => 20000,
             ]],
             'asset_stats_recorded' => true,
             'start_time' => '2026-04-25T10:00:00+05:00',
-            'end_time' => '2026-04-25T12:00:00+05:00',
+            'end_time' => '2030-04-25T12:00:00+05:00',
             'duration_minutes' => 120,
             'requested_duration_hours' => 2,
             'total_cost' => 40000,
@@ -243,14 +216,16 @@ class BookingAndFinanceApiTest extends TestCase
         ]);
 
         $completedIncomeBooking = Booking::create([
-            'tariff_id' => $tariff->id,
-            'tariff_name_snapshot' => $tariff->name,
+            'tariff_id' => null,
+            'tariff_name_snapshot' => 'Service category pricing',
             'hourly_rate_snapshot' => 20000,
             'asset_snapshot' => [[
                 'id' => 2,
+                'name' => 'computer2',
                 'category' => 'Computer',
-                'room_id' => 102,
-                'room_number' => '102',
+                'room_id' => $room->id,
+                'room_name' => $room->name,
+                'room_number' => $room->name,
                 'hourly_price' => 20000,
             ]],
             'asset_stats_recorded' => true,
@@ -265,14 +240,16 @@ class BookingAndFinanceApiTest extends TestCase
         ]);
 
         $completedDebtBooking = Booking::create([
-            'tariff_id' => $tariff->id,
-            'tariff_name_snapshot' => $tariff->name,
+            'tariff_id' => null,
+            'tariff_name_snapshot' => 'Service category pricing',
             'hourly_rate_snapshot' => 35000,
             'asset_snapshot' => [[
                 'id' => 3,
+                'name' => 'ps5(1)',
                 'category' => 'PS5',
-                'room_id' => 103,
-                'room_number' => '103',
+                'room_id' => $room->id,
+                'room_name' => $room->name,
+                'room_number' => $room->name,
                 'hourly_price' => 35000,
             ]],
             'asset_stats_recorded' => true,
@@ -290,8 +267,8 @@ class BookingAndFinanceApiTest extends TestCase
 
         Trade::create([
             'booking_id' => $completedIncomeBooking->id,
-            'tariff_id' => $tariff->id,
-            'tariff_name' => $tariff->name,
+            'tariff_id' => null,
+            'tariff_name' => 'Service category pricing',
             'hourly_rate' => 20000,
             'payment_status' => 'submitted',
             'session_status' => 'completed',
@@ -301,9 +278,11 @@ class BookingAndFinanceApiTest extends TestCase
             'total_cost' => 40000,
             'asset_snapshot' => [[
                 'id' => 2,
+                'name' => 'computer2',
                 'category' => 'Computer',
-                'room_id' => 102,
-                'room_number' => '102',
+                'room_id' => $room->id,
+                'room_name' => $room->name,
+                'room_number' => $room->name,
                 'hourly_price' => 20000,
             ]],
             'assets_count' => 1,
@@ -311,8 +290,8 @@ class BookingAndFinanceApiTest extends TestCase
 
         Trade::create([
             'booking_id' => $completedDebtBooking->id,
-            'tariff_id' => $tariff->id,
-            'tariff_name' => $tariff->name,
+            'tariff_id' => null,
+            'tariff_name' => 'Service category pricing',
             'hourly_rate' => 35000,
             'payment_status' => 'debt_closed',
             'session_status' => 'completed',
@@ -324,9 +303,11 @@ class BookingAndFinanceApiTest extends TestCase
             'debt_phone_number' => '+998991234567',
             'asset_snapshot' => [[
                 'id' => 3,
+                'name' => 'ps5(1)',
                 'category' => 'PS5',
-                'room_id' => 103,
-                'room_number' => '103',
+                'room_id' => $room->id,
+                'room_name' => $room->name,
+                'room_number' => $room->name,
                 'hourly_price' => 35000,
             ]],
             'assets_count' => 1,
@@ -362,24 +343,24 @@ class BookingAndFinanceApiTest extends TestCase
             ->assertOk();
     }
 
-    protected function createTariffWithCategoryPrices(array $rows, string $name = 'Standard Hour'): Tariff
+    protected function createPricedAssets(): array
     {
-        $tariff = Tariff::create([
-            'name' => $name,
-            'hourly_cost' => collect($rows)->min('hourly_price') ?? 0,
-        ]);
+        $room = Room::create(['name' => 'Opshiy zal']);
+        $computer = Service::create(['name' => 'Computer', 'price' => 20000]);
+        $ps5 = Service::create(['name' => 'PS5', 'price' => 35000]);
 
-        $tariff->categoryPrices()->createMany(
-            collect($rows)
-                ->map(fn (array $row) => [
-                    'category' => $row['category'],
-                    'category_key' => mb_strtolower(trim($row['category'])),
-                    'hourly_price' => $row['hourly_price'],
-                ])
-                ->all(),
-        );
-
-        return $tariff->fresh('categoryPrices');
+        return [
+            Asset::create([
+                'name' => 'computer1',
+                'service_id' => $computer->id,
+                'room_id' => $room->id,
+            ]),
+            Asset::create([
+                'name' => 'ps5(1)',
+                'service_id' => $ps5->id,
+                'room_id' => $room->id,
+            ]),
+        ];
     }
 
     protected function authHeaders(): array

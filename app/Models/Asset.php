@@ -8,36 +8,18 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class Asset extends Model
 {
-    protected $appends = ['category'];
+    protected $appends = ['category', 'room_name', 'service_price'];
 
     protected $fillable = [
-<<<<<<< ours
-<<<<<<< ours
-<<<<<<< ours
-<<<<<<< ours
-        'name', 'category', 'room_id', 'total_usage_duration_minutes', 'total_earned_money'
-=======
-=======
->>>>>>> theirs
-=======
->>>>>>> theirs
-=======
->>>>>>> theirs
         'name',
         'service_id',
         'room_id',
         'total_usage_duration_minutes',
         'total_earned_money',
-<<<<<<< ours
-<<<<<<< ours
-<<<<<<< ours
->>>>>>> theirs
-=======
->>>>>>> theirs
-=======
->>>>>>> theirs
-=======
->>>>>>> theirs
+    ];
+
+    protected $casts = [
+        'total_earned_money' => 'float',
     ];
 
     public function bookings(): BelongsToMany
@@ -58,5 +40,15 @@ class Asset extends Model
     public function getCategoryAttribute(): ?string
     {
         return $this->service?->name;
+    }
+
+    public function getRoomNameAttribute(): ?string
+    {
+        return $this->room?->name;
+    }
+
+    public function getServicePriceAttribute(): ?float
+    {
+        return $this->service?->price;
     }
 }
