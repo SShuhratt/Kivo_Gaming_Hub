@@ -26,11 +26,20 @@ class ServiceController extends Controller
 
     public function store(Request $request)
     {
-        $validated = $this->validateApi($request, $this->rules());
+        try {
+            Log::info('Creating service', ['payload' => $request->all()]);
+            $validated = $this->validateApi($request, $this->rules());
 
-        $service = Service::create($this->payloadFromValidation($validated))->loadCount('assets');
+            $service = Service::create($this->payloadFromValidation($validated))->loadCount('assets');
 
-        return response()->json($this->formatService($service), 201);
+            return response()->json($this->formatService($service), 201);
+        } catch (\Throwable $e) {
+            Log::error('Failed to create service', [
+                'error' => $e->getMessage(),
+                'payload' => $request->all(),
+            ]);
+            throw $e;
+        }
     }
 
     public function show(Service $service)
@@ -40,11 +49,21 @@ class ServiceController extends Controller
 
     public function update(Request $request, Service $service)
     {
-        $validated = $this->validateApi($request, $this->rules(false));
+        try {
+            Log::info('Updating service', ['id' => $service->id, 'payload' => $request->all()]);
+            $validated = $this->validateApi($request, $this->rules(false));
 
-        $service->update($this->payloadFromValidation($validated));
+            $service->update($this->payloadFromValidation($validated));
 
-        return response()->json($this->formatService($service->fresh()->loadCount('assets')));
+            return response()->json($this->formatService($service->fresh()->loadCount('assets')));
+        } catch (\Throwable $e) {
+            Log::error('Failed to update service', [
+                'service_id' => $service->id,
+                'error' => $e->getMessage(),
+                'payload' => $request->all(),
+            ]);
+            throw $e;
+        }
     }
 
     public function destroy(Service $service)

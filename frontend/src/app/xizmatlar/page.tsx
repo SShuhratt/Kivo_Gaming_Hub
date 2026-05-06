@@ -411,6 +411,8 @@ export default function XizmatlarPage() {
                     {draft.isBundle ? 'Bundle nomi' : 'Xizmat nomi'}
                   </Label>
                   <Input
+                    id="service-name"
+                    name="service-name"
                     aria-label={draft.isBundle ? 'Bundle nomi' : 'Xizmat nomi'}
                     value={draft.name}
                     onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))}
@@ -420,6 +422,8 @@ export default function XizmatlarPage() {
                 <div className="space-y-2">
                   <Label className="text-[9px] font-black uppercase tracking-[0.2em] text-primary/60">Soatlik narx (UZS)</Label>
                   <Input
+                    id="service-rate"
+                    name="service-rate"
                     type="number"
                     aria-label="Soatlik narx"
                     value={draft.rate}
@@ -449,6 +453,8 @@ export default function XizmatlarPage() {
                           <div className="space-y-2">
                             <Label className="text-[9px] font-black uppercase tracking-[0.2em] text-primary/60">Xizmat</Label>
                             <select
+                              id={`requirement-service-${index}`}
+                              name={`requirement-service-${index}`}
                               value={row.serviceId}
                               onChange={(event) =>
                                 setRequirementDrafts((current) =>
@@ -470,6 +476,8 @@ export default function XizmatlarPage() {
                           <div className="space-y-2">
                             <Label className="text-[9px] font-black uppercase tracking-[0.2em] text-primary/60">Miqdor</Label>
                             <Input
+                              id={`requirement-quantity-${index}`}
+                              name={`requirement-quantity-${index}`}
                               type="number"
                               min="1"
                               aria-label={`Bundle miqdor ${index + 1}`}
@@ -506,6 +514,8 @@ export default function XizmatlarPage() {
                     <div className="space-y-2">
                       <Label className="text-[9px] font-black uppercase tracking-[0.2em] text-primary/60">Admin priority</Label>
                       <Input
+                        id="service-priority"
+                        name="service-priority"
                         type="number"
                         aria-label="Admin priority"
                         value={draft.manualPriority}

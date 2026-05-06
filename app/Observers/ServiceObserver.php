@@ -3,17 +3,28 @@
 namespace App\Observers;
 
 use App\Models\Service;
+use Illuminate\Support\Facades\Log;
 
 class ServiceObserver
 {
     public function saving(Service $service): void
     {
-        $normalizedRequirements = $service->normalizedRequirements();
-        $service->requirements = $normalizedRequirements === [] ? null : $normalizedRequirements;
-        $service->manual_priority = $service->manual_priority !== null && $service->manual_priority !== ''
-            ? (int) $service->manual_priority
-            : null;
-        $service->savings_ratio = $this->calculateSavingsRatio($service, $normalizedRequirements);
+        try {
+            $normalizedRequirements = $service->normalizedRequirements();
+            $service->requirements = $normalizedRequirements === [] ? null : $normalizedRequirements;
+            $service->manual_priority = $service->manual_priority !== null && $service->manual_priority !== ''
+                ? (int) $service->manual_priority
+                : null;
+            $service->savings_ratio = $this->calculateSavingsRatio($service, $normalizedRequirements);
+        } catch (\Throwable $e) {
+            Log::error('ServiceObserver failed', [
+                'service_id' => $service->id,
+                'name' => $service->name,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            throw $e;
+        }
     }
 
     protected function calculateSavingsRatio(Service $service, array $normalizedRequirements): float
