@@ -12,6 +12,8 @@ import {
   createServiceRequest,
   createWarehouseItemRequest,
   deleteAssetRequest,
+  deleteRoomAssetsRequest,
+  deleteRoomRequest,
   deleteManufacturerRequest,
   deleteServiceRequest,
   deleteSessionRequest,
@@ -86,6 +88,7 @@ export interface AssetDevice {
   roomId: number | null;
   roomName: string | null;
   roomNumber: string;
+  assetOrder: number | null;
   totalUsageDurationMinutes: number;
   totalEarnedMoney: number;
 }
@@ -113,9 +116,11 @@ export interface SessionAssetSnapshot {
   name: string | null;
   category: string | null;
   serviceId?: number | null;
+  serviceName: string | null;
   roomId: number | null;
   roomName: string | null;
   roomNumber: string | null;
+  assetOrder: number | null;
   hourlyPrice: number | null;
 }
 
@@ -155,9 +160,11 @@ export interface BookingCalculation {
     id: number;
     name: string;
     category: string;
+    serviceName: string | null;
     roomId: number;
     roomName: string | null;
     roomNumber: string;
+    assetOrder: number | null;
     hourlyPrice: number;
   }>;
 }
@@ -180,8 +187,23 @@ interface DashboardContextType {
   createService: (payload: { name: string; price: number }) => Promise<void>;
   deleteService: (service: ServiceItem) => Promise<void>;
   createRoom: (payload: { name: string }) => Promise<void>;
-  createAsset: (payload: { name: string; serviceId: number; roomId: number }) => Promise<void>;
-  updateAsset: (payload: { backendId: number; name: string; serviceId: number; roomId: number }) => Promise<void>;
+  deleteRoom: (room: RoomRecord) => Promise<void>;
+  deleteRoomAssets: (roomBackendId: number) => Promise<void>;
+  createAsset: (payload: {
+    name: string;
+    serviceId?: number;
+    roomId?: number;
+    categoryName?: string;
+    roomNumber?: string;
+  }) => Promise<void>;
+  updateAsset: (payload: {
+    backendId: number;
+    name: string;
+    serviceId?: number;
+    roomId?: number;
+    categoryName?: string;
+    roomNumber?: string;
+  }) => Promise<void>;
   deleteAsset: (asset: AssetDevice) => Promise<void>;
   saveWarehouseProduct: (payload: {
     backendId?: number;
@@ -252,6 +274,7 @@ function mapAssetDevice(asset: DashboardBootstrapResponse['assets'][number]): As
     roomId: asset.room_id,
     roomName: asset.room_name,
     roomNumber: asset.room_name ?? asset.room_number ?? 'Xona N/A',
+    assetOrder: asset.asset_order,
     totalUsageDurationMinutes: asset.total_usage_duration_minutes,
     totalEarnedMoney: asset.total_earned_money,
   };
@@ -325,9 +348,11 @@ function mapBootstrapPayload(payload: DashboardBootstrapResponse) {
         name: asset.name,
         category: asset.category,
         serviceId: asset.service_id,
+        serviceName: asset.service_name ?? asset.category ?? null,
         roomId: asset.room_id,
         roomName: asset.room_name,
         roomNumber: asset.room_name ?? asset.room_number,
+        assetOrder: asset.asset_order ?? null,
         hourlyPrice: asset.hourly_price,
       })),
     })),
@@ -496,8 +521,30 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     [refreshDashboard, requireToken]
   );
 
+  const deleteRoom = useCallback(
+    async (room: RoomRecord) => {
+      const activeToken = requireToken();
+
+      await deleteRoomRequest(activeToken, room.backendId);
+      await refreshDashboard();
+    },
+    [refreshDashboard, requireToken]
+  );
+
   const createAsset = useCallback(
-    async ({ name, serviceId, roomId }: { name: string; serviceId: number; roomId: number }) => {
+    async ({
+      name,
+      serviceId,
+      roomId,
+      categoryName,
+      roomNumber,
+    }: {
+      name: string;
+      serviceId?: number;
+      roomId?: number;
+      categoryName?: string;
+      roomNumber?: string;
+    }) => {
       const activeToken = requireToken();
       const normalizedName = name.trim();
 
@@ -505,18 +552,12 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
         throw new Error('Asset name is required.');
       }
 
-      if (!Number.isFinite(serviceId) || serviceId <= 0) {
-        throw new Error('Service category is required.');
-      }
-
-      if (!Number.isFinite(roomId) || roomId <= 0) {
-        throw new Error('Room is required.');
-      }
-
       await createAssetRequest(activeToken, {
-        name: normalizedName,
+        asset_name: normalizedName,
         service_id: serviceId,
         room_id: roomId,
+        category_name: categoryName,
+        room_number: roomNumber,
       });
 
       await refreshDashboard();
@@ -525,7 +566,21 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
   );
 
   const updateAsset = useCallback(
-    async ({ backendId, name, serviceId, roomId }: { backendId: number; name: string; serviceId: number; roomId: number }) => {
+    async ({
+      backendId,
+      name,
+      serviceId,
+      roomId,
+      categoryName,
+      roomNumber,
+    }: {
+      backendId: number;
+      name: string;
+      serviceId?: number;
+      roomId?: number;
+      categoryName?: string;
+      roomNumber?: string;
+    }) => {
       const activeToken = requireToken();
       const normalizedName = name.trim();
 
@@ -533,18 +588,12 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
         throw new Error('Asset name is required.');
       }
 
-      if (!Number.isFinite(serviceId) || serviceId <= 0) {
-        throw new Error('Service category is required.');
-      }
-
-      if (!Number.isFinite(roomId) || roomId <= 0) {
-        throw new Error('Room is required.');
-      }
-
       await updateAssetRequest(activeToken, backendId, {
-        name: normalizedName,
+        asset_name: normalizedName,
         service_id: serviceId,
         room_id: roomId,
+        category_name: categoryName,
+        room_number: roomNumber,
       });
 
       await refreshDashboard();
@@ -557,6 +606,16 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       const activeToken = requireToken();
 
       await deleteAssetRequest(activeToken, asset.backendId);
+      await refreshDashboard();
+    },
+    [refreshDashboard, requireToken]
+  );
+
+  const deleteRoomAssets = useCallback(
+    async (roomBackendId: number) => {
+      const activeToken = requireToken();
+
+      await deleteRoomAssetsRequest(activeToken, roomBackendId);
       await refreshDashboard();
     },
     [refreshDashboard, requireToken]
@@ -649,9 +708,11 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
           id: asset.id,
           name: asset.name,
           category: asset.category,
+          serviceName: asset.service_name,
           roomId: asset.room_id,
           roomName: asset.room_name,
           roomNumber: asset.room_name ?? asset.room_number,
+          assetOrder: asset.asset_order,
           hourlyPrice: asset.hourly_price,
         })),
       };
@@ -738,6 +799,8 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       createService,
       deleteService,
       createRoom,
+      deleteRoom,
+      deleteRoomAssets,
       createAsset,
       updateAsset,
       deleteAsset,
@@ -760,6 +823,8 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       currentUser,
       deleteAsset,
       deleteManufacturer,
+      deleteRoom,
+      deleteRoomAssets,
       deleteService,
       deleteSession,
       deleteWarehouseProduct,

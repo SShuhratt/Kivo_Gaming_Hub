@@ -75,6 +75,7 @@ export type DashboardBootstrapResponse = {
       room_id: number | null;
       room_name: string | null;
       room_number: string | null;
+      asset_order: number | null;
       total_usage_duration_minutes: number;
       total_earned_money: number;
     }>;
@@ -118,9 +119,11 @@ export type DashboardBootstrapResponse = {
       name: string | null;
       category: string | null;
       service_id?: number | null;
+      service_name?: string | null;
       room_id: number | null;
       room_name: string | null;
       room_number: string | null;
+      asset_order?: number | null;
       hourly_price: number | null;
     }>;
     assets_count: number;
@@ -155,6 +158,7 @@ export type DashboardBootstrapResponse = {
     room_id: number | null;
     room_name: string | null;
     room_number: string | null;
+    asset_order: number | null;
     total_usage_duration_minutes: number;
     total_earned_money: number;
   }>;
@@ -375,7 +379,24 @@ export function createRoomRequest(token: string, payload: { name: string }) {
   });
 }
 
-export function createAssetRequest(token: string, payload: { name: string; service_id: number; room_id: number }) {
+export function deleteRoomRequest(token: string, roomId: number) {
+  return apiRequest(`/rooms/${roomId}`, {
+    method: 'DELETE',
+    token,
+  });
+}
+
+export function createAssetRequest(
+  token: string,
+  payload: {
+    name?: string;
+    asset_name?: string;
+    service_id?: number;
+    category_name?: string;
+    room_id?: number;
+    room_number?: string;
+  }
+) {
   return apiRequest('/assets', {
     method: 'POST',
     token,
@@ -388,8 +409,11 @@ export function updateAssetRequest(
   assetId: number,
   payload: {
     name?: string;
+    asset_name?: string;
     service_id?: number;
+    category_name?: string;
     room_id?: number;
+    room_number?: string;
   }
 ) {
   return apiRequest(`/assets/${assetId}`, {
@@ -401,6 +425,13 @@ export function updateAssetRequest(
 
 export function deleteAssetRequest(token: string, assetId: number) {
   return apiRequest(`/assets/${assetId}`, {
+    method: 'DELETE',
+    token,
+  });
+}
+
+export function deleteRoomAssetsRequest(token: string, roomId: number) {
+  return apiRequest(`/rooms/${roomId}/assets`, {
     method: 'DELETE',
     token,
   });
@@ -480,9 +511,11 @@ export function calculateBookingRequest(
       id: number;
       name: string;
       category: string;
+      service_name: string | null;
       room_id: number;
       room_name: string | null;
       room_number: string;
+      asset_order: number | null;
       hourly_price: number;
     }>;
   }>('/bookings/calculate', {

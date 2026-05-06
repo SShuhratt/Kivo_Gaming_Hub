@@ -17,7 +17,8 @@ import {
   Barcode,
   TrendingUp,
   Pencil,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Search,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -90,8 +91,51 @@ export default function OmborPage() {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [productForm, setProductForm] = useState<ProductFormState>(emptyProductForm);
   const [isSaving, setIsSaving] = useState(false);
+  const [manufacturerSearch, setManufacturerSearch] = useState('');
+  const [productSearch, setProductSearch] = useState('');
 
   const selectedCompany = companies.find((company) => company.id === selectedCompanyId) ?? null;
+  const filteredCompanies = useMemo(() => {
+    const manufacturerQuery = manufacturerSearch.trim().toLowerCase();
+    const inventoryQuery = productSearch.trim().toLowerCase();
+
+    return companies.filter((company) => {
+      const matchesManufacturer = !manufacturerQuery || company.name.toLowerCase().includes(manufacturerQuery);
+      const matchesInventory =
+        !inventoryQuery ||
+        company.products.some((product) =>
+          [
+            product.name,
+            product.manufacturer,
+            unitLabels[product.unit],
+            product.barcode,
+          ].some((value) => value.toLowerCase().includes(inventoryQuery)),
+        );
+
+      return matchesManufacturer && matchesInventory;
+    });
+  }, [companies, manufacturerSearch, productSearch]);
+
+  const filteredProducts = useMemo(() => {
+    if (!selectedCompany) {
+      return [];
+    }
+
+    const query = productSearch.trim().toLowerCase();
+
+    if (!query) {
+      return selectedCompany.products;
+    }
+
+    return selectedCompany.products.filter((product) =>
+      [
+        product.name,
+        product.manufacturer,
+        unitLabels[product.unit],
+        product.barcode,
+      ].some((value) => value.toLowerCase().includes(query)),
+    );
+  }, [productSearch, selectedCompany]);
 
   const profitMargin = useMemo(() => {
     const purchase = parseFloat(productForm.purchasePrice);
@@ -220,8 +264,40 @@ export default function OmborPage() {
                 </Button>
               </div>
 
+              <div className="grid gap-4 rounded-[24px] border border-white/5 bg-[#0a1f1f]/40 p-4 backdrop-blur-md md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase tracking-widest text-primary/60">Ishlab chiqaruvchini qidirish</Label>
+                  <div className="relative">
+                    <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/25" />
+                    <Input
+                      aria-label="Ishlab chiqaruvchi qidirish"
+                      value={manufacturerSearch}
+                      onChange={(e) => setManufacturerSearch(e.target.value)}
+                      className="h-12 bg-[#051111] border-white/5 rounded-xl font-bold pl-11 text-sm focus:border-primary/40"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase tracking-widest text-primary/60">Mahsulot yoki turi bo'yicha qidirish</Label>
+                  <div className="relative">
+                    <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/25" />
+                    <Input
+                      aria-label="Mahsulot qidirish"
+                      value={productSearch}
+                      onChange={(e) => setProductSearch(e.target.value)}
+                      className="h-12 bg-[#051111] border-white/5 rounded-xl font-bold pl-11 text-sm focus:border-primary/40"
+                    />
+                  </div>
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {companies.map((company) => (
+                {filteredCompanies.length === 0 ? (
+                  <div className="col-span-full flex h-[220px] flex-col items-center justify-center gap-4 rounded-[24px] border border-dashed border-white/5 bg-[#061414]/20">
+                    <Search className="h-10 w-10 text-primary/25" />
+                    <p className="text-[10px] font-black text-[#556060] uppercase tracking-[0.4em]">MOS KELADIGAN MA'LUMOT TOPILMADI</p>
+                  </div>
+                ) : filteredCompanies.map((company) => (
                   <div
                     key={company.id}
                     onClick={() => setSelectedCompanyId(company.id)}
@@ -314,6 +390,29 @@ export default function OmborPage() {
         </header>
 
         <div className="bg-[#0a1a1a]/60 border border-white/5 rounded-[32px] overflow-hidden shadow-2xl backdrop-blur-md">
+          <div className="grid gap-4 border-b border-white/5 bg-[#0d1f1f]/40 p-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase tracking-widest text-primary/60">Mahsulotlarni qidirish</Label>
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/25" />
+                <Input
+                  aria-label="Mahsulotlarni qidirish"
+                  value={productSearch}
+                  onChange={(e) => setProductSearch(e.target.value)}
+                  className="h-12 bg-[#051111] border-white/5 rounded-xl font-bold pl-11 text-sm focus:border-primary/40"
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase tracking-widest text-primary/60">Ishlab chiqaruvchi</Label>
+              <Input
+                aria-label="Tanlangan ishlab chiqaruvchi"
+                value={selectedCompany.name}
+                readOnly
+                className="h-12 bg-[#051111] border-white/5 rounded-xl font-bold text-sm focus:border-primary/40"
+              />
+            </div>
+          </div>
           <Table>
             <TableHeader className="bg-[#0d1f1f]/50 border-b border-white/5">
               <TableRow className="hover:bg-transparent">
@@ -329,14 +428,14 @@ export default function OmborPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {selectedCompany.products.length === 0 ? (
+              {filteredProducts.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={9} className="h-48 text-center text-white/20 font-black uppercase tracking-widest">
-                    MAHSULOTLAR MAVJUD EMAS
+                    QIDIRUV BO'YICHA MAHSULOT TOPILMADI
                   </TableCell>
                 </TableRow>
               ) : (
-                selectedCompany.products.map((product, index) => {
+                filteredProducts.map((product, index) => {
                   const margin = ((product.sellingPrice - product.purchasePrice) / product.purchasePrice) * 100;
 
                   return (

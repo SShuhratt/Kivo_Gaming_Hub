@@ -85,9 +85,11 @@ class BookingController extends Controller
                 'id' => $asset['id'],
                 'name' => $asset['name'],
                 'category' => $asset['category'],
+                'service_name' => $asset['service_name'] ?? $asset['category'],
                 'room_id' => $asset['room_id'],
                 'room_name' => $asset['room_name'],
                 'room_number' => $asset['room_number'],
+                'asset_order' => $asset['asset_order'] ?? null,
                 'hourly_price' => (float) ($asset['hourly_price'] ?? 0),
             ])->values()->all(),
         ]);

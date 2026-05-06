@@ -53,7 +53,7 @@ class ServiceController extends Controller
     {
         if ($service->assets()->exists()) {
             return response()->json([
-                'message' => 'Delete or recategorize assets before deleting this service category.',
+                'message' => 'Delete or reassign assets before deleting this service.',
             ], 409);
         }
 

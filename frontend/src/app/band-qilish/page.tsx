@@ -3,14 +3,15 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { DashboardLayout } from '@/components/dashboard-layout';
 import { ServicesSetupCallout } from '@/components/services-setup-callout';
-import { useDashboard } from '@/context/dashboard-context';
-import { AlertCircle, Calendar as CalendarIcon, Crown, Monitor, Receipt, Timer, Zap } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
+import { useDashboard } from '@/context/dashboard-context';
 import { useToast } from '@/hooks/use-toast';
+import { groupAssetsByService, resolveAssetRoomLabel, sortAssetsForDisplay } from '@/lib/asset-display';
 import { cn } from '@/lib/utils';
+import { Calendar as CalendarIcon, Crown, Monitor, Timer, Zap } from 'lucide-react';
 
 function toLocalDateTimeValue(date: Date) {
   const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
@@ -50,15 +51,25 @@ export default function BandQilishPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const assetsByRoom = useMemo(() => {
-    const groups = new Map<string, typeof assets>();
+    const roomMap = new Map<
+      string,
+      {
+        roomLabel: string;
+        assets: typeof assets;
+      }
+    >();
 
-    for (const asset of assets) {
-      const key = asset.roomNumber || 'Xona N/A';
-      const current = groups.get(key) ?? [];
-      groups.set(key, [...current, asset]);
+    for (const asset of sortAssetsForDisplay(assets)) {
+      const roomLabel = resolveAssetRoomLabel(asset);
+      const key = `${asset.roomId ?? roomLabel}`;
+      const current = roomMap.get(key) ?? { roomLabel, assets: [] };
+      roomMap.set(key, {
+        roomLabel,
+        assets: [...current.assets, asset],
+      });
     }
 
-    return Array.from(groups.entries()).sort((left, right) => left[0].localeCompare(right[0]));
+    return Array.from(roomMap.values()).sort((left, right) => left.roomLabel.localeCompare(right.roomLabel));
   }, [assets]);
 
   const selectedAssets = assets.filter((asset) => selectedAssetIds.includes(asset.id));
@@ -71,18 +82,6 @@ export default function BandQilishPage() {
 
     return new Date(new Date(startTime).getTime() + parsedDurationHours * 60 * 60 * 1000).toISOString();
   }, [durationHoursInput, isVip, parsedDurationHours, startTime]);
-
-  if (isCheckingAuth) return null;
-
-  const toggleAsset = (assetId: string) => {
-    if (!servicesReady) {
-      return;
-    }
-
-    setSelectedAssetIds((current) =>
-      current.includes(assetId) ? current.filter((id) => id !== assetId) : [...current, assetId]
-    );
-  };
 
   useEffect(() => {
     if (!servicesReady) {
@@ -141,12 +140,24 @@ export default function BandQilishPage() {
     };
   }, [assets, calculateBooking, isVip, parsedDurationHours, selectedAssetIds, servicesReady, startTime]);
 
+  if (isCheckingAuth) return null;
+
+  const toggleAsset = (assetId: string) => {
+    if (!servicesReady) {
+      return;
+    }
+
+    setSelectedAssetIds((current) =>
+      current.includes(assetId) ? current.filter((id) => id !== assetId) : [...current, assetId],
+    );
+  };
+
   const handleCreateBooking = async () => {
     if (!servicesReady) {
       toast({
         variant: 'destructive',
         title: 'Xizmatlar hali yaratilmagan',
-        description: "Avval Xizmatlar bo'limida kategoriya va narx yarating.",
+        description: "Avval Xizmatlar bo'limida xizmat nomi va narx yarating.",
       });
       return;
     }
@@ -164,7 +175,7 @@ export default function BandQilishPage() {
       toast({
         variant: 'destructive',
         title: 'Boshlanish vaqti kiritilmagan',
-        description: 'Booking uchun boshlanish vaqtini kiriting.',
+        description: 'Band qilish uchun boshlanish vaqtini kiriting.',
       });
       return;
     }
@@ -210,12 +221,12 @@ export default function BandQilishPage() {
         title: isVip ? 'VIP seans yaratildi' : 'Aktiv seans yaratildi',
         description: isVip
           ? "VIP seans boshlatildi. Yakuniy summa seans tugaganda hisoblanadi."
-          : "Bron qilingan seans Aktiv seanslar bo'limiga yuborildi.",
+          : "Band qilingan seans Aktiv seanslar bo'limiga yuborildi.",
       });
     } catch (error) {
       toast({
         variant: 'destructive',
-        title: 'Booking yaratilmadi',
+        title: 'Band qilish amalga oshmadi',
         description: error instanceof Error ? error.message : "So'rov bajarilmadi.",
       });
     } finally {
@@ -228,137 +239,152 @@ export default function BandQilishPage() {
       <div className="animate-in fade-in slide-in-from-bottom-2 duration-500 space-y-6">
         {!servicesReady ? <ServicesSetupCallout /> : null}
 
-        <div className="grid grid-cols-1 xl:grid-cols-[1.2fr_0.8fr] gap-6">
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.2fr_0.8fr]">
           <div className="space-y-6">
-            <section className="bg-[#0a1f1f]/50 border border-white/5 rounded-3xl p-6 space-y-5 shadow-xl">
+            <section className="space-y-5 rounded-3xl border border-white/5 bg-[#0a1f1f]/50 p-6 shadow-xl">
               <div className="flex items-center gap-3">
-                <div className="h-10 w-10 flex items-center justify-center rounded-xl bg-primary/5 border border-primary/20">
-                  <Receipt className="h-5 w-5 text-primary" />
-                </div>
-                <div>
-                  <h2 className="text-sm font-black text-white uppercase tracking-widest">Hisob-kitob manbai</h2>
-                  <p className="text-[10px] text-white/40 font-bold uppercase tracking-widest mt-1">
-                    Booking jami tanlangan jihozlarning xizmat narxlaridan olinadi.
-                  </p>
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-primary/15 bg-primary/5 px-4 py-4 flex items-start gap-3">
-                <AlertCircle className="h-4 w-4 text-primary mt-0.5" />
-                <div className="space-y-1">
-                  <p className="text-[10px] font-black text-white uppercase tracking-widest">Service pricing active</p>
-                  <p className="text-[11px] text-white/60 leading-relaxed">
-                    Har bir tanlangan jihoz o'zining xizmat kategoriyasi narxini olib keladi, keyin vaqtga ko'paytiriladi.
-                  </p>
-                </div>
-              </div>
-            </section>
-
-            <section className="bg-[#0a1f1f]/50 border border-white/5 rounded-3xl p-6 space-y-5 shadow-xl">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 flex items-center justify-center rounded-xl bg-primary/5 border border-primary/20">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-primary/20 bg-primary/5">
                   <Monitor className="h-5 w-5 text-primary" />
                 </div>
                 <div>
-                  <h2 className="text-sm font-black text-white uppercase tracking-widest">Jihozlarni tanlang</h2>
-                  <p className="text-[10px] text-white/40 font-bold uppercase tracking-widest mt-1">Bir booking ichida bir nechta jihoz tanlash mumkin</p>
+                  <h2 className="text-sm font-black uppercase tracking-widest text-white">Jihozlarni tanlang</h2>
+                  <p className="mt-1 text-[10px] font-bold uppercase tracking-widest text-white/40">
+                    Bir booking ichida bir nechta xonadan jihoz tanlash mumkin
+                  </p>
                 </div>
               </div>
 
               {assetsByRoom.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-white/5 min-h-[180px] flex items-center justify-center bg-[#061414]/20">
-                  <p className="text-[10px] font-black text-[#444f4f] uppercase tracking-[0.5em]">Avval xonaga jihoz yarating</p>
+                <div className="flex min-h-[220px] items-center justify-center rounded-2xl border border-dashed border-white/5 bg-[#061414]/20">
+                  <p className="text-[10px] font-black uppercase tracking-[0.5em] text-[#444f4f]">
+                    Avval xonaga jihoz yarating
+                  </p>
                 </div>
               ) : (
-                <div className="space-y-4">
-                  {assetsByRoom.map(([roomLabel, roomAssets]) => (
-                    <div key={roomLabel} className="rounded-2xl border border-white/5 bg-[#081616] p-4 space-y-3">
-                      <div className="flex items-center gap-2">
-                        <div className="h-2 w-2 rounded-full bg-primary" />
-                        <h3 className="text-[10px] font-black text-white uppercase tracking-[0.2em]">{roomLabel}</h3>
-                      </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        {roomAssets.map((asset) => (
-                          <button
-                            key={asset.id}
-                            disabled={!servicesReady}
-                            onClick={() => toggleAsset(asset.id)}
-                            className={cn(
-                              'rounded-xl border p-4 text-left transition-all',
-                              selectedAssetIds.includes(asset.id)
-                                ? 'border-primary bg-primary/10'
-                                : 'border-white/5 bg-[#051111] hover:border-primary/20'
-                            )}
-                          >
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="space-y-2 min-w-0">
-                                <p className="text-sm font-black text-white uppercase tracking-tight truncate">{asset.name}</p>
-                                <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest">
-                                  {asset.serviceName ?? asset.category}
+                <div className="overflow-x-auto pb-2">
+                  <div className="flex min-w-full gap-4">
+                    {assetsByRoom.map((roomGroup) => {
+                      const groupedAssets = groupAssetsByService(roomGroup.assets);
+                      const hasSelectedAssets = roomGroup.assets.some((asset) => selectedAssetIds.includes(asset.id));
+
+                      return (
+                        <div
+                          key={roomGroup.roomLabel}
+                          className={cn(
+                            'min-w-[320px] max-w-[360px] flex-1 rounded-3xl border p-4 shadow-xl',
+                            hasSelectedAssets
+                              ? 'border-primary bg-[#081919]'
+                              : 'border-white/5 bg-[#081616]',
+                          )}
+                        >
+                          <div className="mb-4 flex items-center gap-2">
+                            <div className="h-2 w-2 rounded-full bg-primary" />
+                            <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-white">
+                              {roomGroup.roomLabel}
+                            </h3>
+                          </div>
+
+                          <div className="space-y-4">
+                            {groupedAssets.map((group) => (
+                              <div key={group.serviceName} className="space-y-3 rounded-2xl border border-white/5 bg-[#051111] p-4">
+                                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">
+                                  {group.serviceName}
                                 </p>
+                                <div className="space-y-2">
+                                  {group.assets.map((asset) => {
+                                    const selected = selectedAssetIds.includes(String(asset.id));
+
+                                    return (
+                                      <button
+                                        key={String(asset.id)}
+                                        disabled={!servicesReady}
+                                        onClick={() => toggleAsset(String(asset.id))}
+                                        className={cn(
+                                          'w-full rounded-xl border p-3 text-left transition-all',
+                                          selected
+                                            ? 'border-primary bg-primary/10'
+                                            : 'border-white/5 bg-white/5 hover:border-primary/20',
+                                        )}
+                                      >
+                                        <div className="flex items-start justify-between gap-3">
+                                          <div className="min-w-0 space-y-1">
+                                            <p className="truncate text-sm font-black text-white">
+                                              {asset.displayOrder}. {asset.name}
+                                            </p>
+                                            <p className="text-[10px] font-bold uppercase tracking-widest text-white/40">
+                                              {group.serviceName}
+                                            </p>
+                                          </div>
+                                          <Badge className="border-primary/10 bg-primary/10 text-[9px] font-black uppercase text-primary">
+                                            {(asset.servicePrice ?? 0).toLocaleString()} UZS
+                                          </Badge>
+                                        </div>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
                               </div>
-                              <Badge className="bg-primary/10 text-primary border-primary/10 text-[9px] font-black uppercase">
-                                {(asset.servicePrice ?? 0).toLocaleString()} UZS
-                              </Badge>
-                            </div>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
             </section>
           </div>
 
           <div className="space-y-6">
-            <section className="bg-[#0a1f1f]/50 border border-white/5 rounded-3xl p-6 space-y-5 shadow-xl">
+            <section className="space-y-5 rounded-3xl border border-white/5 bg-[#0a1f1f]/50 p-6 shadow-xl">
               <div className="flex items-center gap-3">
-                <div className="h-10 w-10 flex items-center justify-center rounded-xl bg-primary/5 border border-primary/20">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-primary/20 bg-primary/5">
                   <CalendarIcon className="h-5 w-5 text-primary" />
                 </div>
                 <div>
-                  <h2 className="text-sm font-black text-white uppercase tracking-widest">Seans parametrlari</h2>
-                  <p className="text-[10px] text-white/40 font-bold uppercase tracking-widest mt-1">VIP seanslar yakunda real vaqt bilan hisoblanadi</p>
+                  <h2 className="text-sm font-black uppercase tracking-widest text-white">Seans parametrlari</h2>
+                  <p className="mt-1 text-[10px] font-bold uppercase tracking-widest text-white/40">
+                    VIP seanslar yakunda real vaqt bilan hisoblanadi
+                  </p>
                 </div>
               </div>
 
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <label className="text-[9px] font-black text-primary/60 uppercase tracking-[0.2em]">Boshlanish vaqti</label>
+                  <Label className="text-[9px] font-black uppercase tracking-[0.2em] text-primary/60">Boshlanish vaqti</Label>
                   <Input
                     type="datetime-local"
                     value={startTime}
                     onChange={(event) => setStartTime(event.target.value)}
-                    className="h-12 bg-[#051111] border-white/5 rounded-xl font-bold"
+                    className="h-12 rounded-xl border-white/5 bg-[#051111] font-bold"
                   />
                 </div>
 
-                <div className="rounded-2xl border border-white/5 bg-[#051111] p-4 space-y-3">
+                <div className="space-y-3 rounded-2xl border border-white/5 bg-[#051111] p-4">
                   <button
                     onClick={() => setIsVip((current) => !current)}
                     className={cn(
-                      'w-full rounded-2xl border px-4 py-3 flex items-center justify-between transition-all',
-                      isVip ? 'border-primary bg-primary/10' : 'border-white/5 bg-white/5 hover:border-primary/20'
+                      'flex w-full items-center justify-between rounded-2xl border px-4 py-3 transition-all',
+                      isVip ? 'border-primary bg-primary/10' : 'border-white/5 bg-white/5 hover:border-primary/20',
                     )}
                   >
                     <div className="flex items-center gap-3">
-                      <div className="h-9 w-9 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center">
+                      <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-primary/20 bg-primary/10">
                         <Crown className="h-4 w-4 text-primary" />
                       </div>
                       <div className="text-left">
-                        <p className="text-[10px] font-black text-white uppercase tracking-widest">VIP rejim</p>
+                        <p className="text-[10px] font-black uppercase tracking-widest text-white">VIP rejim</p>
                         <p className="text-[10px] text-white/40">Yakuniy narx seans tugaganda aniqlanadi</p>
                       </div>
                     </div>
-                    <Badge className={isVip ? 'bg-primary text-black' : 'bg-white/5 text-white/40 border-white/10'}>
+                    <Badge className={isVip ? 'bg-primary text-black' : 'border-white/10 bg-white/5 text-white/40'}>
                       {isVip ? 'ON' : 'OFF'}
                     </Badge>
                   </button>
 
                   {!isVip ? (
                     <div className="space-y-3">
-                      <label className="text-[9px] font-black text-primary/60 uppercase tracking-[0.2em]">Davomiylik (soat)</label>
+                      <Label className="text-[9px] font-black uppercase tracking-[0.2em] text-primary/60">Davomiylik (soat)</Label>
                       <div className="grid grid-cols-5 gap-2">
                         {durationOptions.map((value) => (
                           <button
@@ -368,7 +394,7 @@ export default function BandQilishPage() {
                               'h-11 rounded-xl border text-[11px] font-black transition-all',
                               durationHoursInput === String(value)
                                 ? 'border-primary bg-primary text-black'
-                                : 'border-white/5 bg-[#051111] text-white/60 hover:border-primary/20'
+                                : 'border-white/5 bg-[#051111] text-white/60 hover:border-primary/20',
                             )}
                           >
                             {value}
@@ -381,7 +407,7 @@ export default function BandQilishPage() {
                         step="0.1"
                         value={durationHoursInput}
                         onChange={(event) => setDurationHoursInput(event.target.value)}
-                        className="h-12 bg-[#051111] border-white/5 rounded-xl font-bold"
+                        className="h-12 rounded-xl border-white/5 bg-[#051111] font-bold"
                       />
                     </div>
                   ) : null}
@@ -392,42 +418,42 @@ export default function BandQilishPage() {
                     onClick={() => setStatus('submitted')}
                     className={cn(
                       'rounded-2xl border px-4 py-4 text-left transition-all',
-                      status === 'submitted' ? 'border-primary bg-primary/10' : 'border-white/5 bg-[#051111] hover:border-primary/20'
+                      status === 'submitted' ? 'border-primary bg-primary/10' : 'border-white/5 bg-[#051111] hover:border-primary/20',
                     )}
                   >
-                    <p className="text-[10px] font-black text-white uppercase tracking-widest">To'langan</p>
-                    <p className="text-[10px] text-white/40 mt-1">Darhol yopiladi</p>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-white">To'langan</p>
+                    <p className="mt-1 text-[10px] text-white/40">Darhol yopiladi</p>
                   </button>
                   <button
                     onClick={() => setStatus('debt_closed')}
                     className={cn(
                       'rounded-2xl border px-4 py-4 text-left transition-all',
-                      status === 'debt_closed' ? 'border-primary bg-primary/10' : 'border-white/5 bg-[#051111] hover:border-primary/20'
+                      status === 'debt_closed' ? 'border-primary bg-primary/10' : 'border-white/5 bg-[#051111] hover:border-primary/20',
                     )}
                   >
-                    <p className="text-[10px] font-black text-white uppercase tracking-widest">Qarz</p>
-                    <p className="text-[10px] text-white/40 mt-1">Mijoz ma'lumoti bilan</p>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-white">Qarz</p>
+                    <p className="mt-1 text-[10px] text-white/40">Mijoz ma'lumoti bilan</p>
                   </button>
                 </div>
 
                 {status === 'debt_closed' ? (
                   <div className="space-y-3">
                     <div className="space-y-2">
-                      <Label className="text-[9px] font-black text-primary/60 uppercase tracking-[0.2em]">Qarz ismi</Label>
+                      <Label className="text-[9px] font-black uppercase tracking-[0.2em] text-primary/60">Qarz ismi</Label>
                       <Input
                         aria-label="Qarz ismi"
                         value={debtName}
                         onChange={(event) => setDebtName(event.target.value)}
-                        className="h-12 bg-[#051111] border-white/5 rounded-xl font-bold"
+                        className="h-12 rounded-xl border-white/5 bg-[#051111] font-bold"
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label className="text-[9px] font-black text-primary/60 uppercase tracking-[0.2em]">Qarz telefoni</Label>
+                      <Label className="text-[9px] font-black uppercase tracking-[0.2em] text-primary/60">Qarz telefoni</Label>
                       <Input
                         aria-label="Qarz telefoni"
                         value={debtPhoneNumber}
                         onChange={(event) => setDebtPhoneNumber(event.target.value)}
-                        className="h-12 bg-[#051111] border-white/5 rounded-xl font-bold"
+                        className="h-12 rounded-xl border-white/5 bg-[#051111] font-bold"
                       />
                     </div>
                   </div>
@@ -435,18 +461,20 @@ export default function BandQilishPage() {
               </div>
             </section>
 
-            <section className="bg-[#0a1f1f]/50 border border-white/5 rounded-3xl p-6 space-y-5 shadow-xl">
+            <section className="space-y-5 rounded-3xl border border-white/5 bg-[#0a1f1f]/50 p-6 shadow-xl">
               <div className="flex items-center gap-3">
-                <div className="h-10 w-10 flex items-center justify-center rounded-xl bg-primary/5 border border-primary/20">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-primary/20 bg-primary/5">
                   <Zap className="h-5 w-5 text-primary" />
                 </div>
                 <div>
-                  <h2 className="text-sm font-black text-white uppercase tracking-widest">Hisob-kitob</h2>
-                  <p className="text-[10px] text-white/40 font-bold uppercase tracking-widest mt-1">Server tomonidan qayta tekshiriladi</p>
+                  <h2 className="text-sm font-black uppercase tracking-widest text-white">Hisob-kitob</h2>
+                  <p className="mt-1 text-[10px] font-bold uppercase tracking-widest text-white/40">
+                    Server tomonidan qayta tekshiriladi
+                  </p>
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-white/5 bg-[#051111] p-4 space-y-4">
+              <div className="space-y-4 rounded-2xl border border-white/5 bg-[#051111] p-4">
                 <div className="flex items-center justify-between text-[11px] font-bold text-white/60">
                   <span>Tanlangan jihozlar</span>
                   <span>{selectedAssets.length}</span>
@@ -459,12 +487,12 @@ export default function BandQilishPage() {
                   <span>Soatlik jami</span>
                   <span>{(calculation?.hourlyRateTotal ?? 0).toLocaleString()} UZS</span>
                 </div>
-                <div className="pt-4 border-t border-white/5 flex items-center justify-between">
+                <div className="flex items-center justify-between border-t border-white/5 pt-4">
                   <div className="flex items-center gap-2">
                     <Timer className="h-4 w-4 text-primary" />
-                    <span className="text-[10px] font-black text-white uppercase tracking-widest">Jami summa</span>
+                    <span className="text-[10px] font-black uppercase tracking-widest text-white">Jami summa</span>
                   </div>
-                  <span className="text-primary text-lg font-black">
+                  <span className="text-lg font-black text-primary">
                     {isVip && !calculation ? 'Seans yakunida' : `${(calculation?.totalCost ?? 0).toLocaleString()} UZS`}
                   </span>
                 </div>
@@ -478,11 +506,14 @@ export default function BandQilishPage() {
 
               <div className="space-y-2">
                 {(calculation?.assetBreakdown ?? []).map((asset) => (
-                  <div key={asset.id} className="rounded-xl border border-white/5 bg-[#051111] px-4 py-3 flex items-center justify-between gap-3">
+                  <div key={asset.id} className="flex items-center justify-between gap-3 rounded-xl border border-white/5 bg-[#051111] px-4 py-3">
                     <div>
-                      <p className="text-[11px] font-black text-white uppercase tracking-tight">{asset.name}</p>
-                      <p className="text-[10px] text-white/40 uppercase tracking-widest mt-1">
-                        {asset.category} • {asset.roomName ?? asset.roomNumber}
+                      <p className="text-[11px] font-black uppercase tracking-tight text-white">
+                        {(asset.assetOrder ?? 0) > 0 ? `${asset.serviceName ?? asset.category} #${asset.assetOrder}` : asset.serviceName ?? asset.category}
+                        {asset.name ? ` - ${asset.name}` : ''}
+                      </p>
+                      <p className="mt-1 text-[10px] uppercase tracking-widest text-white/40">
+                        {asset.roomName ?? asset.roomNumber}
                       </p>
                     </div>
                     <span className="text-[10px] font-black text-primary">{asset.hourlyPrice.toLocaleString()} UZS</span>
@@ -493,9 +524,9 @@ export default function BandQilishPage() {
               <Button
                 disabled={isSubmitting || isCalculating || selectedAssetIds.length === 0 || !servicesReady}
                 onClick={() => void handleCreateBooking()}
-                className="w-full h-12 bg-primary text-black font-black uppercase tracking-[0.3em] rounded-xl"
+                className="h-12 w-full rounded-xl bg-primary font-black uppercase tracking-[0.3em] text-black"
               >
-                {isSubmitting ? 'SAQLANMOQDA...' : isVip ? 'VIP SEANS BOSHLASH' : 'BOOKING YARATISH'}
+                {isSubmitting ? 'SAQLANMOQDA...' : 'BAND QILISH'}
               </Button>
             </section>
           </div>

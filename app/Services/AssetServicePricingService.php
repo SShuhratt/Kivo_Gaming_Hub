@@ -8,11 +8,17 @@ use Illuminate\Http\Exceptions\HttpResponseException;
 
 class AssetServicePricingService
 {
+    public function __construct(
+        protected AssetDisplayOrderService $assetDisplayOrder,
+    ) {
+    }
+
     public function buildPricedAssetSnapshot(Collection $assets): array
     {
         $assets->loadMissing(['room', 'service']);
 
         $errors = [];
+        $orderMap = $this->assetDisplayOrder->buildOrderMapForRooms($assets->pluck('room_id'));
 
         $snapshot = $assets
             ->sortBy(fn (Asset $asset) => sprintf(
@@ -30,7 +36,7 @@ class AssetServicePricingService
                 }
 
                 if (! $asset->service || $asset->service->name === null || $asset->service->price === null) {
-                    $errors['asset_ids'][] = "{$label} has no valid service category price.";
+                    $errors['asset_ids'][] = "{$label} has no valid service price.";
                 }
 
                 return [
@@ -38,9 +44,11 @@ class AssetServicePricingService
                     'name' => $asset->name,
                     'category' => $asset->service?->name,
                     'service_id' => $asset->service?->id,
+                    'service_name' => $asset->service?->name,
                     'room_id' => $asset->room_id,
                     'room_name' => $asset->room?->name,
                     'room_number' => $asset->room?->name ?? ($asset->room_id ? (string) $asset->room_id : null),
+                    'asset_order' => $orderMap[$asset->id] ?? null,
                     'hourly_price' => $asset->service?->price !== null
                         ? round((float) $asset->service->price, 2)
                         : null,

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\Concerns;
 
 use App\Models\Booking;
 use App\Models\Trade;
+use App\Services\AssetDisplayOrderService;
 use Illuminate\Support\Collection;
 
 trait FormatsSessionPayloads
@@ -109,16 +110,28 @@ trait FormatsSessionPayloads
 
     protected function snapshotAssets(?array $snapshot, Collection $fallbackAssets): array
     {
+        $fallbackOrderMap = $fallbackAssets->isNotEmpty()
+            ? $this->assetOrderMapForRooms($fallbackAssets->pluck('room_id')->all())
+            : [];
+
         if (is_array($snapshot) && $snapshot !== []) {
+            $snapshotOrderMap = $this->assetOrderMapForRooms(
+                collect($snapshot)->pluck('room_id')->all(),
+            );
+
             return collect($snapshot)
                 ->map(fn ($asset) => [
                     'id' => $asset['id'] ?? null,
                     'name' => $asset['name'] ?? null,
                     'category' => $asset['category'] ?? null,
                     'service_id' => $asset['service_id'] ?? null,
+                    'service_name' => $asset['service_name'] ?? $asset['category'] ?? null,
                     'room_id' => $asset['room_id'] ?? null,
                     'room_name' => $asset['room_name'] ?? null,
                     'room_number' => isset($asset['room_number']) ? (string) $asset['room_number'] : (isset($asset['room_id']) ? (string) $asset['room_id'] : null),
+                    'asset_order' => isset($asset['asset_order'])
+                        ? (int) $asset['asset_order']
+                        : (isset($asset['id']) ? ($snapshotOrderMap[(int) $asset['id']] ?? null) : null),
                     'hourly_price' => array_key_exists('hourly_price', $asset) ? (float) $asset['hourly_price'] : null,
                 ])
                 ->values()
@@ -131,12 +144,39 @@ trait FormatsSessionPayloads
                 'name' => $asset->name,
                 'category' => $asset->category,
                 'service_id' => $asset->service_id,
+                'service_name' => $asset->service?->name,
                 'room_id' => $asset->room_id,
                 'room_name' => $asset->room?->name,
                 'room_number' => $asset->room?->name ?? ($asset->room_id ? (string) $asset->room_id : null),
+                'asset_order' => $fallbackOrderMap[$asset->id] ?? null,
                 'hourly_price' => null,
             ])
             ->values()
             ->all();
+    }
+
+    protected function assetOrderMapForRooms(array $roomIds): array
+    {
+        static $cache = [];
+
+        $normalizedRoomIds = collect($roomIds)
+            ->filter(fn ($roomId) => $roomId !== null && $roomId !== '')
+            ->map(fn ($roomId) => (int) $roomId)
+            ->unique()
+            ->sort()
+            ->values()
+            ->all();
+
+        if ($normalizedRoomIds === []) {
+            return [];
+        }
+
+        $cacheKey = implode(',', $normalizedRoomIds);
+
+        if (! array_key_exists($cacheKey, $cache)) {
+            $cache[$cacheKey] = app(AssetDisplayOrderService::class)->buildOrderMapForRooms($normalizedRoomIds);
+        }
+
+        return $cache[$cacheKey];
     }
 }

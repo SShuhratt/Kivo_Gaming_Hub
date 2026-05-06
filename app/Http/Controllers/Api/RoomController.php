@@ -53,12 +53,25 @@ class RoomController extends Controller
     {
         if ($room->assets()->exists()) {
             return response()->json([
-                'message' => 'Delete or move room assets before deleting this room.',
+                'message' => 'This room has assets. Delete its assets first.',
+                'message_uz' => 'Bu xonada jihozlar bor. Avval jihozlarni o\'chiring.',
             ], 409);
         }
 
         $room->delete();
 
         return response()->json(null, 204);
+    }
+
+    public function destroyAssets(Room $room)
+    {
+        $deletedAssetsCount = $room->assets()->count();
+        $room->assets()->delete();
+
+        return response()->json([
+            'message' => 'All assets in this room have been deleted.',
+            'message_uz' => 'Ushbu xonadagi barcha jihozlar o\'chirildi.',
+            'deleted_assets_count' => $deletedAssetsCount,
+        ]);
     }
 }

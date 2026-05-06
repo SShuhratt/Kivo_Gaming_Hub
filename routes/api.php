@@ -45,6 +45,8 @@ Route::middleware('api.token')->group(function () {
         ->defaults('openapiOperation', 'updateRoom');
     Route::delete('/rooms/{room}', [RoomController::class, 'destroy'])
         ->defaults('openapiOperation', 'deleteRoom');
+    Route::delete('/rooms/{room}/assets', [RoomController::class, 'destroyAssets'])
+        ->defaults('openapiOperation', 'deleteRoomAssets');
 
     Route::get('/assets', [AssetController::class, 'index'])
         ->defaults('openapiOperation', 'listAssets');

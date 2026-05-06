@@ -10,6 +10,7 @@ use App\Models\Manufacturer;
 use App\Models\Room;
 use App\Models\Service;
 use App\Models\Trade;
+use App\Services\AssetDisplayOrderService;
 use App\Services\SessionLifecycleService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -19,7 +20,11 @@ class DashboardController extends Controller
 {
     use FormatsSessionPayloads;
 
-    public function bootstrap(Request $request, SessionLifecycleService $sessionLifecycle): JsonResponse
+    public function bootstrap(
+        Request $request,
+        SessionLifecycleService $sessionLifecycle,
+        AssetDisplayOrderService $assetDisplayOrder,
+    ): JsonResponse
     {
         $sessionLifecycle->syncElapsedSessions();
 
@@ -42,16 +47,17 @@ class DashboardController extends Controller
             ->orderBy('service_id')
             ->orderBy('name')
             ->get();
+        $assetOrderMap = $assetDisplayOrder->buildOrderMap($assetCollection);
 
         $assets = $assetCollection
-            ->map(fn (Asset $asset) => $this->serializeAsset($asset))
+            ->map(fn (Asset $asset) => $this->serializeAsset($asset, $assetOrderMap))
             ->values();
 
         $rooms = Room::query()
             ->with(['assets.room', 'assets.service'])
             ->orderBy('name')
             ->get()
-            ->map(function (Room $room) {
+            ->map(function (Room $room) use ($assetOrderMap) {
                 return [
                     'id' => (string) $room->id,
                     'backend_id' => $room->id,
@@ -63,7 +69,7 @@ class DashboardController extends Controller
                             mb_strtolower((string) $asset->name),
                             $asset->id,
                         ))
-                        ->map(fn (Asset $asset) => $this->serializeAsset($asset))
+                        ->map(fn (Asset $asset) => $this->serializeAsset($asset, $assetOrderMap))
                         ->values()
                         ->all(),
                 ];
@@ -144,7 +150,7 @@ class DashboardController extends Controller
         ]);
     }
 
-    protected function serializeAsset(Asset $asset): array
+    protected function serializeAsset(Asset $asset, array $assetOrderMap): array
     {
         return [
             'id' => (string) $asset->id,
@@ -157,6 +163,7 @@ class DashboardController extends Controller
             'room_id' => $asset->room_id,
             'room_name' => $asset->room?->name,
             'room_number' => $asset->room?->name ?? ($asset->room_id ? (string) $asset->room_id : null),
+            'asset_order' => $assetOrderMap[$asset->id] ?? null,
             'total_usage_duration_minutes' => $asset->total_usage_duration_minutes,
             'total_earned_money' => (float) $asset->total_earned_money,
         ];

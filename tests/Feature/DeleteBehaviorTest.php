@@ -81,6 +81,36 @@ class DeleteBehaviorTest extends TestCase
         $this->assertDatabaseMissing('manufacturers', ['id' => $manufacturer->id]);
     }
 
+    public function test_room_must_be_empty_before_it_can_be_deleted(): void
+    {
+        $room = Room::create(['name' => 'VIP xona']);
+        $service = Service::create(['name' => 'Computer', 'price' => 20000]);
+        $asset = Asset::create([
+            'name' => 'computer1',
+            'service_id' => $service->id,
+            'room_id' => $room->id,
+        ]);
+
+        $this->deleteJson("/api/rooms/{$room->id}", [], $this->authHeaders())
+            ->assertStatus(409)
+            ->assertJson([
+                'message' => 'This room has assets. Delete its assets first.',
+                'message_uz' => 'Bu xonada jihozlar bor. Avval jihozlarni o\'chiring.',
+            ]);
+
+        $this->deleteJson("/api/rooms/{$room->id}/assets", [], $this->authHeaders())
+            ->assertOk()
+            ->assertJsonPath('deleted_assets_count', 1);
+
+        $this->assertDatabaseHas('rooms', ['id' => $room->id]);
+        $this->assertDatabaseMissing('assets', ['id' => $asset->id]);
+
+        $this->deleteJson("/api/rooms/{$room->id}", [], $this->authHeaders())
+            ->assertNoContent();
+
+        $this->assertDatabaseMissing('rooms', ['id' => $room->id]);
+    }
+
     public function test_active_sessions_cannot_be_deleted_and_completed_sessions_require_a_trade_record(): void
     {
         $activeSession = Booking::create([

@@ -11,6 +11,7 @@ class SessionLifecycleService
 {
     public function __construct(
         protected AssetServicePricingService $assetServicePricing,
+        protected AssetDisplayOrderService $assetDisplayOrder,
     ) {
     }
 
@@ -170,6 +171,8 @@ class SessionLifecycleService
             }
         }
 
+        $orderMap = $this->assetDisplayOrder->buildOrderMapForRooms($booking->assets->pluck('room_id'));
+
         return $booking->assets
             ->loadMissing(['room', 'service'])
             ->sortBy(fn ($asset) => sprintf(
@@ -183,9 +186,11 @@ class SessionLifecycleService
                 'name' => $asset->name,
                 'category' => $asset->category,
                 'service_id' => $asset->service_id,
+                'service_name' => $asset->service?->name,
                 'room_id' => $asset->room_id,
                 'room_name' => $asset->room?->name,
                 'room_number' => $asset->room?->name ?? ($asset->room_id ? (string) $asset->room_id : null),
+                'asset_order' => $orderMap[$asset->id] ?? null,
                 'hourly_price' => null,
             ])
             ->values()
