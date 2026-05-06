@@ -2,11 +2,13 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { DashboardLayout } from '@/components/dashboard-layout';
+import { ServicesSetupCallout } from '@/components/services-setup-callout';
 import { useDashboard } from '@/context/dashboard-context';
 import { AlertCircle, Calendar as CalendarIcon, Crown, Monitor, Receipt, Timer, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 
@@ -32,7 +34,7 @@ function formatDateTimePreview(value: string | null) {
 const durationOptions = [0.5, 1, 2, 2.5, 3];
 
 export default function BandQilishPage() {
-  const { assets, calculateBooking, createBooking, isCheckingAuth } = useDashboard();
+  const { assets, servicesReady, calculateBooking, createBooking, isCheckingAuth } = useDashboard();
   const { toast } = useToast();
 
   const [selectedAssetIds, setSelectedAssetIds] = useState<string[]>([]);
@@ -73,12 +75,23 @@ export default function BandQilishPage() {
   if (isCheckingAuth) return null;
 
   const toggleAsset = (assetId: string) => {
+    if (!servicesReady) {
+      return;
+    }
+
     setSelectedAssetIds((current) =>
       current.includes(assetId) ? current.filter((id) => id !== assetId) : [...current, assetId]
     );
   };
 
   useEffect(() => {
+    if (!servicesReady) {
+      setSelectedAssetIds([]);
+      setCalculation(null);
+      setCalculationError(null);
+      return;
+    }
+
     if (selectedAssetIds.length === 0 || !startTime) {
       setCalculation(null);
       setCalculationError(null);
@@ -126,9 +139,18 @@ export default function BandQilishPage() {
       cancelled = true;
       window.clearTimeout(timeoutId);
     };
-  }, [assets, calculateBooking, isVip, parsedDurationHours, selectedAssetIds, startTime]);
+  }, [assets, calculateBooking, isVip, parsedDurationHours, selectedAssetIds, servicesReady, startTime]);
 
   const handleCreateBooking = async () => {
+    if (!servicesReady) {
+      toast({
+        variant: 'destructive',
+        title: 'Xizmatlar hali yaratilmagan',
+        description: "Avval Xizmatlar bo'limida kategoriya va narx yarating.",
+      });
+      return;
+    }
+
     if (selectedAssetIds.length === 0) {
       toast({
         variant: 'destructive',
@@ -204,6 +226,8 @@ export default function BandQilishPage() {
   return (
     <DashboardLayout>
       <div className="animate-in fade-in slide-in-from-bottom-2 duration-500 space-y-6">
+        {!servicesReady ? <ServicesSetupCallout /> : null}
+
         <div className="grid grid-cols-1 xl:grid-cols-[1.2fr_0.8fr] gap-6">
           <div className="space-y-6">
             <section className="bg-[#0a1f1f]/50 border border-white/5 rounded-3xl p-6 space-y-5 shadow-xl">
@@ -214,7 +238,7 @@ export default function BandQilishPage() {
                 <div>
                   <h2 className="text-sm font-black text-white uppercase tracking-widest">Hisob-kitob manbai</h2>
                   <p className="text-[10px] text-white/40 font-bold uppercase tracking-widest mt-1">
-                    Tarif hisobi vaqtincha o'chirilgan. Booking jami tanlangan jihozlarning xizmat narxlaridan olinadi.
+                    Booking jami tanlangan jihozlarning xizmat narxlaridan olinadi.
                   </p>
                 </div>
               </div>
@@ -222,7 +246,7 @@ export default function BandQilishPage() {
               <div className="rounded-2xl border border-primary/15 bg-primary/5 px-4 py-4 flex items-start gap-3">
                 <AlertCircle className="h-4 w-4 text-primary mt-0.5" />
                 <div className="space-y-1">
-                  <p className="text-[10px] font-black text-white uppercase tracking-widest">Service-category pricing active</p>
+                  <p className="text-[10px] font-black text-white uppercase tracking-widest">Service pricing active</p>
                   <p className="text-[11px] text-white/60 leading-relaxed">
                     Har bir tanlangan jihoz o'zining xizmat kategoriyasi narxini olib keladi, keyin vaqtga ko'paytiriladi.
                   </p>
@@ -257,6 +281,7 @@ export default function BandQilishPage() {
                         {roomAssets.map((asset) => (
                           <button
                             key={asset.id}
+                            disabled={!servicesReady}
                             onClick={() => toggleAsset(asset.id)}
                             className={cn(
                               'rounded-xl border p-4 text-left transition-all',
@@ -387,18 +412,24 @@ export default function BandQilishPage() {
 
                 {status === 'debt_closed' ? (
                   <div className="space-y-3">
-                    <Input
-                      placeholder="Qarz nomi"
-                      value={debtName}
-                      onChange={(event) => setDebtName(event.target.value)}
-                      className="h-12 bg-[#051111] border-white/5 rounded-xl font-bold"
-                    />
-                    <Input
-                      placeholder="Telefon raqami"
-                      value={debtPhoneNumber}
-                      onChange={(event) => setDebtPhoneNumber(event.target.value)}
-                      className="h-12 bg-[#051111] border-white/5 rounded-xl font-bold"
-                    />
+                    <div className="space-y-2">
+                      <Label className="text-[9px] font-black text-primary/60 uppercase tracking-[0.2em]">Qarz ismi</Label>
+                      <Input
+                        aria-label="Qarz ismi"
+                        value={debtName}
+                        onChange={(event) => setDebtName(event.target.value)}
+                        className="h-12 bg-[#051111] border-white/5 rounded-xl font-bold"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-[9px] font-black text-primary/60 uppercase tracking-[0.2em]">Qarz telefoni</Label>
+                      <Input
+                        aria-label="Qarz telefoni"
+                        value={debtPhoneNumber}
+                        onChange={(event) => setDebtPhoneNumber(event.target.value)}
+                        className="h-12 bg-[#051111] border-white/5 rounded-xl font-bold"
+                      />
+                    </div>
                   </div>
                 ) : null}
               </div>
@@ -460,7 +491,7 @@ export default function BandQilishPage() {
               </div>
 
               <Button
-                disabled={isSubmitting || isCalculating || selectedAssetIds.length === 0}
+                disabled={isSubmitting || isCalculating || selectedAssetIds.length === 0 || !servicesReady}
                 onClick={() => void handleCreateBooking()}
                 className="w-full h-12 bg-primary text-black font-black uppercase tracking-[0.3em] rounded-xl"
               >

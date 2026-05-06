@@ -110,7 +110,7 @@ export function RegistrationForm() {
                   <div className="relative group">
                     <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20 group-focus-within:text-primary transition-colors" />
                     <Input 
-                      placeholder="Ismingizni kiriting" 
+                      aria-label="Foydalanuvchi ismi"
                       autoComplete="name"
                       className="h-14 pl-12 border-white/5 bg-[#051111]/60 text-white font-bold focus:border-primary/40 focus:ring-primary/5 rounded-xl transition-all" 
                       {...field} 
@@ -138,7 +138,7 @@ export function RegistrationForm() {
                       type="email"
                       autoComplete="email"
                       autoCapitalize="none"
-                      placeholder="you@example.com" 
+                      aria-label="Email"
                       className="h-14 pl-12 border-white/5 bg-[#051111]/60 text-white font-bold focus:border-primary/40 focus:ring-primary/5 rounded-xl transition-all" 
                       {...field} 
                     />
@@ -162,7 +162,7 @@ export function RegistrationForm() {
                   <div className="relative group">
                     <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20 group-focus-within:text-primary transition-colors" />
                     <Input 
-                      placeholder="+998 -- --- -- --" 
+                      aria-label="Telefon raqami"
                       type="tel"
                       autoComplete="tel"
                       inputMode="tel"
@@ -194,7 +194,7 @@ export function RegistrationForm() {
                       type={showPassword ? "text" : "password"}
                       autoComplete="new-password"
                       spellCheck={false}
-                      placeholder="••••••••" 
+                      aria-label="Parol"
                       className="h-14 pl-12 pr-12 border-white/5 bg-[#051111]/60 text-white font-bold focus:border-primary/40 focus:ring-primary/5 rounded-xl transition-all" 
                       {...field} 
                     />
@@ -234,7 +234,7 @@ export function RegistrationForm() {
                       type="password" 
                       autoComplete="new-password"
                       spellCheck={false}
-                      placeholder="••••••••" 
+                      aria-label="Parolni tasdiqlash"
                       className="h-14 pl-12 border-white/5 bg-[#051111]/60 text-white font-bold focus:border-primary/40 focus:ring-primary/5 rounded-xl transition-all" 
                       {...field} 
                     />

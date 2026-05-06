@@ -160,7 +160,7 @@ export default function XizmatlarPage() {
               <div className="space-y-2">
                 <Label className="text-[9px] font-black uppercase tracking-[0.2em] text-primary/60">Kategoriya nomi</Label>
                 <Input
-                  placeholder="M: Computer yoki PS5"
+                  aria-label="Kategoriya nomi"
                   value={draft.name}
                   onChange={(e) => setDraft((current) => ({ ...current, name: e.target.value }))}
                   className="h-12 bg-[#051111] border-white/5 rounded-xl font-bold px-4 text-sm"
@@ -170,7 +170,7 @@ export default function XizmatlarPage() {
                 <Label className="text-[9px] font-black uppercase tracking-[0.2em] text-primary/60">Narxi (UZS)</Label>
                 <Input
                   type="number"
-                  placeholder="M: 20000"
+                  aria-label="Narxi"
                   value={draft.price}
                   onChange={(e) => setDraft((current) => ({ ...current, price: e.target.value }))}
                   className="h-12 bg-[#051111] border-white/5 rounded-xl font-bold px-4 text-sm"

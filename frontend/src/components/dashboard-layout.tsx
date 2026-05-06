@@ -5,7 +5,6 @@ import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { 
   Monitor, 
-  CreditCard, 
   Users, 
   BarChart3, 
   Settings, 
@@ -28,7 +27,6 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
-import { KivoLogo } from '@/components/ui/logo';
 import { useDashboard } from '@/context/dashboard-context';
 
 const LiveClock = () => {
@@ -80,7 +78,6 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
     { name: 'Xonalar', icon: Monitor, href: '/xonalar' },
     { name: 'Ombor', icon: Database, href: '/ombor' },
     { name: 'Xizmatlar', icon: Wrench, href: '/xizmatlar' },
-    { name: 'Tariflar', icon: CreditCard, href: '/tariflar' },
     { name: 'Moliya', icon: Banknote, href: '/moliya' },
     { name: 'Xodimlar', icon: Users, href: '/xodimlar' },
     { name: 'Analitika', icon: BarChart3, href: '/analitika' },

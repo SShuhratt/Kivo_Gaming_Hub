@@ -2,11 +2,12 @@
 
 import React from 'react';
 import { DashboardLayout } from '@/components/dashboard-layout';
+import { ServicesSetupCallout } from '@/components/services-setup-callout';
 import { useDashboard } from '@/context/dashboard-context';
-import { Monitor, Database, History, TrendingUp } from 'lucide-react';
+import { Monitor, Database, TrendingUp, Wrench } from 'lucide-react';
 
 export default function AsosiyPage() {
-  const { summary, isCheckingAuth } = useDashboard();
+  const { summary, servicesReady, isCheckingAuth } = useDashboard();
 
   if (isCheckingAuth) return null;
 
@@ -18,13 +19,20 @@ export default function AsosiyPage() {
       icon: Monitor,
     },
     { label: 'Xonalar soni', value: summary.roomsCount.toString(), change: 'STABLE CONNECTION', icon: Database },
-    { label: 'Tariflar', value: summary.pendingSessions.toString(), change: 'AVAILABLE PACKAGES', icon: History },
+    {
+      label: 'Xizmatlar',
+      value: summary.servicesCount.toString(),
+      change: summary.servicesReady ? 'PRICING READY' : 'SETUP REQUIRED',
+      icon: Wrench,
+    },
     { label: 'Bugungi tushum', value: `${summary.salesTotalToday.toLocaleString()} UZS`, change: 'DAILY REVENUE', icon: TrendingUp },
   ];
 
   return (
     <DashboardLayout>
       <div className="animate-in fade-in duration-500 space-y-6">
+        {!servicesReady ? <ServicesSetupCallout /> : null}
+
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {stats.map((card, idx) => (
             <div key={idx} className="bg-[#0a1a1a] border border-white/5 p-4 rounded-xl relative overflow-hidden group hover:border-primary/30 transition-all shadow-xl">

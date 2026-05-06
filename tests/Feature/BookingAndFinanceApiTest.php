@@ -81,7 +81,7 @@ class BookingAndFinanceApiTest extends TestCase
             ->assertJsonPath('total_cost', 110000)
             ->assertJsonPath('trade_exists', false)
             ->assertJsonPath('is_vip', false)
-            ->assertJsonPath('tariff.name', 'Service category pricing');
+            ->assertJsonPath('pricing.label', 'Service pricing');
 
         $this->assertDatabaseHas('assets', [
             'id' => $assetOne->id,
@@ -194,7 +194,7 @@ class BookingAndFinanceApiTest extends TestCase
 
         Booking::create([
             'tariff_id' => null,
-            'tariff_name_snapshot' => 'Service category pricing',
+            'tariff_name_snapshot' => 'Service pricing',
             'hourly_rate_snapshot' => 20000,
             'asset_snapshot' => [[
                 'id' => 1,
@@ -217,7 +217,7 @@ class BookingAndFinanceApiTest extends TestCase
 
         $completedIncomeBooking = Booking::create([
             'tariff_id' => null,
-            'tariff_name_snapshot' => 'Service category pricing',
+            'tariff_name_snapshot' => 'Service pricing',
             'hourly_rate_snapshot' => 20000,
             'asset_snapshot' => [[
                 'id' => 2,
@@ -241,7 +241,7 @@ class BookingAndFinanceApiTest extends TestCase
 
         $completedDebtBooking = Booking::create([
             'tariff_id' => null,
-            'tariff_name_snapshot' => 'Service category pricing',
+            'tariff_name_snapshot' => 'Service pricing',
             'hourly_rate_snapshot' => 35000,
             'asset_snapshot' => [[
                 'id' => 3,
@@ -268,7 +268,7 @@ class BookingAndFinanceApiTest extends TestCase
         Trade::create([
             'booking_id' => $completedIncomeBooking->id,
             'tariff_id' => null,
-            'tariff_name' => 'Service category pricing',
+            'tariff_name' => 'Service pricing',
             'hourly_rate' => 20000,
             'payment_status' => 'submitted',
             'session_status' => 'completed',
@@ -291,7 +291,7 @@ class BookingAndFinanceApiTest extends TestCase
         Trade::create([
             'booking_id' => $completedDebtBooking->id,
             'tariff_id' => null,
-            'tariff_name' => 'Service category pricing',
+            'tariff_name' => 'Service pricing',
             'hourly_rate' => 35000,
             'payment_status' => 'debt_closed',
             'session_status' => 'completed',

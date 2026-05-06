@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { DeleteConfirmButton } from '@/components/delete-confirm-button';
 import { DashboardLayout } from '@/components/dashboard-layout';
+import { ServicesSetupCallout } from '@/components/services-setup-callout';
 import { useDashboard } from '@/context/dashboard-context';
 import { Building2, Layers3, Monitor, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -13,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 
 export default function XonalarPage() {
-  const { rooms, services, createRoom, createAsset, deleteAsset, isCheckingAuth } = useDashboard();
+  const { rooms, services, servicesReady, createRoom, createAsset, deleteAsset, isCheckingAuth } = useDashboard();
   const { toast } = useToast();
   const [newRoomName, setNewRoomName] = useState('');
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
@@ -30,6 +31,13 @@ export default function XonalarPage() {
 
     setSelectedRoomId((current) => (current && rooms.some((room) => room.id === current) ? current : rooms[0].id));
   }, [rooms]);
+
+  useEffect(() => {
+    if (!servicesReady) {
+      setAssetModalRoomId(null);
+      setAssetDraft({ name: '', serviceId: '' });
+    }
+  }, [servicesReady]);
 
   const selectedRoom = useMemo(
     () => rooms.find((room) => room.id === selectedRoomId) ?? null,
@@ -58,6 +66,15 @@ export default function XonalarPage() {
   if (isCheckingAuth) return null;
 
   const handleCreateRoom = async () => {
+    if (!servicesReady) {
+      toast({
+        variant: 'destructive',
+        title: 'Xizmatlar hali yaratilmagan',
+        description: "Avval Xizmatlar bo'limida kategoriya va narx yarating.",
+      });
+      return;
+    }
+
     if (!newRoomName.trim()) {
       toast({
         variant: 'destructive',
@@ -87,7 +104,7 @@ export default function XonalarPage() {
   };
 
   const handleOpenAssetModal = (roomId: string) => {
-    if (services.length === 0) {
+    if (!servicesReady || services.length === 0) {
       toast({
         variant: 'destructive',
         title: 'Xizmat kategoriyasi yo‘q',
@@ -158,23 +175,27 @@ export default function XonalarPage() {
   return (
     <DashboardLayout>
       <div className="animate-in fade-in duration-500 space-y-6">
+        {!servicesReady ? <ServicesSetupCallout /> : null}
+
         <section className="rounded-3xl border border-white/5 bg-[#0a1a1a]/40 p-5 backdrop-blur-md shadow-xl">
           <div className="grid grid-cols-1 xl:grid-cols-[1fr_auto] gap-4 xl:items-end">
             <div className="space-y-2">
               <h2 className="text-sm font-black text-white uppercase tracking-widest">Xonalar</h2>
               <p className="text-[10px] text-white/40 font-bold uppercase tracking-widest">
-                Xona yarating, keyin shu xona ichiga xizmat kategoriyasi bilan jihoz qo'shing
+                {servicesReady
+                  ? "Xona yarating, keyin shu xona ichiga xizmat kategoriyasi bilan jihoz qo'shing"
+                  : "Avval xizmat kategoriyasi va narx yarating, keyin xona yaratish ochiladi"}
               </p>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-[280px_auto] gap-3">
               <Input
-                placeholder="M: Opshiy zal"
+                aria-label="Xona nomi"
                 value={newRoomName}
                 onChange={(e) => setNewRoomName(e.target.value)}
                 className="h-11 bg-[#051111] border-white/5 rounded-xl font-bold px-4 text-sm"
               />
               <Button
-                disabled={isSavingRoom}
+                disabled={isSavingRoom || !servicesReady}
                 onClick={() => void handleCreateRoom()}
                 className="h-11 bg-primary text-black font-black uppercase tracking-[0.2em] rounded-xl px-6"
               >
@@ -216,6 +237,7 @@ export default function XonalarPage() {
                     </div>
 
                     <Button
+                      disabled={!servicesReady}
                       onClick={(event) => {
                         event.stopPropagation();
                         handleOpenAssetModal(room.id);
@@ -238,6 +260,7 @@ export default function XonalarPage() {
                       <h3 className="text-xl font-black text-white uppercase tracking-tight">{selectedRoom.name} jihozlari</h3>
                     </div>
                     <Button
+                      disabled={!servicesReady}
                       onClick={() => handleOpenAssetModal(selectedRoom.id)}
                       className="h-10 rounded-xl bg-primary text-black font-black uppercase tracking-[0.2em] text-[10px] hover:bg-primary/90"
                     >
@@ -335,7 +358,7 @@ export default function XonalarPage() {
               <div className="space-y-2">
                 <Label className="text-[9px] font-black uppercase tracking-[0.2em] text-primary/60">Jihoz nomi</Label>
                 <Input
-                  placeholder="M: computer1"
+                  aria-label="Jihoz nomi"
                   value={assetDraft.name}
                   onChange={(e) => setAssetDraft((current) => ({ ...current, name: e.target.value }))}
                   className="h-12 bg-[#051111] border-white/5 rounded-xl font-bold px-4 text-sm"
@@ -345,7 +368,7 @@ export default function XonalarPage() {
                 <Label className="text-[9px] font-black uppercase tracking-[0.2em] text-primary/60">Xizmat kategoriyasi</Label>
                 <Select value={assetDraft.serviceId} onValueChange={(value) => setAssetDraft((current) => ({ ...current, serviceId: value }))}>
                   <SelectTrigger className="h-12 bg-[#051111] border-white/5 rounded-xl font-bold px-4 text-sm">
-                    <SelectValue placeholder="Kategoriya tanlang" />
+                    <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="bg-[#0a1a1a] border-white/10 text-white rounded-xl">
                     {services.map((service) => (

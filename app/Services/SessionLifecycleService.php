@@ -32,7 +32,7 @@ class SessionLifecycleService
         return DB::transaction(function () use ($bookingId, $endedAt) {
             /** @var Booking $lockedBooking */
             $lockedBooking = Booking::query()
-                ->with(['assets.service', 'assets.room', 'tariff.categoryPrices', 'trade'])
+                ->with(['assets.service', 'assets.room', 'trade'])
                 ->lockForUpdate()
                 ->findOrFail($bookingId);
 
@@ -64,7 +64,7 @@ class SessionLifecycleService
                 'requested_duration_hours' => $totals['duration_hours'],
                 'total_cost' => $totals['total_cost'],
                 'session_status' => 'completed',
-                'tariff_name_snapshot' => $lockedBooking->tariff_name_snapshot ?: $lockedBooking->tariff?->name,
+                'tariff_name_snapshot' => $lockedBooking->tariff_name_snapshot ?: 'Service pricing',
                 'hourly_rate_snapshot' => $totals['hourly_rate_total'],
                 'asset_snapshot' => $snapshot,
             ]);
@@ -78,7 +78,7 @@ class SessionLifecycleService
                 $this->tradePayload($lockedBooking, $snapshot),
             );
 
-            return $lockedBooking->fresh(['assets.room', 'assets.service', 'tariff.categoryPrices', 'trade']);
+            return $lockedBooking->fresh(['assets.room', 'assets.service', 'trade']);
         });
     }
 
@@ -144,8 +144,8 @@ class SessionLifecycleService
     protected function tradePayload(Booking $booking, array $snapshot): array
     {
         return [
-            'tariff_id' => $booking->tariff_id,
-            'tariff_name' => $booking->tariff_name_snapshot,
+            'tariff_id' => null,
+            'tariff_name' => $booking->tariff_name_snapshot ?: 'Service pricing',
             'hourly_rate' => $booking->hourly_rate_snapshot,
             'payment_status' => $booking->status,
             'session_status' => $booking->session_status === 'cancelled' ? 'cancelled' : 'completed',

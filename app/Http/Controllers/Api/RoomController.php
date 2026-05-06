@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Api\Concerns\ValidatesApiRequests;
 use App\Http\Controllers\Controller;
 use App\Models\Room;
+use App\Services\ServiceSetupGuard;
 use Illuminate\Http\Request;
 
 class RoomController extends Controller
@@ -21,8 +22,10 @@ class RoomController extends Controller
         );
     }
 
-    public function store(Request $request)
+    public function store(Request $request, ServiceSetupGuard $serviceSetupGuard)
     {
+        $serviceSetupGuard->ensureServicesExist();
+
         $validated = $this->validateApi($request, [
             'name' => 'required|string|max:255',
         ]);

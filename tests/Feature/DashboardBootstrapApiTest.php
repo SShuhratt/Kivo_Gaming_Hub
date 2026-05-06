@@ -52,7 +52,7 @@ class DashboardBootstrapApiTest extends TestCase
 
         $activeBooking = Booking::create([
             'tariff_id' => null,
-            'tariff_name_snapshot' => 'Service category pricing',
+            'tariff_name_snapshot' => 'Service pricing',
             'hourly_rate_snapshot' => 20000,
             'asset_snapshot' => [[
                 'id' => $activeAsset->id,
@@ -78,7 +78,7 @@ class DashboardBootstrapApiTest extends TestCase
 
         $completedBooking = Booking::create([
             'tariff_id' => null,
-            'tariff_name_snapshot' => 'Service category pricing',
+            'tariff_name_snapshot' => 'Service pricing',
             'hourly_rate_snapshot' => 35000,
             'asset_snapshot' => [[
                 'id' => $completedAsset->id,
@@ -106,7 +106,7 @@ class DashboardBootstrapApiTest extends TestCase
         Trade::create([
             'booking_id' => $completedBooking->id,
             'tariff_id' => null,
-            'tariff_name' => 'Service category pricing',
+            'tariff_name' => 'Service pricing',
             'hourly_rate' => 35000,
             'payment_status' => 'submitted',
             'session_status' => 'completed',
@@ -141,9 +141,12 @@ class DashboardBootstrapApiTest extends TestCase
             ->assertJsonPath('companies.0.name', 'Pepsi')
             ->assertJsonPath('summary.active_sessions', 1)
             ->assertJsonPath('summary.total_session_devices', 2)
+            ->assertJsonPath('summary.services_count', 2)
+            ->assertJsonPath('summary.services_ready', true)
             ->assertJsonPath('summary.rooms_count', 2)
             ->assertJsonPath('sales.0.total', 70000)
             ->assertJsonPath('sessions.0.session_status', 'active')
+            ->assertJsonPath('sessions.0.pricing.label', 'Service pricing')
             ->assertJsonPath('sessions.0.requested_duration_hours', 2)
             ->assertJsonPath('sessions.0.is_vip', false)
             ->assertJsonPath('sections.5.name', 'Xonalar');

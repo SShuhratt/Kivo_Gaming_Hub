@@ -27,7 +27,6 @@ class OpenApiSpec
                 ['name' => 'Warehouse'],
                 ['name' => 'Manufacturers'],
                 ['name' => 'Services'],
-                ['name' => 'Tariffs'],
             ],
             'components' => $this->components(),
             'paths' => array_merge(
@@ -41,7 +40,6 @@ class OpenApiSpec
                 $this->crudPaths('Warehouse', 'WarehouseItem', '/warehouse', 'warehouse', 'listWarehouseItems'),
                 $this->manufacturerPaths(),
                 $this->crudPaths('Services', 'Service', '/services', 'service'),
-                $this->crudPaths('Tariffs', 'Tariff', '/tariffs', 'tariff'),
             ),
         ];
     }
@@ -62,7 +60,6 @@ class OpenApiSpec
                 'manufacturer' => $this->idParameter('manufacturer', 'Manufacturer ID'),
                 'room' => $this->idParameter('room', 'Room ID'),
                 'service' => $this->idParameter('service', 'Service ID'),
-                'tariff' => $this->idParameter('tariff', 'Tariff ID'),
                 'booking' => $this->idParameter('booking', 'Booking or session ID'),
             ],
             'schemas' => [
@@ -121,15 +118,16 @@ class OpenApiSpec
                     'summary' => $this->object([
                         'active_sessions' => ['type' => 'integer', 'example' => 2],
                         'total_session_devices' => ['type' => 'integer', 'example' => 9],
-                        'pending_sessions' => ['type' => 'integer', 'example' => 1],
+                        'services_count' => ['type' => 'integer', 'example' => 2],
+                        'services_ready' => ['type' => 'boolean', 'example' => true],
                         'rooms_count' => ['type' => 'integer', 'example' => 4],
                         'sales_total_today' => ['type' => 'number', 'example' => 365000],
                     ]),
                     'services' => ['type' => 'array', 'items' => ['type' => 'object']],
-                    'tariffs' => ['type' => 'array', 'items' => ['type' => 'object']],
                     'sales' => ['type' => 'array', 'items' => ['type' => 'object']],
                     'sessions' => ['type' => 'array', 'items' => ['$ref' => '#/components/schemas/Session']],
                     'companies' => ['type' => 'array', 'items' => ['type' => 'object']],
+                    'assets' => ['type' => 'array', 'items' => ['$ref' => '#/components/schemas/Asset']],
                     'sections' => ['type' => 'array', 'items' => $this->object([
                         'key' => ['type' => 'string'],
                         'name' => ['type' => 'string'],
@@ -138,7 +136,6 @@ class OpenApiSpec
                 ]),
                 'Booking' => $this->object([
                     'id' => ['type' => 'integer', 'example' => 1],
-                    'tariff_id' => ['type' => 'integer', 'example' => 1],
                     'start_time' => ['type' => 'string', 'format' => 'date-time'],
                     'end_time' => ['type' => 'string', 'format' => 'date-time', 'nullable' => true],
                     'ended_at' => ['type' => 'string', 'format' => 'date-time', 'nullable' => true],
@@ -151,7 +148,7 @@ class OpenApiSpec
                     'debt_phone_number' => ['type' => 'string', 'nullable' => true],
                     'is_vip' => ['type' => 'boolean', 'example' => false],
                     'assets' => ['type' => 'array', 'items' => ['$ref' => '#/components/schemas/SessionAsset']],
-                    'tariff' => ['$ref' => '#/components/schemas/Tariff'],
+                    'pricing' => ['$ref' => '#/components/schemas/PricingSummary'],
                 ]),
                 'Session' => $this->object([
                     'id' => ['type' => 'integer', 'example' => 1],
@@ -166,11 +163,7 @@ class OpenApiSpec
                     'debt_name' => ['type' => 'string', 'nullable' => true],
                     'debt_phone_number' => ['type' => 'string', 'nullable' => true],
                     'is_vip' => ['type' => 'boolean', 'example' => false],
-                    'tariff' => $this->object([
-                        'id' => ['type' => 'integer', 'nullable' => true, 'example' => 1],
-                        'name' => ['type' => 'string', 'nullable' => true, 'example' => 'Standard'],
-                        'hourly_cost' => ['type' => 'number', 'example' => 55000],
-                    ]),
+                    'pricing' => ['$ref' => '#/components/schemas/PricingSummary'],
                     'assets' => ['type' => 'array', 'items' => ['$ref' => '#/components/schemas/SessionAsset']],
                     'assets_count' => ['type' => 'integer', 'example' => 2],
                     'room_label' => ['type' => 'string', 'example' => 'Xona 1'],
@@ -185,7 +178,8 @@ class OpenApiSpec
                     'status' => ['type' => 'string', 'enum' => ['submitted', 'debt_closed'], 'example' => 'submitted'],
                     'session_status' => ['type' => 'string', 'enum' => ['completed', 'cancelled'], 'example' => 'completed'],
                     'details' => ['type' => 'object'],
-                    'tariff_data' => ['$ref' => '#/components/schemas/Tariff'],
+                    'pricing_label' => ['type' => 'string', 'example' => 'Service pricing'],
+                    'pricing' => ['$ref' => '#/components/schemas/PricingSummary'],
                     'assets' => ['type' => 'array', 'items' => ['$ref' => '#/components/schemas/Asset']],
                 ]),
                 'AssetCreateRequest' => $this->object([
@@ -276,26 +270,9 @@ class OpenApiSpec
                     'name' => ['type' => 'string', 'example' => 'Computer'],
                     'price' => ['type' => 'number', 'example' => 20000],
                 ]),
-                'TariffCategoryPrice' => $this->object([
-                    'id' => ['type' => 'integer', 'example' => 1],
-                    'category' => ['type' => 'string', 'example' => 'Computer'],
-                    'hourly_price' => ['type' => 'number', 'example' => 20000],
-                ]),
-                'TariffCreateRequest' => $this->object([
-                    'name' => ['type' => 'string', 'example' => 'Standard Hour'],
-                    'hourly_cost' => ['type' => 'number', 'nullable' => true, 'example' => 20000],
-                    'category_prices' => ['type' => 'array', 'items' => ['$ref' => '#/components/schemas/TariffCategoryPrice']],
-                ], ['name']),
-                'TariffUpdateRequest' => $this->object([
-                    'name' => ['type' => 'string', 'example' => 'VIP Hour'],
-                    'hourly_cost' => ['type' => 'number', 'nullable' => true, 'example' => 35000],
-                    'category_prices' => ['type' => 'array', 'items' => ['$ref' => '#/components/schemas/TariffCategoryPrice']],
-                ]),
-                'Tariff' => $this->object([
-                    'id' => ['type' => 'integer', 'example' => 1],
-                    'name' => ['type' => 'string', 'example' => 'Standard Hour'],
-                    'hourly_cost' => ['type' => 'number', 'example' => 20000],
-                    'category_prices' => ['type' => 'array', 'items' => ['$ref' => '#/components/schemas/TariffCategoryPrice']],
+                'PricingSummary' => $this->object([
+                    'label' => ['type' => 'string', 'example' => 'Service pricing'],
+                    'hourly_rate' => ['type' => 'number', 'example' => 55000],
                 ]),
                 'SimpleMessageResponse' => $this->object([
                     'message' => ['type' => 'string', 'example' => 'Action required.'],
@@ -507,7 +484,6 @@ class OpenApiSpec
     protected function bookingRequest(array $required): array
     {
         return $this->object([
-            'tariff_id' => ['type' => 'integer', 'example' => 1],
             'asset_ids' => ['type' => 'array', 'items' => ['type' => 'integer'], 'example' => [1, 2]],
             'start_time' => ['type' => 'string', 'format' => 'date-time', 'example' => '2026-04-25T10:00:00+05:00'],
             'end_time' => ['type' => 'string', 'format' => 'date-time', 'nullable' => true, 'example' => '2026-04-25T12:00:00+05:00'],

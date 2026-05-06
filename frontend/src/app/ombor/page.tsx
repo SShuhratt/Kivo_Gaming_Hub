@@ -439,7 +439,7 @@ function ProductModal({
               <Building2 className="h-3 w-3" /> Ishlab chiqaruvchi
             </Label>
             <Input
-              placeholder="M: Coca-Cola"
+              aria-label="Ishlab chiqaruvchi"
               value={productForm.manufacturer}
               onChange={(e) => setProductForm((prev) => ({ ...prev, manufacturer: e.target.value }))}
               className="h-12 bg-[#051111] border-white/5 rounded-xl font-bold px-4 text-sm focus:border-primary/40"
@@ -451,7 +451,7 @@ function ProductModal({
               <Tag className="h-3 w-3" /> Mahsulot Nomi
             </Label>
             <Input
-              placeholder="M: Coca-Cola 0.5L"
+              aria-label="Mahsulot nomi"
               value={productForm.name}
               onChange={(e) => setProductForm((prev) => ({ ...prev, name: e.target.value }))}
               className="h-12 bg-[#051111] border-white/5 rounded-xl font-bold px-4 text-sm focus:border-primary/40"
@@ -463,7 +463,7 @@ function ProductModal({
               <Barcode className="h-3 w-3" /> Shtrix Kod
             </Label>
             <Input
-              placeholder="M: 478000..."
+              aria-label="Shtrix kod"
               value={productForm.barcode}
               onChange={(e) => setProductForm((prev) => ({ ...prev, barcode: e.target.value }))}
               className="h-12 bg-[#051111] border-white/5 rounded-xl font-bold px-4 text-sm focus:border-primary/40"
@@ -477,7 +477,7 @@ function ProductModal({
               </Label>
               <Input
                 type="number"
-                placeholder="0"
+                aria-label="Soni"
                 value={productForm.quantity}
                 onChange={(e) => setProductForm((prev) => ({ ...prev, quantity: e.target.value }))}
                 className="h-12 bg-[#051111] border-white/5 rounded-xl font-bold px-4 text-sm focus:border-primary/40"
@@ -487,7 +487,7 @@ function ProductModal({
               <Label className="text-[10px] font-black uppercase tracking-widest text-primary/60">Birligi</Label>
               <Select value={productForm.unit} onValueChange={(value: Product['unit']) => setProductForm((prev) => ({ ...prev, unit: value }))}>
                 <SelectTrigger className="h-12 bg-[#051111] border-white/5 rounded-xl font-bold px-4 text-sm focus:border-primary/40">
-                  <SelectValue placeholder="Tanlang" />
+                  <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="bg-[#0a1a1a] border-white/10 text-white rounded-xl">
                   <SelectItem value="bottle" className="text-[10px] font-black uppercase">BOTTLE</SelectItem>
@@ -506,7 +506,7 @@ function ProductModal({
               </Label>
               <Input
                 type="number"
-                placeholder="0"
+                aria-label="Olish narxi"
                 value={productForm.purchasePrice}
                 onChange={(e) => setProductForm((prev) => ({ ...prev, purchasePrice: e.target.value }))}
                 className="h-12 bg-[#051111] border-white/5 rounded-xl font-bold px-4 text-sm focus:border-primary/40"
@@ -518,7 +518,7 @@ function ProductModal({
               </Label>
               <Input
                 type="number"
-                placeholder="0"
+                aria-label="Sotish narxi"
                 value={productForm.sellingPrice}
                 onChange={(e) => setProductForm((prev) => ({ ...prev, sellingPrice: e.target.value }))}
                 className="h-12 bg-[#051111] border-white/5 rounded-xl font-bold px-4 text-sm focus:border-primary/40"

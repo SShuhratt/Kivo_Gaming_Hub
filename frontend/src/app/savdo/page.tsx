@@ -54,7 +54,7 @@ export default function SavdoPage() {
             <div className="relative w-48">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3 w-3 text-primary/40" />
               <Input 
-                placeholder="Qidirish..." 
+                aria-label="Savdo qidiruvi"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="h-8 pl-8 bg-[#051111] border-white/5 text-[10px] font-bold text-white rounded-lg focus:border-primary/40"
@@ -79,7 +79,7 @@ export default function SavdoPage() {
               <TableHeader className="bg-[#0d1f1f]/50">
                 <TableRow className="hover:bg-transparent border-white/5">
                   <TableHead className="text-[8px] font-black text-primary/60 uppercase tracking-widest h-8 px-4">Xona nomi</TableHead>
-                  <TableHead className="text-[8px] font-black text-primary/60 uppercase tracking-widest h-8">Tarif</TableHead>
+                  <TableHead className="text-[8px] font-black text-primary/60 uppercase tracking-widest h-8">Soatlik jami</TableHead>
                   <TableHead className="text-[8px] font-black text-primary/60 uppercase tracking-widest h-8">Boshlanish</TableHead>
                   <TableHead className="text-[8px] font-black text-primary/60 uppercase tracking-widest h-8">Tugash</TableHead>
                   <TableHead className="text-[8px] font-black text-primary/60 uppercase tracking-widest h-8">Xizmat</TableHead>

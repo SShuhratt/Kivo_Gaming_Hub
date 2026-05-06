@@ -8,9 +8,9 @@ use App\Http\Controllers\Controller;
 use App\Models\Asset;
 use App\Models\Booking;
 use App\Services\AssetServicePricingService;
+use App\Services\ServiceSetupGuard;
 use App\Services\SessionLifecycleService;
 use Carbon\Carbon;
-use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -29,7 +29,7 @@ class BookingController extends Controller
         $sessionLifecycle->syncElapsedSessions();
 
         $bookings = Booking::query()
-            ->with(['assets.room', 'assets.service', 'tariff.categoryPrices', 'trade'])
+            ->with(['assets.room', 'assets.service', 'trade'])
             ->when(
                 $validated['session_status'] ?? null,
                 fn ($query, $status) => $query->where('session_status', $status)
@@ -47,15 +47,20 @@ class BookingController extends Controller
     {
         $sessionLifecycle->syncElapsedSessions();
 
-        $booking->load(['assets.room', 'assets.service', 'tariff.categoryPrices', 'trade']);
+        $booking->load(['assets.room', 'assets.service', 'trade']);
 
         return response()->json($this->formatSession($booking));
     }
 
-    public function calculate(Request $request, AssetServicePricingService $assetServicePricing)
+    public function calculate(
+        Request $request,
+        AssetServicePricingService $assetServicePricing,
+        ServiceSetupGuard $serviceSetupGuard
+    )
     {
+        $serviceSetupGuard->ensureServicesExist();
+
         $validated = $this->validateApi($request, [
-            'tariff_id' => 'nullable|exists:tariffs,id',
             'asset_ids' => 'required|array|min:1',
             'asset_ids.*' => 'required|integer|distinct|exists:assets,id',
             'start_time' => 'required|date',
@@ -91,10 +96,12 @@ class BookingController extends Controller
     public function store(
         Request $request,
         SessionLifecycleService $sessionLifecycle,
-        AssetServicePricingService $assetServicePricing
+        AssetServicePricingService $assetServicePricing,
+        ServiceSetupGuard $serviceSetupGuard
     ) {
+        $serviceSetupGuard->ensureServicesExist();
+
         $validated = $this->validateApi($request, [
-            'tariff_id' => 'nullable|exists:tariffs,id',
             'asset_ids' => 'required|array|min:1',
             'asset_ids.*' => 'required|integer|distinct|exists:assets,id',
             'start_time' => 'required|date',
@@ -114,9 +121,8 @@ class BookingController extends Controller
             $summary = $assetServicePricing->summarizeSnapshot($snapshot, $timing['duration_hours']);
 
             $booking = Booking::create([
-                // Tariffs remain in the schema, but booking totals now come from service category prices.
-                'tariff_id' => $validated['tariff_id'] ?? null,
-                'tariff_name_snapshot' => 'Service category pricing',
+                'tariff_id' => null,
+                'tariff_name_snapshot' => 'Service pricing',
                 'hourly_rate_snapshot' => $summary['hourly_rate_total'],
                 'asset_snapshot' => $snapshot,
                 'asset_stats_recorded' => false,
@@ -141,7 +147,7 @@ class BookingController extends Controller
         if (! $booking->is_vip && $booking->end_time && Carbon::parse($booking->end_time)->lessThanOrEqualTo(Carbon::now())) {
             $booking = $sessionLifecycle->completeBooking($booking);
         } else {
-            $booking->load(['assets.room', 'assets.service', 'tariff.categoryPrices', 'trade']);
+            $booking->load(['assets.room', 'assets.service', 'trade']);
         }
 
         return response()->json($this->formatSession($booking), 201);

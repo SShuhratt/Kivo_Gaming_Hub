@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Api\Concerns\ValidatesApiRequests;
 use App\Http\Controllers\Controller;
 use App\Models\Asset;
+use App\Services\ServiceSetupGuard;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
@@ -24,8 +25,10 @@ class AssetController extends Controller
         );
     }
 
-    public function store(Request $request)
+    public function store(Request $request, ServiceSetupGuard $serviceSetupGuard)
     {
+        $serviceSetupGuard->ensureServicesExist();
+
         $validated = $this->validateApi($request, [
             'name' => 'required|string|max:255',
             'service_id' => 'required|integer|exists:services,id',
@@ -45,8 +48,10 @@ class AssetController extends Controller
         return response()->json($asset->load(['room', 'service']));
     }
 
-    public function update(Request $request, Asset $asset)
+    public function update(Request $request, Asset $asset, ServiceSetupGuard $serviceSetupGuard)
     {
+        $serviceSetupGuard->ensureServicesExist();
+
         $validated = $this->validateApi($request, [
             'name' => 'sometimes|required|string|max:255',
             'service_id' => 'sometimes|required|integer|exists:services,id',

@@ -9,7 +9,6 @@ use App\Models\Booking;
 use App\Models\Manufacturer;
 use App\Models\Room;
 use App\Models\Service;
-use App\Models\Tariff;
 use App\Models\Trade;
 use App\Services\SessionLifecycleService;
 use Illuminate\Http\JsonResponse;
@@ -35,27 +34,6 @@ class DashboardController extends Controller
                 'price' => (float) $service->price,
                 'assets_count' => $service->assets_count,
             ])
-            ->values();
-
-        $tariffs = Tariff::query()
-            ->with('categoryPrices')
-            ->orderBy('name')
-            ->get()
-            ->map(function (Tariff $tariff) {
-                return [
-                    'id' => (string) $tariff->id,
-                    'backend_id' => $tariff->id,
-                    'name' => $tariff->name,
-                    'hourly_price' => (float) $tariff->hourly_cost,
-                    'category_prices' => $tariff->categoryPrices->map(function ($price) {
-                        return [
-                            'id' => (string) $price->id,
-                            'category' => $price->category,
-                            'hourly_price' => (float) $price->hourly_price,
-                        ];
-                    })->values()->all(),
-                ];
-            })
             ->values();
 
         $assetCollection = Asset::query()
@@ -119,7 +97,7 @@ class DashboardController extends Controller
             ->values();
 
         $sessions = Booking::query()
-            ->with(['assets.room', 'assets.service', 'tariff.categoryPrices', 'trade'])
+            ->with(['assets.room', 'assets.service', 'trade'])
             ->orderByRaw("case when session_status = 'active' then 0 else 1 end")
             ->latest('start_time')
             ->get();
@@ -137,7 +115,8 @@ class DashboardController extends Controller
             'summary' => [
                 'active_sessions' => $sessions->where('session_status', 'active')->count(),
                 'total_session_devices' => $assets->count(),
-                'pending_sessions' => $tariffs->count(),
+                'services_count' => $services->count(),
+                'services_ready' => $services->isNotEmpty(),
                 'rooms_count' => $rooms->count(),
                 'sales_total_today' => (float) Trade::query()
                     ->where('end_time', '>=', $today)
@@ -145,7 +124,6 @@ class DashboardController extends Controller
             ],
             'services' => $services,
             'rooms' => $rooms,
-            'tariffs' => $tariffs,
             'sales' => $sales,
             'sessions' => $sessions->map(fn (Booking $booking) => $this->formatSession($booking))->values(),
             'companies' => $companies,
@@ -159,7 +137,6 @@ class DashboardController extends Controller
                 ['key' => 'rooms', 'name' => 'Xonalar', 'path' => '/xonalar'],
                 ['key' => 'inventory', 'name' => 'Ombor', 'path' => '/ombor'],
                 ['key' => 'services', 'name' => 'Xizmatlar', 'path' => '/xizmatlar'],
-                ['key' => 'tariffs', 'name' => 'Tariflar', 'path' => '/tariflar'],
                 ['key' => 'finance', 'name' => 'Moliya', 'path' => '/moliya'],
                 ['key' => 'staff', 'name' => 'Xodimlar', 'path' => '/xodimlar'],
                 ['key' => 'analytics', 'name' => 'Analitika', 'path' => '/analitika'],

@@ -7,7 +7,6 @@ use App\Models\Booking;
 use App\Models\Manufacturer;
 use App\Models\Room;
 use App\Models\Service;
-use App\Models\Tariff;
 use App\Models\Trade;
 use App\Models\User;
 use App\Models\Warehouse;
@@ -18,42 +17,6 @@ use Tests\TestCase;
 class DeleteBehaviorTest extends TestCase
 {
     use RefreshDatabase;
-
-    public function test_tariff_can_be_deleted_without_removing_existing_bookings(): void
-    {
-        $tariff = Tariff::create([
-            'name' => 'Night Tariff',
-            'hourly_cost' => 50000,
-        ]);
-
-        $room = Room::create(['name' => 'Opshiy zal']);
-        $service = Service::create(['name' => 'Computer', 'price' => 20000]);
-        $asset = Asset::create([
-            'name' => 'computer1',
-            'service_id' => $service->id,
-            'room_id' => $room->id,
-        ]);
-
-        $booking = Booking::create([
-            'tariff_id' => $tariff->id,
-            'start_time' => '2026-04-28T10:00:00+05:00',
-            'end_time' => '2026-04-28T12:00:00+05:00',
-            'duration_minutes' => 120,
-            'total_cost' => 100000,
-            'status' => 'submitted',
-        ]);
-
-        $booking->assets()->sync([$asset->id]);
-
-        $this->deleteJson("/api/tariffs/{$tariff->id}", [], $this->authHeaders())
-            ->assertNoContent();
-
-        $this->assertDatabaseMissing('tariffs', ['id' => $tariff->id]);
-        $this->assertDatabaseHas('bookings', [
-            'id' => $booking->id,
-            'tariff_id' => null,
-        ]);
-    }
 
     public function test_deleting_a_product_keeps_the_manufacturer_record_and_bootstrap_company(): void
     {
@@ -120,14 +83,9 @@ class DeleteBehaviorTest extends TestCase
 
     public function test_active_sessions_cannot_be_deleted_and_completed_sessions_require_a_trade_record(): void
     {
-        $tariff = Tariff::create([
-            'name' => 'Delete Session Tariff',
-            'hourly_cost' => 50000,
-        ]);
-
         $activeSession = Booking::create([
-            'tariff_id' => $tariff->id,
-            'tariff_name_snapshot' => $tariff->name,
+            'tariff_id' => null,
+            'tariff_name_snapshot' => 'Service pricing',
             'hourly_rate_snapshot' => 50000,
             'asset_snapshot' => [['id' => 1, 'category' => 'Computer', 'room_id' => 10, 'room_number' => '10']],
             'asset_stats_recorded' => true,
@@ -140,8 +98,8 @@ class DeleteBehaviorTest extends TestCase
         ]);
 
         $completedWithoutTrade = Booking::create([
-            'tariff_id' => $tariff->id,
-            'tariff_name_snapshot' => $tariff->name,
+            'tariff_id' => null,
+            'tariff_name_snapshot' => 'Service pricing',
             'hourly_rate_snapshot' => 50000,
             'asset_snapshot' => [['id' => 2, 'category' => 'PS', 'room_id' => 11, 'room_number' => '11']],
             'asset_stats_recorded' => true,
@@ -155,8 +113,8 @@ class DeleteBehaviorTest extends TestCase
         ]);
 
         $completedWithTrade = Booking::create([
-            'tariff_id' => $tariff->id,
-            'tariff_name_snapshot' => $tariff->name,
+            'tariff_id' => null,
+            'tariff_name_snapshot' => 'Service pricing',
             'hourly_rate_snapshot' => 50000,
             'asset_snapshot' => [['id' => 3, 'category' => 'Computer', 'room_id' => 12, 'room_number' => '12']],
             'asset_stats_recorded' => true,
@@ -171,8 +129,8 @@ class DeleteBehaviorTest extends TestCase
 
         $trade = Trade::create([
             'booking_id' => $completedWithTrade->id,
-            'tariff_id' => $tariff->id,
-            'tariff_name' => $tariff->name,
+            'tariff_id' => null,
+            'tariff_name' => 'Service pricing',
             'hourly_rate' => 50000,
             'payment_status' => 'submitted',
             'session_status' => 'completed',

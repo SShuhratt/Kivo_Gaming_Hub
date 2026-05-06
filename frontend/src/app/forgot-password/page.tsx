@@ -276,7 +276,7 @@ export default function ForgotPasswordPage() {
                     type={showPassword ? "text" : "password"}
                     autoComplete="new-password"
                     spellCheck={false}
-                    placeholder="Parolni kiriting"
+                    aria-label="Yangi parol"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     className="w-full h-16 bg-[#081414]/50 border border-primary/10 rounded-xl px-5 text-white font-bold focus:outline-none focus:border-primary/40 transition-all"
@@ -300,7 +300,7 @@ export default function ForgotPasswordPage() {
                     type={showConfirmPassword ? "text" : "password"}
                     autoComplete="new-password"
                     spellCheck={false}
-                    placeholder="Parolni qayta kiriting"
+                    aria-label="Parolni tasdiqlash"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     className="w-full h-16 bg-[#081414]/50 border border-primary/10 rounded-xl px-5 text-white font-bold focus:outline-none focus:border-primary/40 transition-all"
@@ -562,7 +562,7 @@ export default function ForgotPasswordPage() {
                   name="phone_number"
                   autoComplete="tel"
                   inputMode="tel"
-                  placeholder="+998 __ ___ __ __" 
+                  aria-label="Telefon raqami"
                   value={phoneNumber}
                   onChange={(e) => setPhoneNumber(e.target.value)}
                   className="h-16 w-full border border-white/5 bg-[#0d1a1a]/50 pl-14 pr-6 text-white text-lg font-bold focus:outline-none focus:border-primary/40 focus:ring-1 focus:ring-primary/5 transition-all rounded-xl"

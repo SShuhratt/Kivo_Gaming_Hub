@@ -48,7 +48,8 @@ export type DashboardBootstrapResponse = {
   summary: {
     active_sessions: number;
     total_session_devices: number;
-    pending_sessions: number;
+    services_count: number;
+    services_ready: boolean;
     rooms_count: number;
     sales_total_today: number;
   };
@@ -76,17 +77,6 @@ export type DashboardBootstrapResponse = {
       room_number: string | null;
       total_usage_duration_minutes: number;
       total_earned_money: number;
-    }>;
-  }>;
-  tariffs: Array<{
-    id: string;
-    backend_id: number;
-    name: string;
-    hourly_price: number;
-    category_prices: Array<{
-      id: string;
-      category: string;
-      hourly_price: number;
     }>;
   }>;
   sales: Array<{
@@ -119,10 +109,9 @@ export type DashboardBootstrapResponse = {
     debt_name: string | null;
     debt_phone_number: string | null;
     is_vip: boolean;
-    tariff: {
-      id: number | null;
-      name: string | null;
-      hourly_cost: number;
+    pricing: {
+      label: string;
+      hourly_rate: number;
     };
     assets: Array<{
       id: number | null;
@@ -378,48 +367,6 @@ export function deleteServiceRequest(token: string, serviceId: number) {
   });
 }
 
-export function createTariffRequest(
-  token: string,
-  payload: {
-    name: string;
-    category_prices: Array<{
-      category: string;
-      hourly_price: number;
-    }>;
-  }
-) {
-  return apiRequest('/tariffs', {
-    method: 'POST',
-    token,
-    body: payload,
-  });
-}
-
-export function updateTariffRequest(
-  token: string,
-  tariffId: number,
-  payload: {
-    name?: string;
-    category_prices?: Array<{
-      category: string;
-      hourly_price: number;
-    }>;
-  }
-) {
-  return apiRequest(`/tariffs/${tariffId}`, {
-    method: 'PATCH',
-    token,
-    body: payload,
-  });
-}
-
-export function deleteTariffRequest(token: string, tariffId: number) {
-  return apiRequest(`/tariffs/${tariffId}`, {
-    method: 'DELETE',
-    token,
-  });
-}
-
 export function createRoomRequest(token: string, payload: { name: string }) {
   return apiRequest('/rooms', {
     method: 'POST',
@@ -548,7 +495,6 @@ export function calculateBookingRequest(
 export function createBookingRequest(
   token: string,
   payload: {
-    tariff_id?: number;
     asset_ids: number[];
     start_time: string;
     duration_hours?: number;

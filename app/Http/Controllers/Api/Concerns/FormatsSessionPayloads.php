@@ -28,10 +28,9 @@ trait FormatsSessionPayloads
             'debt_name' => $booking->debt_name,
             'debt_phone_number' => $booking->debt_phone_number,
             'is_vip' => $booking->is_vip,
-            'tariff' => [
-                'id' => $booking->tariff_id,
-                'name' => $booking->tariff_name_snapshot ?: $booking->tariff?->name,
-                'hourly_cost' => (float) $booking->hourly_rate_snapshot,
+            'pricing' => [
+                'label' => $booking->tariff_name_snapshot ?: 'Service pricing',
+                'hourly_rate' => (float) $booking->hourly_rate_snapshot,
             ],
             'assets' => $assets,
             'assets_count' => count($assets),
@@ -61,11 +60,10 @@ trait FormatsSessionPayloads
                     'phone' => $trade->debt_phone_number,
                 ],
             ],
-            'tariff' => $trade->tariff_name ?? 'N/A',
-            'tariff_data' => [
-                'id' => $trade->tariff_id,
-                'name' => $trade->tariff_name,
-                'hourly_cost' => (float) $trade->hourly_rate,
+            'pricing_label' => $trade->tariff_name ?: 'Service pricing',
+            'pricing' => [
+                'label' => $trade->tariff_name ?: 'Service pricing',
+                'hourly_rate' => (float) $trade->hourly_rate,
             ],
             'assets' => $assets,
             'assets_count' => count($assets),

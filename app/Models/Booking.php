@@ -3,14 +3,12 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Booking extends Model
 {
     protected $fillable = [
-        'tariff_id',
         'tariff_name_snapshot',
         'hourly_rate_snapshot',
         'asset_snapshot',
@@ -39,11 +37,6 @@ class Booking extends Model
         'asset_stats_recorded' => 'boolean',
         'is_vip' => 'boolean',
     ];
-
-    public function tariff(): BelongsTo
-    {
-        return $this->belongsTo(Tariff::class);
-    }
 
     public function assets(): BelongsToMany
     {

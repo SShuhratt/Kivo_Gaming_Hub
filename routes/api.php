@@ -7,7 +7,6 @@ use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\ManufacturerController;
 use App\Http\Controllers\Api\RoomController;
 use App\Http\Controllers\Api\ServiceController;
-use App\Http\Controllers\Api\TariffController;
 use App\Http\Controllers\Api\TestMailController;
 use App\Http\Controllers\Api\TradeController;
 use App\Http\Controllers\Api\WarehouseController;
@@ -112,16 +111,4 @@ Route::middleware('api.token')->group(function () {
     Route::delete('/sessions/{booking}', [BookingController::class, 'destroy'])
         ->defaults('openapiOperation', 'deleteSession');
 
-    Route::get('/tariffs', [TariffController::class, 'index'])
-        ->defaults('openapiOperation', 'listTariffs');
-    Route::post('/tariffs', [TariffController::class, 'store'])
-        ->defaults('openapiOperation', 'createTariff');
-    Route::get('/tariffs/{tariff}', [TariffController::class, 'show'])
-        ->defaults('openapiOperation', 'getTariff');
-    Route::put('/tariffs/{tariff}', [TariffController::class, 'update'])
-        ->defaults('openapiOperation', 'replaceTariff');
-    Route::patch('/tariffs/{tariff}', [TariffController::class, 'update'])
-        ->defaults('openapiOperation', 'updateTariff');
-    Route::delete('/tariffs/{tariff}', [TariffController::class, 'destroy'])
-        ->defaults('openapiOperation', 'deleteTariff');
 });

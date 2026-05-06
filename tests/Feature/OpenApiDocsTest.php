@@ -65,12 +65,6 @@ class OpenApiDocsTest extends TestCase
             ['put', '/services/{service}'],
             ['patch', '/services/{service}'],
             ['delete', '/services/{service}'],
-            ['get', '/tariffs'],
-            ['post', '/tariffs'],
-            ['get', '/tariffs/{tariff}'],
-            ['put', '/tariffs/{tariff}'],
-            ['patch', '/tariffs/{tariff}'],
-            ['delete', '/tariffs/{tariff}'],
         ];
 
         foreach ($expectedOperations as [$method, $path]) {
@@ -91,9 +85,6 @@ class OpenApiDocsTest extends TestCase
             ['post', '/services'],
             ['put', '/services/{service}'],
             ['patch', '/services/{service}'],
-            ['post', '/tariffs'],
-            ['put', '/tariffs/{tariff}'],
-            ['patch', '/tariffs/{tariff}'],
         ] as [$method, $path]) {
             $this->assertArrayHasKey(
                 'requestBody',

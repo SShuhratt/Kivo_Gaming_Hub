@@ -123,7 +123,7 @@ export default function LoginPage() {
                     <Phone className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/40 group-focus-within:text-primary transition-colors" />
                     <Input 
                       type="tel" 
-                      placeholder="+998 90 123 45 67" 
+                      aria-label="Telefon"
                       name="phone_number"
                       autoComplete="tel"
                       inputMode="tel"
@@ -147,7 +147,7 @@ export default function LoginPage() {
                     <Lock className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/40 group-focus-within:text-primary transition-colors" />
                     <Input 
                       type={showPassword ? "text" : "password"}
-                      placeholder="••••••••" 
+                      aria-label="Parol"
                       name="password"
                       autoComplete="current-password"
                       spellCheck={false}

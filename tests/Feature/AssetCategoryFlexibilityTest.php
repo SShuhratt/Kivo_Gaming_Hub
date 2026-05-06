@@ -62,6 +62,7 @@ class AssetCategoryFlexibilityTest extends TestCase
     public function test_asset_creation_fails_for_missing_service_category(): void
     {
         $room = Room::create(['name' => '2-xona']);
+        Service::create(['name' => 'Computer', 'price' => 20000]);
 
         $this->postJson('/api/assets', [
             'name' => 'computer2',

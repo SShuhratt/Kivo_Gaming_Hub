@@ -96,7 +96,7 @@ export default function KassaPOSPage() {
             <div className="relative flex-1">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-primary/40" />
               <Input 
-                placeholder="Mahsulot nomi yoki shtrix-kod orqali izlash..." 
+                aria-label="Kassa mahsulot qidiruvi"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="h-12 pl-12 bg-[#051111] border-white/5 text-sm font-bold text-white rounded-xl focus:border-primary/40 focus:ring-0"
