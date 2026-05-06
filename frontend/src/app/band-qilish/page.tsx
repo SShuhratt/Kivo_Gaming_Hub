@@ -35,7 +35,7 @@ function formatDateTimePreview(value: string | null) {
 const durationOptions = [0.5, 1, 2, 2.5, 3];
 
 export default function BandQilishPage() {
-  const { assets, servicesReady, calculateBooking, createBooking, isCheckingAuth } = useDashboard();
+  const { assets, servicesReady, services: allServices = [], calculateBooking, createBooking, isCheckingAuth } = useDashboard();
   const { toast } = useToast();
 
   const [selectedAssetIds, setSelectedAssetIds] = useState<string[]>([]);
@@ -253,7 +253,7 @@ export default function BandQilishPage() {
   const recommendations = useMemo(() => {
     if (!servicesReady || selectedAssetIds.length === 0) return [];
 
-    const recommendableBundles = services.filter((s) => s.isBundle && s.isRecommendable);
+    const recommendableBundles = allServices.filter((s) => s.isBundle && s.isRecommendable);
 
     return recommendableBundles
       .map((bundle) => {
@@ -277,7 +277,7 @@ export default function BandQilishPage() {
       })
       .filter((r) => r.progress >= 0.8 && r.progress < 1 && !r.alreadySelected)
       .sort((a, b) => b.progress - a.progress);
-  }, [servicesReady, selectedAssetIds, services, currentCartTotals, selectedBundleServiceIds]);
+  }, [servicesReady, selectedAssetIds, allServices, currentCartTotals, selectedBundleServiceIds]);
 
   const toggleBundle = (serviceId: number) => {
     setSelectedBundleServiceIds((current) =>
