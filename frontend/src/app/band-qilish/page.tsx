@@ -47,6 +47,7 @@ export default function BandQilishPage() {
   const [debtPhoneNumber, setDebtPhoneNumber] = useState('');
   const [calculation, setCalculation] = useState<Awaited<ReturnType<typeof calculateBooking>> | null>(null);
   const [calculationError, setCalculationError] = useState<string | null>(null);
+  const [selectedBundleServiceIds, setSelectedBundleServiceIds] = useState<number[]>([]);
   const [isCalculating, setIsCalculating] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -115,6 +116,7 @@ export default function BandQilishPage() {
             startTime: new Date(startTime).toISOString(),
             durationHours: isVip ? undefined : parsedDurationHours,
             isVip,
+            selectedBundleServiceIds,
           });
 
           if (!cancelled) {
@@ -138,7 +140,7 @@ export default function BandQilishPage() {
       cancelled = true;
       window.clearTimeout(timeoutId);
     };
-  }, [assets, calculateBooking, isVip, parsedDurationHours, selectedAssetIds, servicesReady, startTime]);
+  }, [assets, calculateBooking, isVip, parsedDurationHours, selectedAssetIds, servicesReady, startTime, selectedBundleServiceIds]);
 
   if (isCheckingAuth) return null;
 
@@ -150,6 +152,7 @@ export default function BandQilishPage() {
     setSelectedAssetIds((current) =>
       current.includes(assetId) ? current.filter((id) => id !== assetId) : [...current, assetId],
     );
+    setSelectedBundleServiceIds([]);
   };
 
   const handleCreateBooking = async () => {
@@ -207,6 +210,7 @@ export default function BandQilishPage() {
         startTime: new Date(startTime).toISOString(),
         durationHours: isVip ? undefined : parsedDurationHours,
         isVip,
+        selectedBundleServiceIds,
         status,
         debtName: status === 'debt_closed' ? debtName : undefined,
         debtPhoneNumber: status === 'debt_closed' ? debtPhoneNumber : undefined,
@@ -232,6 +236,53 @@ export default function BandQilishPage() {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const currentCartTotals = useMemo(() => {
+    const totals: Record<string, number> = {};
+    for (const assetId of selectedAssetIds) {
+      const asset = assets.find((a) => a.id === assetId);
+      if (asset?.serviceName) {
+        const key = asset.serviceName.toLowerCase().trim();
+        totals[key] = (totals[key] ?? 0) + 1;
+      }
+    }
+    return totals;
+  }, [assets, selectedAssetIds]);
+
+  const recommendations = useMemo(() => {
+    if (!servicesReady || selectedAssetIds.length === 0) return [];
+
+    const recommendableBundles = services.filter((s) => s.isBundle && s.isRecommendable);
+
+    return recommendableBundles
+      .map((bundle) => {
+        const reqs = bundle.requirements;
+        let metCount = 0;
+        let totalNeeded = 0;
+
+        for (const [key, count] of Object.entries(reqs)) {
+          const current = currentCartTotals[key] ?? 0;
+          metCount += Math.min(current, count);
+          totalNeeded += count;
+        }
+
+        const progress = totalNeeded > 0 ? metCount / totalNeeded : 0;
+
+        return {
+          bundle,
+          progress,
+          alreadySelected: selectedBundleServiceIds.includes(bundle.backendId),
+        };
+      })
+      .filter((r) => r.progress >= 0.8 && r.progress < 1 && !r.alreadySelected)
+      .sort((a, b) => b.progress - a.progress);
+  }, [servicesReady, selectedAssetIds, services, currentCartTotals, selectedBundleServiceIds]);
+
+  const toggleBundle = (serviceId: number) => {
+    setSelectedBundleServiceIds((current) =>
+      current.includes(serviceId) ? current.filter((id) => id !== serviceId) : [...current, serviceId],
+    );
   };
 
   return (
@@ -474,6 +525,35 @@ export default function BandQilishPage() {
                 </div>
               </div>
 
+              {recommendations.length > 0 && (
+                <div className="space-y-3">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-primary/60">Takliflar (Best Value)</p>
+                  <div className="space-y-2">
+                    {recommendations.map(({ bundle, progress }) => (
+                      <button
+                        key={bundle.id}
+                        onClick={() => toggleBundle(bundle.backendId)}
+                        className="group relative w-full overflow-hidden rounded-2xl border border-primary/20 bg-primary/5 p-4 text-left transition-all hover:border-primary/40 hover:bg-primary/10"
+                      >
+                        <div className="relative z-10 flex items-center justify-between">
+                          <div className="space-y-1">
+                            <p className="text-[11px] font-black uppercase text-white">{bundle.name}</p>
+                            <p className="text-[9px] font-bold text-primary/60">
+                              {Math.round(progress * 100)}% tayyor • {bundle.rate?.toLocaleString()} UZS
+                            </p>
+                          </div>
+                          <Zap className="h-4 w-4 text-primary animate-pulse" />
+                        </div>
+                        <div 
+                          className="absolute bottom-0 left-0 h-1 bg-primary/20 transition-all duration-500" 
+                          style={{ width: `${progress * 100}%` }} 
+                        />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div className="space-y-4 rounded-2xl border border-white/5 bg-[#051111] p-4">
                 <div className="flex items-center justify-between text-[11px] font-bold text-white/60">
                   <span>Tanlangan jihozlar</span>
@@ -505,6 +585,27 @@ export default function BandQilishPage() {
               ) : null}
 
               <div className="space-y-2">
+                {(calculation?.breakdown ?? []).filter(b => b.type === 'bundle').map((bundle, idx) => (
+                  <button
+                    key={`${bundle.serviceId}-${idx}`}
+                    onClick={() => toggleBundle(bundle.serviceId)}
+                    className="flex w-full items-center justify-between gap-3 rounded-xl border border-primary/30 bg-primary/5 px-4 py-3 text-left transition-all hover:bg-primary/10"
+                  >
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <Badge className="h-4 border-none bg-primary px-1 text-[8px] font-black text-black">BUNDLE</Badge>
+                        <p className="text-[11px] font-black uppercase tracking-tight text-white">
+                          {bundle.serviceName}
+                        </p>
+                      </div>
+                      <p className="mt-1 text-[9px] uppercase tracking-widest text-primary/40">
+                        {Object.entries(bundle.requirements).map(([key, count]) => `${count}x ${key}`).join(', ')}
+                      </p>
+                    </div>
+                    <span className="text-[10px] font-black text-primary">{bundle.subtotal.toLocaleString()} UZS</span>
+                  </button>
+                ))}
+ 
                 {(calculation?.assetBreakdown ?? []).map((asset) => (
                   <div key={asset.id} className="flex items-center justify-between gap-3 rounded-xl border border-white/5 bg-[#051111] px-4 py-3">
                     <div>
@@ -516,7 +617,7 @@ export default function BandQilishPage() {
                         {asset.roomName ?? asset.roomNumber}
                       </p>
                     </div>
-                    <span className="text-[10px] font-black text-primary">{asset.hourlyPrice.toLocaleString()} UZS</span>
+                    <span className="text-[10px] font-black text-primary/60">{asset.hourlyPrice.toLocaleString()} UZS</span>
                   </div>
                 ))}
               </div>
