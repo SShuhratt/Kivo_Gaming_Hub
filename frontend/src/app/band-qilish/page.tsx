@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { startTransition, useEffect, useMemo, useState } from 'react';
 import { DashboardLayout } from '@/components/dashboard-layout';
 import { ServicesSetupCallout } from '@/components/services-setup-callout';
 import { Badge } from '@/components/ui/badge';
@@ -51,29 +51,59 @@ export default function BandQilishPage() {
   const [isCalculating, setIsCalculating] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const assetLookupById = useMemo(
+    () => new Map(assets.map((asset) => [asset.id, asset])),
+    [assets],
+  );
+  const selectedAssetIdSet = useMemo(() => new Set(selectedAssetIds), [selectedAssetIds]);
+
   const assetsByRoom = useMemo(() => {
+    type RoomAssetBucket = {
+      roomLabel: string;
+      assets: typeof assets;
+    };
+
     const roomMap = new Map<
       string,
-      {
-        roomLabel: string;
-        assets: typeof assets;
-      }
+      RoomAssetBucket
     >();
 
     for (const asset of sortAssetsForDisplay(assets)) {
       const roomLabel = resolveAssetRoomLabel(asset);
       const key = `${asset.roomId ?? roomLabel}`;
-      const current = roomMap.get(key) ?? { roomLabel, assets: [] };
+      const current = roomMap.get(key);
+
+      if (current) {
+        current.assets.push(asset);
+        continue;
+      }
+
       roomMap.set(key, {
         roomLabel,
-        assets: [...current.assets, asset],
+        assets: [asset],
       });
     }
 
-    return Array.from(roomMap.values()).sort((left, right) => left.roomLabel.localeCompare(right.roomLabel));
-  }, [assets]);
+    return Array.from(roomMap.values())
+      .sort((left, right) => left.roomLabel.localeCompare(right.roomLabel))
+      .map((roomGroup) => ({
+        roomLabel: roomGroup.roomLabel,
+        hasSelectedAssets: roomGroup.assets.some((asset) => selectedAssetIdSet.has(asset.id)),
+        serviceGroups: groupAssetsByService(roomGroup.assets),
+      }));
+  }, [assets, selectedAssetIdSet]);
 
-  const selectedAssets = assets.filter((asset) => selectedAssetIds.includes(asset.id));
+  const selectedAssets = useMemo(
+    () =>
+      selectedAssetIds
+        .map((assetId) => assetLookupById.get(assetId))
+        .filter((asset): asset is (typeof assets)[number] => Boolean(asset)),
+    [assetLookupById, selectedAssetIds],
+  );
+  const selectedAssetBackendIds = useMemo(
+    () => selectedAssets.map((asset) => asset.backendId),
+    [selectedAssets],
+  );
   const parsedDurationHours = Number(durationHoursInput);
 
   const localEndTimePreview = useMemo(() => {
@@ -86,51 +116,73 @@ export default function BandQilishPage() {
 
   useEffect(() => {
     if (!servicesReady) {
-      setSelectedAssetIds([]);
-      setCalculation(null);
-      setCalculationError(null);
+      startTransition(() => {
+        setSelectedAssetIds([]);
+        setCalculation(null);
+        setCalculationError(null);
+        setIsCalculating(false);
+      });
       return;
     }
 
-    if (selectedAssetIds.length === 0 || !startTime) {
-      setCalculation(null);
-      setCalculationError(null);
+    if (selectedAssetBackendIds.length === 0 || !startTime) {
+      startTransition(() => {
+        setCalculation(null);
+        setCalculationError(null);
+        setIsCalculating(false);
+      });
       return;
     }
 
     if (!isVip && (!Number.isFinite(parsedDurationHours) || parsedDurationHours <= 0)) {
-      setCalculation(null);
-      setCalculationError(null);
+      startTransition(() => {
+        setCalculation(null);
+        setCalculationError(null);
+        setIsCalculating(false);
+      });
       return;
     }
 
     let cancelled = false;
+    const controller = new AbortController();
     const timeoutId = window.setTimeout(() => {
       void (async () => {
         try {
-          setIsCalculating(true);
+          startTransition(() => {
+            setIsCalculating(true);
+          });
+
           const result = await calculateBooking({
-            assetIds: selectedAssetIds
-              .map((assetId) => assets.find((asset) => asset.id === assetId)?.backendId)
-              .filter((value): value is number => Boolean(value)),
+            assetIds: selectedAssetBackendIds,
             startTime: new Date(startTime).toISOString(),
             durationHours: isVip ? undefined : parsedDurationHours,
             isVip,
             selectedBundleServiceIds,
+            signal: controller.signal,
           });
 
           if (!cancelled) {
-            setCalculation(result);
-            setCalculationError(null);
+            startTransition(() => {
+              setCalculation(result);
+              setCalculationError(null);
+            });
           }
         } catch (error) {
+          if (controller.signal.aborted || (error instanceof Error && error.name === 'AbortError')) {
+            return;
+          }
+
           if (!cancelled) {
-            setCalculation(null);
-            setCalculationError(error instanceof Error ? error.message : "So'rov bajarilmadi.");
+            startTransition(() => {
+              setCalculation(null);
+              setCalculationError(error instanceof Error ? error.message : "So'rov bajarilmadi.");
+            });
           }
         } finally {
           if (!cancelled) {
-            setIsCalculating(false);
+            startTransition(() => {
+              setIsCalculating(false);
+            });
           }
         }
       })();
@@ -138,9 +190,10 @@ export default function BandQilishPage() {
 
     return () => {
       cancelled = true;
+      controller.abort();
       window.clearTimeout(timeoutId);
     };
-  }, [assets, calculateBooking, isVip, parsedDurationHours, selectedAssetIds, servicesReady, startTime, selectedBundleServiceIds]);
+  }, [calculateBooking, isVip, parsedDurationHours, selectedAssetBackendIds, servicesReady, startTime, selectedBundleServiceIds]);
 
 
   const toggleAsset = (assetId: string) => {
@@ -203,9 +256,7 @@ export default function BandQilishPage() {
     try {
       setIsSubmitting(true);
       await createBooking({
-        assetIds: selectedAssetIds
-          .map((assetId) => assets.find((asset) => asset.id === assetId)?.backendId)
-          .filter((value): value is number => Boolean(value)),
+        assetIds: selectedAssetBackendIds,
         startTime: new Date(startTime).toISOString(),
         durationHours: isVip ? undefined : parsedDurationHours,
         isVip,
@@ -239,15 +290,14 @@ export default function BandQilishPage() {
 
   const currentCartTotals = useMemo(() => {
     const totals: Record<string, number> = {};
-    for (const assetId of selectedAssetIds) {
-      const asset = assets.find((a) => a.id === assetId);
-      if (asset?.serviceName) {
+    for (const asset of selectedAssets) {
+      if (asset.serviceName) {
         const key = asset.serviceName.toLowerCase().trim();
         totals[key] = (totals[key] ?? 0) + 1;
       }
     }
     return totals;
-  }, [assets, selectedAssetIds]);
+  }, [selectedAssets]);
 
   const recommendations = useMemo(() => {
     if (!servicesReady || selectedAssetIds.length === 0) return [];
@@ -316,15 +366,12 @@ export default function BandQilishPage() {
                 <div className="overflow-x-auto pb-2">
                   <div className="flex min-w-full gap-4">
                     {assetsByRoom.map((roomGroup) => {
-                      const groupedAssets = groupAssetsByService(roomGroup.assets);
-                      const hasSelectedAssets = roomGroup.assets.some((asset) => selectedAssetIds.includes(asset.id));
-
                       return (
                         <div
                           key={roomGroup.roomLabel}
                           className={cn(
                             'min-w-[320px] max-w-[360px] flex-1 rounded-3xl border p-4 shadow-xl',
-                            hasSelectedAssets
+                            roomGroup.hasSelectedAssets
                               ? 'border-primary bg-[#081919]'
                               : 'border-white/5 bg-[#081616]',
                           )}
@@ -337,14 +384,14 @@ export default function BandQilishPage() {
                           </div>
 
                           <div className="space-y-4">
-                            {groupedAssets.map((group) => (
+                            {roomGroup.serviceGroups.map((group) => (
                               <div key={group.serviceName} className="space-y-3 rounded-2xl border border-white/5 bg-[#051111] p-4">
                                 <p className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">
                                   {group.serviceName}
                                 </p>
                                 <div className="space-y-2">
                                   {group.assets.map((asset) => {
-                                    const selected = selectedAssetIds.includes(String(asset.id));
+                                    const selected = selectedAssetIdSet.has(String(asset.id));
 
                                     return (
                                       <button

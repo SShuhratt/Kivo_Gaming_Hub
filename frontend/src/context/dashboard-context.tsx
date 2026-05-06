@@ -260,6 +260,7 @@ interface DashboardContextType {
     durationHours?: number;
     endTime?: string;
     isVip?: boolean;
+    signal?: AbortSignal;
   }) => Promise<BookingCalculation>;
   createBooking: (payload: {
     assetIds?: number[];
@@ -744,6 +745,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       durationHours,
       endTime,
       isVip,
+      signal,
     }: {
       assetIds?: number[];
       cartItems?: Array<{ serviceId: number; quantity: number }>;
@@ -752,6 +754,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       durationHours?: number;
       endTime?: string;
       isVip?: boolean;
+      signal?: AbortSignal;
     }) => {
       const activeToken = requireToken();
       const response = await calculateBookingRequest(activeToken, {
@@ -765,7 +768,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
         duration_hours: durationHours,
         end_time: endTime,
         is_vip: isVip,
-      });
+      }, signal);
 
       return {
         durationMinutes: response.duration_minutes,

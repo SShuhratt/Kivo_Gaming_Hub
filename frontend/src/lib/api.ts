@@ -30,6 +30,7 @@ type RequestOptions = {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   body?: unknown;
   token?: string | null;
+  signal?: AbortSignal;
 };
 
 type ApiMessageResponse = {
@@ -222,6 +223,7 @@ async function requestAgainstBase<T>(baseUrl: string, path: string, options: Req
     method: options.method ?? 'GET',
     headers,
     body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+    signal: options.signal,
   });
 
   const contentType = response.headers.get('content-type') ?? '';
@@ -530,7 +532,8 @@ export function calculateBookingRequest(
     duration_hours?: number;
     end_time?: string;
     is_vip?: boolean;
-  }
+  },
+  signal?: AbortSignal
 ) {
   return apiRequest<{
     duration_minutes: number;
@@ -577,6 +580,7 @@ export function calculateBookingRequest(
     method: 'POST',
     token,
     body: payload,
+    signal,
   });
 }
 

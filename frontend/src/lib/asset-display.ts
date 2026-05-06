@@ -48,8 +48,14 @@ export function groupAssetsByService<T extends AssetLike>(assets: T[]) {
 
   for (const asset of sortAssetsForDisplay(assets)) {
     const serviceLabel = resolveAssetServiceLabel(asset);
-    const current = grouped.get(serviceLabel) ?? [];
-    grouped.set(serviceLabel, [...current, asset]);
+    const current = grouped.get(serviceLabel);
+
+    if (current) {
+      current.push(asset);
+      continue;
+    }
+
+    grouped.set(serviceLabel, [asset]);
   }
 
   return Array.from(grouped.entries()).map(([serviceName, serviceAssets]) => ({
