@@ -12,12 +12,14 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('assets', function (Blueprint $table) {
-            $table->string('name')->after('id')->nullable();
-        });
+        if (!Schema::hasColumn('assets', 'name')) {
+            Schema::table('assets', function (Blueprint $table) {
+                $table->string('name')->after('id')->nullable();
+            });
 
-        // Populate name with category for existing records
-        DB::table('assets')->update(['name' => DB::raw('category')]);
+            // Populate name with category for existing records
+            DB::table('assets')->update(['name' => DB::raw('category')]);
+        }
     }
 
     /**

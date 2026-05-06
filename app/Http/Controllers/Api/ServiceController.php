@@ -17,9 +17,29 @@ class ServiceController extends Controller
     public function store(Request $request)
     {
         $validated = $this->validateApi($request, [
+<<<<<<< ours
+<<<<<<< ours
+<<<<<<< ours
+<<<<<<< ours
             'game_name' => 'required|string',
             'room_id' => 'required|integer',
             'cost' => 'required|numeric|min:0',
+=======
+            'name' => 'required|string|max:255',
+            'price' => 'required|numeric|min:0',
+>>>>>>> theirs
+=======
+            'name' => 'required|string|max:255',
+            'price' => 'required|numeric|min:0',
+>>>>>>> theirs
+=======
+            'name' => 'required|string|max:255',
+            'price' => 'required|numeric|min:0',
+>>>>>>> theirs
+=======
+            'name' => 'required|string|max:255',
+            'price' => 'required|numeric|min:0',
+>>>>>>> theirs
         ]);
 
         return response()->json(Service::create($validated), 201);
@@ -30,9 +50,29 @@ class ServiceController extends Controller
     public function update(Request $request, Service $service)
     {
         $validated = $this->validateApi($request, [
+<<<<<<< ours
+<<<<<<< ours
+<<<<<<< ours
+<<<<<<< ours
             'game_name' => 'sometimes|required|string',
             'room_id' => 'sometimes|required|integer',
             'cost' => 'sometimes|required|numeric|min:0',
+=======
+            'name' => 'sometimes|required|string|max:255',
+            'price' => 'sometimes|required|numeric|min:0',
+>>>>>>> theirs
+=======
+            'name' => 'sometimes|required|string|max:255',
+            'price' => 'sometimes|required|numeric|min:0',
+>>>>>>> theirs
+=======
+            'name' => 'sometimes|required|string|max:255',
+            'price' => 'sometimes|required|numeric|min:0',
+>>>>>>> theirs
+=======
+            'name' => 'sometimes|required|string|max:255',
+            'price' => 'sometimes|required|numeric|min:0',
+>>>>>>> theirs
         ]);
 
         $service->update($validated);

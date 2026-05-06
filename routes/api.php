@@ -1,5 +1,6 @@
 <?php
 
+<<<<<<< ours
 use App\Http\Controllers\Api\AssetController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BookingController;
@@ -10,6 +11,19 @@ use App\Http\Controllers\Api\TariffController;
 use App\Http\Controllers\Api\TestMailController;
 use App\Http\Controllers\Api\TradeController;
 use App\Http\Controllers\Api\WarehouseController;
+=======
+use App\Http\Controllers\Api\{
+    AssetController,
+    AuthController,
+    BookingController,
+    DashboardController,
+    RoomController,
+    ServiceController,
+    TariffController,
+    TradeController,
+    WarehouseController
+};
+>>>>>>> theirs
 use Illuminate\Support\Facades\Route;
 
 // Auth Routes
@@ -38,7 +52,36 @@ Route::middleware('api.token')->group(function () {
     Route::get('/trades', [TradeController::class, 'index'])
         ->defaults('openapiOperation', 'listTrades');
 
+<<<<<<< ours
+<<<<<<< ours
+<<<<<<< ours
+<<<<<<< ours
     // Assets CRUD
+=======
+=======
+>>>>>>> theirs
+=======
+>>>>>>> theirs
+=======
+>>>>>>> theirs
+
+    Route::get('/rooms', [RoomController::class, 'index']);
+    Route::post('/rooms', [RoomController::class, 'store']);
+    Route::get('/rooms/{room}', [RoomController::class, 'show']);
+    Route::put('/rooms/{room}', [RoomController::class, 'update']);
+    Route::patch('/rooms/{room}', [RoomController::class, 'update']);
+    Route::delete('/rooms/{room}', [RoomController::class, 'destroy']);
+
+<<<<<<< ours
+<<<<<<< ours
+<<<<<<< ours
+>>>>>>> theirs
+=======
+>>>>>>> theirs
+=======
+>>>>>>> theirs
+=======
+>>>>>>> theirs
     Route::get('/assets', [AssetController::class, 'index'])
         ->defaults('openapiOperation', 'listAssets');
     Route::post('/assets', [AssetController::class, 'store'])

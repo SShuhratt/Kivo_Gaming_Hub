@@ -9,18 +9,22 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('manufacturers', function (Blueprint $table) {
-            $table->id();
-            $table->string('name')->unique();
-            $table->timestamps();
-        });
+        if (!Schema::hasTable('manufacturers')) {
+            Schema::create('manufacturers', function (Blueprint $table) {
+                $table->id();
+                $table->string('name')->unique();
+                $table->timestamps();
+            });
+        }
 
-        Schema::table('warehouse', function (Blueprint $table) {
-            $table->foreignId('manufacturer_id')
-                ->nullable()
-                ->after('id')
-                ->constrained('manufacturers');
-        });
+        if (!Schema::hasColumn('warehouse', 'manufacturer_id')) {
+            Schema::table('warehouse', function (Blueprint $table) {
+                $table->foreignId('manufacturer_id')
+                    ->nullable()
+                    ->after('id')
+                    ->constrained('manufacturers');
+            });
+        }
 
         $manufacturerIds = [];
         $timestamp = now();

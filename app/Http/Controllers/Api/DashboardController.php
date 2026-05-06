@@ -154,7 +154,23 @@ class DashboardController extends Controller
                 ['key' => 'sessions', 'name' => 'Aktiv seanslar', 'path' => '/aktiv-seanslar'],
                 ['key' => 'cashier', 'name' => 'Kassa', 'path' => '/kassa'],
                 ['key' => 'sales', 'name' => 'Savdo', 'path' => '/savdo'],
+<<<<<<< ours
+<<<<<<< ours
+<<<<<<< ours
+<<<<<<< ours
                 ['key' => 'assets', 'name' => 'Jihozlar', 'path' => '/kompyuterlar'],
+=======
+                ['key' => 'rooms', 'name' => 'Xonalar', 'path' => '/xonalar'],
+>>>>>>> theirs
+=======
+                ['key' => 'rooms', 'name' => 'Xonalar', 'path' => '/xonalar'],
+>>>>>>> theirs
+=======
+                ['key' => 'rooms', 'name' => 'Xonalar', 'path' => '/xonalar'],
+>>>>>>> theirs
+=======
+                ['key' => 'rooms', 'name' => 'Xonalar', 'path' => '/xonalar'],
+>>>>>>> theirs
                 ['key' => 'inventory', 'name' => 'Ombor', 'path' => '/ombor'],
                 ['key' => 'services', 'name' => 'Xizmatlar', 'path' => '/xizmatlar'],
                 ['key' => 'tariffs', 'name' => 'Tariflar', 'path' => '/tariflar'],

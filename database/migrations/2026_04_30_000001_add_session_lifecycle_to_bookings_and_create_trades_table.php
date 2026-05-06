@@ -10,35 +10,39 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::table('bookings', function (Blueprint $table) {
-            $table->enum('session_status', ['active', 'completed', 'cancelled'])
-                ->default('active')
-                ->after('status');
-            $table->dateTime('ended_at')->nullable()->after('end_time');
-            $table->string('tariff_name_snapshot')->nullable()->after('tariff_id');
-            $table->decimal('hourly_rate_snapshot', 15, 2)->default(0)->after('tariff_name_snapshot');
-            $table->json('asset_snapshot')->nullable()->after('hourly_rate_snapshot');
-            $table->boolean('asset_stats_recorded')->default(false)->after('asset_snapshot');
-        });
+        if (!Schema::hasColumn('bookings', 'session_status')) {
+            Schema::table('bookings', function (Blueprint $table) {
+                $table->enum('session_status', ['active', 'completed', 'cancelled'])
+                    ->default('active')
+                    ->after('status');
+                $table->dateTime('ended_at')->nullable()->after('end_time');
+                $table->string('tariff_name_snapshot')->nullable()->after('tariff_id');
+                $table->decimal('hourly_rate_snapshot', 15, 2)->default(0)->after('tariff_name_snapshot');
+                $table->json('asset_snapshot')->nullable()->after('hourly_rate_snapshot');
+                $table->boolean('asset_stats_recorded')->default(false)->after('asset_snapshot');
+            });
+        }
 
-        Schema::create('trades', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('booking_id')->nullable()->constrained('bookings')->nullOnDelete()->unique();
-            $table->foreignId('tariff_id')->nullable()->index();
-            $table->string('tariff_name')->nullable();
-            $table->decimal('hourly_rate', 15, 2)->default(0);
-            $table->enum('payment_status', ['submitted', 'debt_closed']);
-            $table->enum('session_status', ['completed', 'cancelled'])->default('completed');
-            $table->dateTime('start_time');
-            $table->dateTime('end_time');
-            $table->integer('duration_minutes');
-            $table->decimal('total_cost', 15, 2);
-            $table->string('debt_name')->nullable();
-            $table->string('debt_phone_number')->nullable();
-            $table->json('asset_snapshot')->nullable();
-            $table->integer('assets_count')->default(0);
-            $table->timestamps();
-        });
+        if (!Schema::hasTable('trades')) {
+            Schema::create('trades', function (Blueprint $table) {
+                $table->id();
+                $table->foreignId('booking_id')->nullable()->constrained('bookings')->nullOnDelete()->unique();
+                $table->foreignId('tariff_id')->nullable()->index();
+                $table->string('tariff_name')->nullable();
+                $table->decimal('hourly_rate', 15, 2)->default(0);
+                $table->enum('payment_status', ['submitted', 'debt_closed']);
+                $table->enum('session_status', ['completed', 'cancelled'])->default('completed');
+                $table->dateTime('start_time');
+                $table->dateTime('end_time');
+                $table->integer('duration_minutes');
+                $table->decimal('total_cost', 15, 2);
+                $table->string('debt_name')->nullable();
+                $table->string('debt_phone_number')->nullable();
+                $table->json('asset_snapshot')->nullable();
+                $table->integer('assets_count')->default(0);
+                $table->timestamps();
+            });
+        }
 
         $now = Carbon::now();
 
