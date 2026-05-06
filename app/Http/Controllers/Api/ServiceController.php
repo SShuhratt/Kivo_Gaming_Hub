@@ -116,13 +116,29 @@ class ServiceController extends Controller
             ? $validated['rate']
             : ($validated['price'] ?? null);
 
-        return array_filter([
-            'name' => isset($validated['name']) ? trim((string) $validated['name']) : null,
-            'rate' => $rate !== null ? round((float) $rate, 2) : null,
-            'requirements' => $validated['requirements'] ?? null,
-            'manual_priority' => $validated['manual_priority'] ?? null,
-            'is_recommendable' => $validated['is_recommendable'] ?? false,
-        ], fn ($value) => $value !== null);
+        $payload = [];
+
+        if (array_key_exists('name', $validated)) {
+            $payload['name'] = trim((string) $validated['name']);
+        }
+
+        if ($rate !== null) {
+            $payload['rate'] = round((float) $rate, 2);
+        }
+
+        if (array_key_exists('requirements', $validated)) {
+            $payload['requirements'] = $validated['requirements'];
+        }
+
+        if (array_key_exists('manual_priority', $validated)) {
+            $payload['manual_priority'] = $validated['manual_priority'];
+        }
+
+        if (array_key_exists('is_recommendable', $validated)) {
+            $payload['is_recommendable'] = (bool) $validated['is_recommendable'];
+        }
+
+        return $payload;
     }
 
     protected function formatService(Service $service): array

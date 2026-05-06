@@ -57,7 +57,7 @@ class BookingAndFinanceApiTest extends TestCase
         ], $this->authHeaders())
             ->assertStatus(400)
             ->assertJsonPath('message', 'Bad request.')
-            ->assertJsonPath('errors.asset_ids.0', 'projector1 has no valid service price.');
+            ->assertJsonPath('errors.asset_ids.0', 'projector1 has no valid base service rate.');
     }
 
     public function test_active_session_payload_includes_asset_order_within_room_service_group(): void

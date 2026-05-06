@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import { DeleteConfirmButton } from '@/components/delete-confirm-button';
 import { DashboardLayout } from '@/components/dashboard-layout';
 import { Button } from '@/components/ui/button';
@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useDashboard } from '@/context/dashboard-context';
 import { useToast } from '@/hooks/use-toast';
-import { formatBundleRequirements, getBaseServices, getBundleServices } from '@/lib/service-bundles';
+import { formatBundleRequirements, getBaseServices } from '@/lib/service-bundles';
 import { Minus, Plus, Search, Trash2, Wrench } from 'lucide-react';
 
 type RequirementDraft = {
@@ -38,10 +38,8 @@ export default function XizmatlarPage() {
   const [requirementDrafts, setRequirementDrafts] = useState<RequirementDraft[]>([emptyRequirementDraft()]);
   const [isSaving, setIsSaving] = useState(false);
 
-  const baseServices = useMemo(() => getBaseServices(allServices), [allServices]);
-  const bundleServices = useMemo(() => getBundleServices(allServices), [allServices]);
-
-  const filteredServices = useMemo(() => {
+  const baseServices = getBaseServices(allServices);
+  const filteredServices = (() => {
     const query = serviceSearch.trim().toLowerCase();
 
     if (!query) {
@@ -56,7 +54,7 @@ export default function XizmatlarPage() {
         service.isBundle ? 'bundle' : 'service',
       ].some((value) => value.toLowerCase().includes(query)),
     );
-  }, [serviceSearch, allServices]);
+  })();
 
   const filteredBaseServices = filteredServices.filter((service) => !service.isBundle);
   const filteredBundleServices = filteredServices.filter((service) => service.isBundle);
@@ -74,35 +72,14 @@ export default function XizmatlarPage() {
     setRequirementDrafts([emptyRequirementDraft()]);
   };
 
-  const handleCreateService = async () => {
-    const rate = Number(draft.rate);
-    const manualPriority = draft.manualPriority !== '' ? Number(draft.manualPriority) : null;
-
-    if (!draft.name.trim()) {
-      toast({
-        variant: 'destructive',
-        title: 'Xizmat nomi kiritilmagan',
-        description: 'Xizmat nomini kiriting.',
-      });
-      return;
-    }
-
-    if (!Number.isFinite(rate) || rate < 0) {
-      toast({
-        variant: 'destructive',
-        title: 'Narx noto‘g‘ri',
-        description: '0 yoki undan katta narx kiriting.',
-      });
-      return;
-    }
-
-    const requirements = requirementDrafts.reduce<Record<string, number>>((accumulator, row, index) => {
-      const service = baseServices.find((item) => String(item.backendId) === row.serviceId);
-      const quantity = Number(row.quantity);
-
+  const buildRequirementsPayload = (): Record<string, number> => {
+    return requirementDrafts.reduce<Record<string, number>>((accumulator, row, index) => {
       if (!draft.isBundle) {
         return accumulator;
       }
+
+      const service = baseServices.find((item) => String(item.backendId) === row.serviceId);
+      const quantity = Number(row.quantity);
 
       if (!service) {
         throw new Error(`Bundle uchun ${index + 1}-xizmat tanlanmagan.`);
@@ -112,22 +89,56 @@ export default function XizmatlarPage() {
         throw new Error(`Bundle uchun ${index + 1}-miqdor noto'g'ri.`);
       }
 
-      accumulator[service.name.trim().toLowerCase()] =
-        (accumulator[service.name.trim().toLowerCase()] ?? 0) + quantity;
+      const requirementKey = service.name.trim().toLowerCase();
+      accumulator[requirementKey] = (accumulator[requirementKey] ?? 0) + quantity;
 
       return accumulator;
     }, {});
+  };
 
-    if (draft.isBundle && Object.keys(requirements).length === 0) {
-      toast({
-        variant: 'destructive',
-        title: 'Bundle tarkibi bo‘sh',
-        description: 'Bundle uchun kamida bitta asosiy xizmat qo‘shing.',
-      });
-      return;
-    }
-
+  const handleCreateService = async () => {
     try {
+      const rate = Number(draft.rate);
+      const manualPriority = draft.manualPriority !== '' ? Number(draft.manualPriority) : null;
+
+      if (!draft.name.trim()) {
+        toast({
+          variant: 'destructive',
+          title: 'Xizmat nomi kiritilmagan',
+          description: 'Xizmat nomini kiriting.',
+        });
+        return;
+      }
+
+      if (!Number.isFinite(rate) || rate < 0) {
+        toast({
+          variant: 'destructive',
+          title: 'Narx noto‘g‘ri',
+          description: '0 yoki undan katta narx kiriting.',
+        });
+        return;
+      }
+
+      if (draft.manualPriority !== '' && (!Number.isFinite(manualPriority) || manualPriority === null)) {
+        toast({
+          variant: 'destructive',
+          title: 'Priority noto‘g‘ri',
+          description: 'Admin priority uchun son kiriting.',
+        });
+        return;
+      }
+
+      const requirements = buildRequirementsPayload();
+
+      if (draft.isBundle && Object.keys(requirements).length === 0) {
+        toast({
+          variant: 'destructive',
+          title: 'Bundle tarkibi bo‘sh',
+          description: 'Bundle uchun kamida bitta asosiy xizmat qo‘shing.',
+        });
+        return;
+      }
+
       setIsSaving(true);
       await createService({
         name: draft.name,

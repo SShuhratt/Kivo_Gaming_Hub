@@ -142,7 +142,6 @@ export default function BandQilishPage() {
     };
   }, [assets, calculateBooking, isVip, parsedDurationHours, selectedAssetIds, servicesReady, startTime, selectedBundleServiceIds]);
 
-  if (isCheckingAuth) return null;
 
   const toggleAsset = (assetId: string) => {
     if (!servicesReady) {
@@ -284,6 +283,8 @@ export default function BandQilishPage() {
       current.includes(serviceId) ? current.filter((id) => id !== serviceId) : [...current, serviceId],
     );
   };
+  
+  if (isCheckingAuth) return null;
 
   return (
     <DashboardLayout>

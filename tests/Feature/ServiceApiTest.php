@@ -19,7 +19,7 @@ class ServiceApiTest extends TestCase
         ], $this->authHeaders())
             ->assertStatus(400)
             ->assertJsonPath('message', 'Bad request.')
-            ->assertJsonPath('errors.price.0', 'The price field is required.');
+            ->assertJsonPath('errors.price.0', 'The price field is required when rate is not present.');
 
         $this->postJson('/api/services', [
             'name' => 'Computer',
@@ -29,6 +29,38 @@ class ServiceApiTest extends TestCase
             ->assertJsonPath('name', 'Computer')
             ->assertJsonPath('price', 20000)
             ->assertJsonMissingPath('room_id');
+    }
+
+    public function test_bundle_service_can_be_created_with_requirements_and_savings_ratio(): void
+    {
+        $this->postJson('/api/services', [
+            'name' => 'Computer',
+            'rate' => 20000,
+        ], $this->authHeaders())->assertCreated();
+
+        $this->postJson('/api/services', [
+            'name' => 'PS5',
+            'rate' => 30000,
+        ], $this->authHeaders())->assertCreated();
+
+        $this->postJson('/api/services', [
+            'name' => 'Gaming Mix',
+            'rate' => 45000,
+            'requirements' => [
+                'computer' => 1,
+                'ps5' => 1,
+            ],
+            'manual_priority' => 10,
+            'is_recommendable' => true,
+        ], $this->authHeaders())
+            ->assertCreated()
+            ->assertJsonPath('name', 'Gaming Mix')
+            ->assertJsonPath('is_bundle', true)
+            ->assertJsonPath('manual_priority', 10)
+            ->assertJsonPath('is_recommendable', true)
+            ->assertJsonPath('requirements.computer', 1)
+            ->assertJsonPath('requirements.ps5', 1)
+            ->assertJsonPath('savings_ratio', 0.1);
     }
 
     public function test_rooms_assets_and_booking_actions_require_services_first(): void

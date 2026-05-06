@@ -38,19 +38,12 @@ class Service extends Model
 
     public function scopeBaseServices(Builder $query): Builder
     {
-        return $query->where(function (Builder $nestedQuery) {
-            $nestedQuery
-                ->whereNull('requirements')
-                ->orWhere('requirements', '[]')
-                ->orWhere('requirements', '{}');
-        });
+        return $query->whereNull('requirements');
     }
 
     public function scopeBundles(Builder $query): Builder
     {
-        return $query->whereNotNull('requirements')
-            ->where('requirements', '!=', '[]')
-            ->where('requirements', '!=', '{}');
+        return $query->whereNotNull('requirements');
     }
 
     public function getPriceAttribute($value): ?float
