@@ -172,8 +172,8 @@ class PriceCalculator
         }
 
         $optimizerBundles = $bundleServices
-            ->filter(fn (Service $bundle) => $bundle->manual_priority === null && (float) $bundle->savings_ratio > 0)
-            ->sortByDesc(fn (Service $bundle) => [$bundle->savings_ratio, $bundle->rate ?? 0])
+            ->filter(fn (Service $bundle) => $bundle->manual_priority === null)
+            ->sortByDesc(fn (Service $bundle) => (float) $bundle->savings_ratio)
             ->values();
 
         foreach ($optimizerBundles as $bundle) {

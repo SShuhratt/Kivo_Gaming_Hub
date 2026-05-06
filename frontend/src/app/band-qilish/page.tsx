@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { useDashboard } from '@/context/dashboard-context';
 import { useToast } from '@/hooks/use-toast';
 import { groupAssetsByService, resolveAssetRoomLabel, sortAssetsForDisplay } from '@/lib/asset-display';
+import { formatBundleRequirements } from '@/lib/service-bundles';
 import { cn } from '@/lib/utils';
 import { Calendar as CalendarIcon, Crown, Monitor, Timer, Zap } from 'lucide-react';
 
@@ -33,6 +34,19 @@ function formatDateTimePreview(value: string | null) {
 }
 
 const durationOptions = [0.5, 1, 2, 2.5, 3];
+
+function formatBundlePhaseLabel(phase: 'explicit_selection' | 'admin_override' | 'best_value' | 'residual') {
+  switch (phase) {
+    case 'explicit_selection':
+      return 'Tanlangan bundle';
+    case 'admin_override':
+      return 'Admin qoida';
+    case 'best_value':
+      return 'Avtomatik bundle';
+    default:
+      return 'Standard';
+  }
+}
 
 export default function BandQilishPage() {
   const { assets, servicesReady, services: allServices = [], calculateBooking, createBooking, isCheckingAuth } = useDashboard();
@@ -298,6 +312,22 @@ export default function BandQilishPage() {
     }
     return totals;
   }, [selectedAssets]);
+
+  const selectedAssetsBaseHourlyTotal = useMemo(
+    () => selectedAssets.reduce((sum, asset) => sum + (asset.servicePrice ?? 0), 0),
+    [selectedAssets],
+  );
+  const appliedBundles = useMemo(
+    () => (calculation?.breakdown ?? []).filter((line) => line.type === 'bundle'),
+    [calculation],
+  );
+  const bundleSavingsPerHour = useMemo(() => {
+    if (!calculation || appliedBundles.length === 0) {
+      return 0;
+    }
+
+    return Math.max(0, selectedAssetsBaseHourlyTotal - calculation.hourlyRateTotal);
+  }, [appliedBundles.length, calculation, selectedAssetsBaseHourlyTotal]);
 
   const recommendations = useMemo(() => {
     if (!servicesReady || selectedAssetIds.length === 0) return [];
@@ -617,6 +647,14 @@ export default function BandQilishPage() {
                   <span>{selectedAssets.length}</span>
                 </div>
                 <div className="flex items-center justify-between text-[11px] font-bold text-white/60">
+                  <span>Oddiy soatlik narx</span>
+                  <span>{selectedAssetsBaseHourlyTotal.toLocaleString()} UZS</span>
+                </div>
+                <div className="flex items-center justify-between text-[11px] font-bold text-white/60">
+                  <span>Qo'llangan bundles</span>
+                  <span>{appliedBundles.length}</span>
+                </div>
+                <div className="flex items-center justify-between text-[11px] font-bold text-white/60">
                   <span>{isVip ? 'VIP holati' : 'Rejadagi tugash'}</span>
                   <span>{formatDateTimePreview(calculation?.endTime ?? localEndTimePreview)}</span>
                 </div>
@@ -624,6 +662,12 @@ export default function BandQilishPage() {
                   <span>Soatlik jami</span>
                   <span>{(calculation?.hourlyRateTotal ?? 0).toLocaleString()} UZS</span>
                 </div>
+                {bundleSavingsPerHour > 0 ? (
+                  <div className="flex items-center justify-between text-[11px] font-bold text-primary">
+                    <span>Bundle tejami / soat</span>
+                    <span>-{bundleSavingsPerHour.toLocaleString()} UZS</span>
+                  </div>
+                ) : null}
                 <div className="flex items-center justify-between border-t border-white/5 pt-4">
                   <div className="flex items-center gap-2">
                     <Timer className="h-4 w-4 text-primary" />
@@ -642,26 +686,51 @@ export default function BandQilishPage() {
               ) : null}
 
               <div className="space-y-2">
-                {(calculation?.breakdown ?? []).filter(b => b.type === 'bundle').map((bundle, idx) => (
-                  <button
-                    key={`${bundle.serviceId}-${idx}`}
-                    onClick={() => toggleBundle(bundle.serviceId)}
-                    className="flex w-full items-center justify-between gap-3 rounded-xl border border-primary/30 bg-primary/5 px-4 py-3 text-left transition-all hover:bg-primary/10"
-                  >
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <Badge className="h-4 border-none bg-primary px-1 text-[8px] font-black text-black">BUNDLE</Badge>
-                        <p className="text-[11px] font-black uppercase tracking-tight text-white">
-                          {bundle.serviceName}
-                        </p>
+                {appliedBundles.length > 0 ? (
+                  <div className="space-y-2">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-primary/60">
+                      Qo'llangan bundles
+                    </p>
+                    {appliedBundles.map((bundle, idx) => (
+                      <div
+                        key={`${bundle.serviceId}-${idx}`}
+                        className="rounded-2xl border border-primary/30 bg-primary/5 px-4 py-3"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="space-y-2">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Badge className="h-5 border-none bg-primary px-2 text-[8px] font-black text-black">
+                                BUNDLE
+                              </Badge>
+                              <Badge variant="outline" className="border-primary/30 text-[8px] font-black uppercase tracking-widest text-primary">
+                                {formatBundlePhaseLabel(bundle.phase)}
+                              </Badge>
+                              {bundle.quantity > 1 ? (
+                                <Badge variant="outline" className="border-white/10 text-[8px] font-black uppercase tracking-widest text-white/70">
+                                  x{bundle.quantity}
+                                </Badge>
+                              ) : null}
+                            </div>
+                            <p className="text-[11px] font-black uppercase tracking-tight text-white">
+                              {bundle.serviceName}
+                            </p>
+                            <p className="text-[9px] uppercase tracking-widest text-primary/40">
+                              {formatBundleRequirements(bundle.requirements, allServices)}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-[10px] font-black text-primary">{bundle.subtotal.toLocaleString()} UZS</p>
+                            {bundle.savingsRatio > 0 ? (
+                              <p className="mt-1 text-[9px] font-bold uppercase tracking-widest text-primary/60">
+                                {(bundle.savingsRatio * 100).toFixed(1)}% saving
+                              </p>
+                            ) : null}
+                          </div>
+                        </div>
                       </div>
-                      <p className="mt-1 text-[9px] uppercase tracking-widest text-primary/40">
-                        {Object.entries(bundle.requirements).map(([key, count]) => `${count}x ${key}`).join(', ')}
-                      </p>
-                    </div>
-                    <span className="text-[10px] font-black text-primary">{bundle.subtotal.toLocaleString()} UZS</span>
-                  </button>
-                ))}
+                    ))}
+                  </div>
+                ) : null}
  
                 {(calculation?.assetBreakdown ?? []).map((asset) => (
                   <div key={asset.id} className="flex items-center justify-between gap-3 rounded-xl border border-white/5 bg-[#051111] px-4 py-3">

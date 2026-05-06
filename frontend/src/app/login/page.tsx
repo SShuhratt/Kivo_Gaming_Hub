@@ -34,7 +34,7 @@ export default function LoginPage() {
 
   React.useEffect(() => {
     if (!isCheckingAuth && isAuthenticated) {
-      router.push('/asosiy');
+      router.replace('/asosiy');
     }
   }, [isAuthenticated, isCheckingAuth, router]);
 
@@ -48,7 +48,7 @@ export default function LoginPage() {
         title: "Muvaffaqiyatli!",
         description: "Kivo Hub boshqaruv paneliga muvaffaqiyatli kirdingiz.",
       });
-      router.push('/asosiy');
+      router.replace('/asosiy');
     } catch (error) {
       toast({
         variant: "destructive",

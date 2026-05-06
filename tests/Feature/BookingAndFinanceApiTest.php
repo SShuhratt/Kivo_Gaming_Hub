@@ -42,6 +42,39 @@ class BookingAndFinanceApiTest extends TestCase
             ->assertJsonPath('asset_breakdown.1.hourly_price', 35000);
     }
 
+    public function test_booking_calculation_applies_matching_bundle_price_and_returns_bundle_breakdown(): void
+    {
+        $room = Room::create(['name' => 'Opshiy zal']);
+        $computer = Service::create(['name' => 'Computer', 'price' => 20000]);
+        $ps5 = Service::create(['name' => 'PS5', 'price' => 35000]);
+        $bundle = Service::create([
+            'name' => 'Gaming Mix',
+            'price' => 45000,
+            'requirements' => [
+                'computer' => 1,
+                'ps5' => 1,
+            ],
+        ]);
+
+        $assetOne = Asset::create(['name' => 'computer1', 'service_id' => $computer->id, 'room_id' => $room->id]);
+        $assetTwo = Asset::create(['name' => 'ps5(1)', 'service_id' => $ps5->id, 'room_id' => $room->id]);
+
+        $this->postJson('/api/bookings/calculate', [
+            'asset_ids' => [$assetOne->id, $assetTwo->id],
+            'start_time' => '2026-04-25T10:00:00+05:00',
+            'duration_hours' => 2,
+        ], $this->authHeaders())
+            ->assertOk()
+            ->assertJsonPath('hourly_rate_total', 45000)
+            ->assertJsonPath('total_cost', 90000)
+            ->assertJsonPath('breakdown.0.type', 'bundle')
+            ->assertJsonPath('breakdown.0.service_id', $bundle->id)
+            ->assertJsonPath('breakdown.0.service_name', 'Gaming Mix')
+            ->assertJsonPath('breakdown.0.subtotal', 45000)
+            ->assertJsonPath('breakdown.0.requirements.computer', 1)
+            ->assertJsonPath('breakdown.0.requirements.ps5', 1);
+    }
+
     public function test_booking_calculation_rejects_assets_without_a_valid_service_price(): void
     {
         $room = Room::create(['name' => '2-xona']);
@@ -116,6 +149,37 @@ class BookingAndFinanceApiTest extends TestCase
             'total_earned_money' => 0,
         ]);
         $this->assertDatabaseCount('trades', 0);
+    }
+
+    public function test_booking_create_uses_dynamic_bundle_pricing_when_selected_assets_match_bundle(): void
+    {
+        Carbon::setTestNow('2026-04-25T09:00:00+05:00');
+
+        $room = Room::create(['name' => 'Opshiy zal']);
+        $computer = Service::create(['name' => 'Computer', 'price' => 20000]);
+        $ps5 = Service::create(['name' => 'PS5', 'price' => 35000]);
+        Service::create([
+            'name' => 'Gaming Mix',
+            'price' => 45000,
+            'requirements' => [
+                'computer' => 1,
+                'ps5' => 1,
+            ],
+        ]);
+
+        $assetOne = Asset::create(['name' => 'computer1', 'service_id' => $computer->id, 'room_id' => $room->id]);
+        $assetTwo = Asset::create(['name' => 'ps5(1)', 'service_id' => $ps5->id, 'room_id' => $room->id]);
+
+        $this->postJson('/api/bookings', [
+            'asset_ids' => [$assetOne->id, $assetTwo->id],
+            'start_time' => '2026-04-25T10:00:00+05:00',
+            'duration_hours' => 2,
+            'status' => 'submitted',
+        ], $this->authHeaders())
+            ->assertCreated()
+            ->assertJsonPath('total_cost', 90000)
+            ->assertJsonPath('pricing.label', 'Dynamic bundle pricing')
+            ->assertJsonPath('pricing.hourly_rate', 45000);
     }
 
     public function test_manual_session_end_creates_trade_and_updates_asset_stats_using_service_prices(): void

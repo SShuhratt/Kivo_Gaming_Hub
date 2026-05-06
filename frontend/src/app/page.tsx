@@ -14,9 +14,9 @@ export default function RootPage() {
     }
 
     if (!isAuthenticated) {
-      router.push('/login');
+      router.replace('/login');
     } else {
-      router.push('/asosiy');
+      router.replace('/asosiy');
     }
   }, [isAuthenticated, isCheckingAuth, router]);
 
