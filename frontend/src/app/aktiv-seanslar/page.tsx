@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { DashboardLayout } from '@/components/dashboard-layout';
 import { DeleteConfirmButton } from '@/components/delete-confirm-button';
 import { Badge } from '@/components/ui/badge';
@@ -27,6 +27,21 @@ function formatDateTime(value: string | null) {
   });
 }
 
+function hoursToHHMM(hours: number): string {
+  const totalMinutes = Math.round(hours * 60);
+  const h = Math.floor(totalMinutes / 60);
+  const m = totalMinutes % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+function secondsToHHMMSS(totalSeconds: number): string {
+  const s = Math.max(0, Math.floor(totalSeconds));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+}
+
 function formatDuration(session: {
   durationMinutes: number;
   requestedDurationHours: number | null;
@@ -38,16 +53,24 @@ function formatDuration(session: {
   }
 
   if (session.requestedDurationHours !== null) {
-    return `${session.requestedDurationHours} soat`;
+    return hoursToHHMM(session.requestedDurationHours);
   }
 
-  return `${session.durationMinutes} min`;
+  const h = Math.floor(session.durationMinutes / 60);
+  const m = session.durationMinutes % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
 
 export default function AktivSeanslarPage() {
   const { sessions, endSession, deleteSession, isCheckingAuth } = useDashboard();
   const { toast } = useToast();
   const [sessionSearch, setSessionSearch] = useState('');
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const intervalId = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(intervalId);
+  }, []);
 
   const filteredSessions = useMemo(() => {
     const query = sessionSearch.trim().toLowerCase();
@@ -147,115 +170,129 @@ export default function AktivSeanslarPage() {
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-              {activeSessions.map((session) => (
-                <div key={session.id} className="space-y-5 rounded-3xl border border-white/5 bg-[#0a1515]/60 p-5 shadow-xl">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2">
-                        <Badge className="bg-primary font-black uppercase tracking-widest text-black">Active</Badge>
-                        <Badge variant="outline" className="border-white/10 uppercase tracking-widest text-white/60">
-                          {session.status === 'submitted' ? "To'langan" : 'Qarz'}
-                        </Badge>
-                        {session.isVip ? (
-                          <Badge variant="outline" className="border-primary/30 uppercase tracking-widest text-primary">
-                            <Crown className="mr-1 h-3 w-3" /> VIP
+              {activeSessions.map((session) => {
+                const elapsedSeconds = (now - new Date(session.startTime).getTime()) / 1000;
+                const elapsedHours = elapsedSeconds / 3600;
+                const hourlyRate = session.assets.reduce((sum, a) => sum + (a.hourlyPrice ?? 0), 0);
+                const liveCost = Math.round(elapsedHours * hourlyRate);
+
+                return (
+                  <div key={session.id} className="space-y-5 rounded-3xl border border-white/5 bg-[#0a1515]/60 p-5 shadow-xl">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <Badge className="bg-primary font-black uppercase tracking-widest text-black">Active</Badge>
+                          <Badge variant="outline" className="border-white/10 uppercase tracking-widest text-white/60">
+                            {session.status === 'submitted' ? "To'langan" : 'Qarz'}
                           </Badge>
-                        ) : null}
+                          {session.isVip ? (
+                            <Badge variant="outline" className="border-primary/30 uppercase tracking-widest text-primary">
+                              <Crown className="mr-1 h-3 w-3" /> VIP
+                            </Badge>
+                          ) : null}
+                        </div>
+                        <h4 className="text-lg font-black uppercase tracking-tight text-white">{session.roomLabel}</h4>
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-primary/60">
+                          {session.assetsCount} jihoz • {session.pricing.label === 'Service pricing' ? 'Xizmat narxi' : session.pricing.label}
+                        </p>
                       </div>
-                      <h4 className="text-lg font-black uppercase tracking-tight text-white">{session.roomLabel}</h4>
-                      <p className="text-[10px] font-bold uppercase tracking-widest text-primary/60">
-                        {session.assetsCount} jihoz • {session.pricing.label === 'Service pricing' ? 'Xizmat narxi' : session.pricing.label}
-                      </p>
+
+                      <DeleteConfirmButton
+                        itemName={`session ${session.backendId}`}
+                        title="End session"
+                        description="Do you want to end this active session now?"
+                        confirmLabel="End session"
+                        onConfirm={async () => {
+                          try {
+                            await endSession(session.backendId);
+                            toast({
+                              title: 'Seans yakunlandi',
+                              description: 'Seans Aktiv seanslar ro\'yxatidan chiqarildi va Trade bo\'limiga yuborildi.',
+                            });
+                          } catch (error) {
+                            toast({
+                              variant: 'destructive',
+                              title: 'Seans yakunlanmadi',
+                              description: error instanceof Error ? error.message : "So'rov bajarilmadi.",
+                            });
+                            throw error;
+                          }
+                        }}
+                      >
+                        <Button className="h-10 rounded-xl bg-primary text-[10px] font-black uppercase tracking-widest text-black hover:bg-primary/90">
+                          <StopCircle className="mr-2 h-4 w-4" /> End session
+                        </Button>
+                      </DeleteConfirmButton>
                     </div>
 
-                    <DeleteConfirmButton
-                      itemName={`session ${session.backendId}`}
-                      title="End session"
-                      description="Do you want to end this active session now?"
-                      confirmLabel="End session"
-                      onConfirm={async () => {
-                        try {
-                          await endSession(session.backendId);
-                          toast({
-                            title: 'Seans yakunlandi',
-                            description: 'Seans Aktiv seanslar ro‘yxatidan chiqarildi va Trade bo‘limiga yuborildi.',
-                          });
-                        } catch (error) {
-                          toast({
-                            variant: 'destructive',
-                            title: 'Seans yakunlanmadi',
-                            description: error instanceof Error ? error.message : "So'rov bajarilmadi.",
-                          });
-                          throw error;
-                        }
-                      }}
-                    >
-                      <Button className="h-10 rounded-xl bg-primary text-[10px] font-black uppercase tracking-widest text-black hover:bg-primary/90">
-                        <StopCircle className="mr-2 h-4 w-4" /> End session
-                      </Button>
-                    </DeleteConfirmButton>
-                  </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="rounded-2xl border border-white/5 bg-white/5 p-4">
+                        <p className="text-[8px] font-black uppercase tracking-widest text-white/30">Boshlanish</p>
+                        <p className="mt-2 text-[11px] font-bold text-white">{formatDateTime(session.startTime)}</p>
+                      </div>
+                      <div className="rounded-2xl border border-white/5 bg-white/5 p-4">
+                        <p className="text-[8px] font-black uppercase tracking-widest text-white/30">
+                          {session.isVip ? 'VIP holati' : 'Rejadagi tugash'}
+                        </p>
+                        <p className="mt-2 text-[11px] font-bold text-white">
+                          {session.isVip ? 'Ochiq seans' : formatDateTime(session.endTime)}
+                        </p>
+                      </div>
 
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="rounded-2xl border border-white/5 bg-white/5 p-4">
-                      <p className="text-[8px] font-black uppercase tracking-widest text-white/30">Boshlanish</p>
-                      <p className="mt-2 text-[11px] font-bold text-white">{formatDateTime(session.startTime)}</p>
-                    </div>
-                    <div className="rounded-2xl border border-white/5 bg-white/5 p-4">
-                      <p className="text-[8px] font-black uppercase tracking-widest text-white/30">
-                        {session.isVip ? 'VIP holati' : 'Rejadagi tugash'}
-                      </p>
-                      <p className="mt-2 text-[11px] font-bold text-white">
-                        {session.isVip ? 'Ochiq seans' : formatDateTime(session.endTime)}
-                      </p>
-                    </div>
-                    <div className="rounded-2xl border border-white/5 bg-white/5 p-4">
-                      <p className="text-[8px] font-black uppercase tracking-widest text-white/30">Davomiyligi</p>
-                      <p className="mt-2 text-sm font-black text-white">{formatDuration(session)}</p>
-                    </div>
-                    <div className="rounded-2xl border border-white/5 bg-white/5 p-4">
-                      <p className="text-[8px] font-black uppercase tracking-widest text-white/30">
-                        {session.isVip ? 'Hisob-kitob' : 'Jami'}
-                      </p>
-                      <p className="mt-2 text-sm font-black text-primary">
-                        {session.isVip ? 'Seans yakunida' : `${session.totalCost.toLocaleString()} UZS`}
-                      </p>
-                    </div>
-                  </div>
+                      <div className="col-span-2 rounded-2xl border border-primary/20 bg-primary/5 p-4">
+                        <p className="text-[8px] font-black uppercase tracking-widest text-primary/50">Ishlatilgan vaqt</p>
+                        <p className="mt-2 font-mono text-sm font-black tabular-nums text-white">
+                          {secondsToHHMMSS(elapsedSeconds)}
+                          {!session.isVip && session.requestedDurationHours !== null ? (
+                            <span className="ml-2 text-[11px] font-bold text-white/40">
+                              / {hoursToHHMM(session.requestedDurationHours)}
+                            </span>
+                          ) : null}
+                        </p>
+                      </div>
 
-                  <div className="space-y-3">
-                    <p className="text-[8px] font-black uppercase tracking-widest text-white/30">Jihozlar</p>
-                    <div className="space-y-2">
-                      {session.assets.map((asset, index) => {
-                        const assetCategory = asset.serviceName ?? asset.category;
+                      <div className="col-span-2 rounded-2xl border border-primary/20 bg-primary/5 p-4">
+                        <p className="text-[8px] font-black uppercase tracking-widest text-primary/50">Jonli narx</p>
+                        <p className="mt-2 text-sm font-black text-primary">
+                          {liveCost.toLocaleString()} so'm
+                        </p>
+                      </div>
+                    </div>
 
-                        return (
-                          <div
-                            key={`${session.id}-${asset.id ?? index}`}
-                            className="flex items-center gap-3 rounded-xl border border-white/5 bg-[#051111] px-3 py-3"
-                          >
-                            {getAssetCategoryKind(assetCategory) === 'console' ? (
-                              <Gamepad2 className="h-4 w-4 text-primary" />
-                            ) : (
-                              <Monitor className="h-4 w-4 text-primary" />
-                            )}
-                            <div className="min-w-0">
-                              <p className="truncate text-[11px] font-black uppercase tracking-tight text-white">
-                                {resolveAssetServiceLabel(asset)}
-                                {asset.assetOrder ? ` #${asset.assetOrder}` : ''}
-                                {asset.name ? ` - ${asset.name}` : ''}
-                              </p>
-                              <p className="mt-1 text-[10px] uppercase tracking-widest text-white/40">
-                                {resolveAssetRoomLabel(asset)}
-                              </p>
+                    <div className="space-y-3">
+                      <p className="text-[8px] font-black uppercase tracking-widest text-white/30">Jihozlar</p>
+                      <div className="space-y-2">
+                        {session.assets.map((asset, index) => {
+                          const assetCategory = asset.serviceName ?? asset.category;
+
+                          return (
+                            <div
+                              key={`${session.id}-${asset.id ?? index}`}
+                              className="flex items-center gap-3 rounded-xl border border-white/5 bg-[#051111] px-3 py-3"
+                            >
+                              {getAssetCategoryKind(assetCategory) === 'console' ? (
+                                <Gamepad2 className="h-4 w-4 text-primary" />
+                              ) : (
+                                <Monitor className="h-4 w-4 text-primary" />
+                              )}
+                              <div className="min-w-0">
+                                <p className="truncate text-[11px] font-black uppercase tracking-tight text-white">
+                                  {resolveAssetServiceLabel(asset)}
+                                  {asset.assetOrder ? ` #${asset.assetOrder}` : ''}
+                                  {asset.name ? ` - ${asset.name}` : ''}
+                                </p>
+                                <p className="mt-1 text-[10px] uppercase tracking-widest text-white/40">
+                                  {resolveAssetRoomLabel(asset)}
+                                </p>
+                              </div>
                             </div>
-                          </div>
-                        );
-                      })}
+                          );
+                        })}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </section>

@@ -19,6 +19,13 @@ function toLocalDateTimeValue(date: Date) {
   return localDate.toISOString().slice(0, 16);
 }
 
+function hoursToHHMM(hours: number): string {
+  const totalMinutes = Math.round(hours * 60);
+  const h = Math.floor(totalMinutes / 60);
+  const m = totalMinutes % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
 function formatDateTimePreview(value: string | null) {
   if (!value) {
     return 'VIP / Open-ended';
@@ -517,7 +524,7 @@ export default function BandQilishPage() {
                     <div className="space-y-3">
                       <Label htmlFor="duration-hours" className="text-[9px] font-black uppercase tracking-[0.2em] text-primary/60">Davomiylik (soat)</Label>
                       <div className="grid grid-cols-5 gap-2">
-                        {durationOptions.map((value) => (
+                      {durationOptions.map((value) => (
                           <button
                             key={value}
                             type="button"
@@ -529,7 +536,7 @@ export default function BandQilishPage() {
                                 : 'border-white/5 bg-[#051111] text-white/60 hover:border-primary/20',
                             )}
                           >
-                            {value}
+                            {hoursToHHMM(value)}
                           </button>
                         ))}
                       </div>
