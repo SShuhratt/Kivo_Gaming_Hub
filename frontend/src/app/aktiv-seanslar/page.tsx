@@ -254,12 +254,9 @@ export default function AktivSeanslarPage() {
                       <div className="col-span-2 rounded-2xl border border-primary/20 bg-primary/5 p-4">
                         <p className="text-[8px] font-black uppercase tracking-widest text-primary/50">Ishlatilgan vaqt</p>
                         <p className="mt-2 font-mono text-sm font-black tabular-nums text-white">
-                          {secondsToHHMMSS(elapsedSeconds)}
-                          {!session.isVip && session.requestedDurationHours !== null ? (
-                            <span className="ml-2 text-[11px] font-bold text-white/40">
-                              / {hoursToHHMM(session.requestedDurationHours)}
-                            </span>
-                          ) : null}
+                          {!session.isVip && session.requestedDurationHours !== null
+                            ? `${secondsToHHMMSS(elapsedSeconds)} / ${secondsToHHMMSS(session.requestedDurationHours * 3600)}`
+                            : secondsToHHMMSS(elapsedSeconds)}
                         </p>
                       </div>
 
