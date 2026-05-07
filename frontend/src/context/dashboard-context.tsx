@@ -276,6 +276,10 @@ interface DashboardContextType {
   }) => Promise<void>;
   endSession: (sessionId: number) => Promise<void>;
   deleteSession: (sessionId: number) => Promise<void>;
+  createServiceBatch: (payload: {
+    rows: Array<{ existingBackendId?: number; name: string; rate: number }>;
+    bundle?: { name: string; rate: number };
+  }) => Promise<void>;
 }
 
 const DashboardContext = createContext<DashboardContextType | undefined>(undefined);
@@ -564,6 +568,58 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       await refreshDashboard();
     },
     [refreshDashboard, requireToken]
+  );
+
+  const createServiceBatch = useCallback(
+    async (payload: {
+      rows: Array<{ existingBackendId?: number; name: string; rate: number }>;
+      bundle?: { name: string; rate: number };
+    }) => {
+      const activeToken = requireToken();
+      const knownNames = new Set(services.map((s) => s.name.toLowerCase().trim()));
+      const requirementNames: string[] = [];
+
+      for (const row of payload.rows) {
+        if (row.existingBackendId !== undefined) {
+          const existing = services.find((s) => s.backendId === row.existingBackendId);
+          if (existing) {
+            requirementNames.push(existing.name.trim().toLowerCase());
+          }
+          continue;
+        }
+
+        const normalizedName = row.name.trim();
+        const normalizedKey = normalizedName.toLowerCase();
+
+        if (!knownNames.has(normalizedKey)) {
+          await createServiceRequest(activeToken, {
+            name: normalizedName,
+            rate: row.rate,
+            price: row.rate,
+          });
+          knownNames.add(normalizedKey);
+        }
+
+        requirementNames.push(normalizedKey);
+      }
+
+      if (payload.bundle) {
+        const requirements: Record<string, number> = {};
+        for (const name of requirementNames) {
+          requirements[name] = (requirements[name] ?? 0) + 1;
+        }
+        await createServiceRequest(activeToken, {
+          name: payload.bundle.name.trim(),
+          rate: payload.bundle.rate,
+          price: payload.bundle.rate,
+          requirements,
+          is_recommendable: true,
+        });
+      }
+
+      await refreshDashboard();
+    },
+    [requireToken, refreshDashboard, services]
   );
 
   const createRoom = useCallback(
@@ -903,6 +959,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       refreshDashboard: async () => refreshDashboard(),
       createService,
       deleteService,
+      createServiceBatch,
       createRoom,
       deleteRoom,
       deleteRoomAssets,
@@ -925,6 +982,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       createBooking,
       createRoom,
       createService,
+      createServiceBatch,
       currentUser,
       deleteAsset,
       deleteManufacturer,

@@ -1,159 +1,200 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { DeleteConfirmButton } from '@/components/delete-confirm-button';
 import { DashboardLayout } from '@/components/dashboard-layout';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useDashboard } from '@/context/dashboard-context';
 import { useToast } from '@/hooks/use-toast';
 import { formatBundleRequirements, getBaseServices } from '@/lib/service-bundles';
-import { Minus, Plus, Search, Trash2, Wrench } from 'lucide-react';
+import { Plus, Search, Trash2, Wrench } from 'lucide-react';
 
-type RequirementDraft = {
-  serviceId: string;
-  quantity: string;
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+type ServiceRow = {
+  id: string;
+  /** '' = user is entering a new service; otherwise the backendId as string */
+  existingServiceId: string;
+  /** only used when existingServiceId === '' */
+  name: string;
+  /** only used when existingServiceId === '' */
+  rate: string;
 };
 
-const emptyRequirementDraft = (): RequirementDraft => ({
-  serviceId: '',
-  quantity: '1',
-});
-
-export default function XizmatlarPage() {
-  const { services: allServices = [], createService, deleteService, isCheckingAuth } = useDashboard();
-  const { toast } = useToast();
-  const [isServiceModalOpen, setIsServiceModalOpen] = useState(false);
-  const [serviceSearch, setServiceSearch] = useState('');
-  const [draft, setDraft] = useState({
+function newRow(): ServiceRow {
+  return {
+    id: Math.random().toString(36).slice(2),
+    existingServiceId: '',
     name: '',
     rate: '',
-    manualPriority: '',
-    isRecommendable: false,
-    isBundle: false,
-  });
-  const [requirementDrafts, setRequirementDrafts] = useState<RequirementDraft[]>([emptyRequirementDraft()]);
+  };
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
+export default function XizmatlarPage() {
+  const {
+    services: allServices = [],
+    createServiceBatch,
+    deleteService,
+    isCheckingAuth,
+  } = useDashboard();
+  const { toast } = useToast();
+
+  // Modal state
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [rows, setRows] = useState<ServiceRow[]>([newRow()]);
+  const [bundleName, setBundleName] = useState('');
+  const [customBundleRate, setCustomBundleRate] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
+  // Search
+  const [serviceSearch, setServiceSearch] = useState('');
+
   const baseServices = getBaseServices(allServices);
-  const filteredServices = (() => {
+
+  // Derived list for display
+  const filteredServices = useMemo(() => {
     const query = serviceSearch.trim().toLowerCase();
-
-    if (!query) {
-      return allServices;
-    }
-
-    return allServices.filter((service) =>
+    if (!query) return allServices;
+    return allServices.filter((s) =>
       [
-        service.name,
-        String(service.rate ?? service.price),
-        formatBundleRequirements(service.requirements, allServices),
-        service.isBundle ? 'bundle' : 'service',
-      ].some((value) => value.toLowerCase().includes(query)),
+        s.name,
+        String(s.rate ?? s.price),
+        formatBundleRequirements(s.requirements, allServices),
+        s.isBundle ? 'bundle' : 'service',
+      ].some((v) => v.toLowerCase().includes(query)),
     );
-  })();
+  }, [serviceSearch, allServices]);
 
-  const filteredBaseServices = filteredServices.filter((service) => !service.isBundle);
-  const filteredBundleServices = filteredServices.filter((service) => service.isBundle);
+  const filteredBaseServices = filteredServices.filter((s) => !s.isBundle);
+  const filteredBundleServices = filteredServices.filter((s) => s.isBundle);
+
+  // Bundle mode = more than one row
+  const isBundle = rows.length > 1;
+
+  // Live calculated total (sum of all row prices)
+  const calculatedTotal = useMemo(() => {
+    return rows.reduce((sum, row) => {
+      if (row.existingServiceId) {
+        const svc = baseServices.find((s) => String(s.backendId) === row.existingServiceId);
+        return sum + (svc ? (svc.rate ?? svc.price) : 0);
+      }
+      const r = Number(row.rate);
+      return sum + (Number.isFinite(r) && r >= 0 ? r : 0);
+    }, 0);
+  }, [rows, baseServices]);
 
   if (isCheckingAuth) return null;
 
+  // ─── Helpers ──────────────────────────────────────────────────────────────
+
   const resetForm = () => {
-    setDraft({
-      name: '',
-      rate: '',
-      manualPriority: '',
-      isRecommendable: false,
-      isBundle: false,
-    });
-    setRequirementDrafts([emptyRequirementDraft()]);
+    setRows([newRow()]);
+    setBundleName('');
+    setCustomBundleRate('');
   };
 
-  const buildRequirementsPayload = (): Record<string, number> => {
-    return requirementDrafts.reduce<Record<string, number>>((accumulator, row, index) => {
-      if (!draft.isBundle) {
-        return accumulator;
-      }
+  const addRow = () => setRows((prev) => [...prev, newRow()]);
 
-      const service = baseServices.find((item) => String(item.backendId) === row.serviceId);
-      const quantity = Number(row.quantity);
+  const removeRow = (id: string) =>
+    setRows((prev) => prev.filter((r) => r.id !== id));
 
-      if (!service) {
-        throw new Error(`Bundle uchun ${index + 1}-xizmat tanlanmagan.`);
-      }
+  const updateRow = (id: string, patch: Partial<ServiceRow>) =>
+    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
 
-      if (!Number.isFinite(quantity) || quantity <= 0) {
-        throw new Error(`Bundle uchun ${index + 1}-miqdor noto'g'ri.`);
-      }
-
-      const requirementKey = service.name.trim().toLowerCase();
-      accumulator[requirementKey] = (accumulator[requirementKey] ?? 0) + quantity;
-
-      return accumulator;
-    }, {});
+  const handleSelectService = (rowId: string, existingServiceId: string) => {
+    updateRow(rowId, { existingServiceId, name: '', rate: '' });
   };
 
-  const handleCreateService = async () => {
-    try {
-      const rate = Number(draft.rate);
-      const manualPriority = draft.manualPriority !== '' ? Number(draft.manualPriority) : null;
+  // ─── Submit ───────────────────────────────────────────────────────────────
 
-      if (!draft.name.trim()) {
+  const handleSubmit = async () => {
+    // Validate rows
+    const usedIds = new Set<string>();
+    for (const [i, row] of rows.entries()) {
+      if (row.existingServiceId) {
+        if (usedIds.has(row.existingServiceId)) {
+          toast({
+            variant: 'destructive',
+            title: 'Takroriy xizmat',
+            description: `${i + 1}-qatorda allaqachon tanlangan xizmat qayta tanlangan.`,
+          });
+          return;
+        }
+        usedIds.add(row.existingServiceId);
+        continue;
+      }
+      // new service
+      if (!row.name.trim()) {
         toast({
           variant: 'destructive',
-          title: 'Xizmat nomi kiritilmagan',
-          description: 'Xizmat nomini kiriting.',
+          title: `${i + 1}-qator: xizmat nomi kiritilmagan`,
         });
         return;
       }
-
+      const rate = Number(row.rate);
       if (!Number.isFinite(rate) || rate < 0) {
         toast({
           variant: 'destructive',
-          title: 'Narx noto‘g‘ri',
-          description: '0 yoki undan katta narx kiriting.',
+          title: `${i + 1}-qator: narx noto'g'ri`,
+          description: '0 yoki undan katta son kiriting.',
         });
         return;
       }
+    }
 
-      if (draft.manualPriority !== '' && (!Number.isFinite(manualPriority) || manualPriority === null)) {
+    // Single row with existing service = nothing to do
+    if (!isBundle) {
+      const row = rows[0];
+      if (row.existingServiceId) {
         toast({
           variant: 'destructive',
-          title: 'Priority noto‘g‘ri',
-          description: 'Admin priority uchun son kiriting.',
+          title: 'Xizmat allaqachon mavjud',
+          description: "Yangi xizmat qo'shish uchun '— Yangi xizmat —' tanlang.",
         });
         return;
       }
+    }
 
-      const requirements = buildRequirementsPayload();
+    if (isBundle && !bundleName.trim()) {
+      toast({ variant: 'destructive', title: 'Bundle nomi kiritilmagan' });
+      return;
+    }
 
-      if (draft.isBundle && Object.keys(requirements).length === 0) {
-        toast({
-          variant: 'destructive',
-          title: 'Bundle tarkibi bo‘sh',
-          description: 'Bundle uchun kamida bitta asosiy xizmat qo‘shing.',
-        });
-        return;
+    // Build batch payload
+    const batchRows = rows.map((row) => {
+      if (row.existingServiceId) {
+        return { existingBackendId: Number(row.existingServiceId), name: '', rate: 0 };
       }
+      return { name: row.name, rate: Number(row.rate) };
+    });
 
+    const parsedCustomRate = Number(customBundleRate);
+    const bundleRate =
+      customBundleRate.trim() !== '' &&
+      Number.isFinite(parsedCustomRate) &&
+      parsedCustomRate >= 0
+        ? parsedCustomRate
+        : calculatedTotal;
+
+    try {
       setIsSaving(true);
-      await createService({
-        name: draft.name,
-        rate,
-        requirements: draft.isBundle ? requirements : undefined,
-        manualPriority,
-        isRecommendable: draft.isBundle ? draft.isRecommendable : false,
+      await createServiceBatch({
+        rows: batchRows,
+        bundle: isBundle ? { name: bundleName.trim(), rate: bundleRate } : undefined,
       });
 
-      resetForm();
-      setIsServiceModalOpen(false);
+      const label = isBundle ? bundleName.trim() : (rows[0].name.trim() || 'Xizmat');
       toast({
-        title: draft.isBundle ? "Bundle qo'shildi" : "Xizmat qo'shildi",
-        description: `${draft.name} saqlandi.`,
+        title: isBundle ? "Bundle qo'shildi" : "Xizmat qo'shildi",
+        description: `${label} saqlandi.`,
       });
+      resetForm();
+      setIsModalOpen(false);
     } catch (error) {
       toast({
         variant: 'destructive',
@@ -164,6 +205,8 @@ export default function XizmatlarPage() {
       setIsSaving(false);
     }
   };
+
+  // ─── JSX ──────────────────────────────────────────────────────────────────
 
   return (
     <DashboardLayout>
@@ -177,19 +220,20 @@ export default function XizmatlarPage() {
               <div className="mb-2 space-y-1.5">
                 <h3 className="text-base font-black uppercase tracking-tight text-white">XIZMATLAR BO'SH</h3>
                 <p className="mx-auto max-w-[320px] text-[10px] font-medium uppercase tracking-[0.2em] text-[#444f4f]">
-                  Avval asosiy xizmat nomi va soatlik narxni yarating. Keyin shu xizmatlardan bundle tuzish mumkin.
+                  Xizmat nomi va soatlik narxni kiriting. Bir nechta xizmat qo'shsangiz — bundle ham yaratiladi.
                 </p>
               </div>
               <Button
-                onClick={() => setIsServiceModalOpen(true)}
+                onClick={() => setIsModalOpen(true)}
                 className="flex h-12 items-center gap-3 rounded-xl bg-primary px-8 text-xs font-black uppercase tracking-[0.2em] text-black shadow-[0_10px_30px_rgba(0,255,255,0.2)] transition-all hover:bg-primary/90"
               >
-                <Plus className="h-4.5 w-4.5" /> XIZMAT QO'SHISH
+                <Plus className="h-4 w-4" /> XIZMAT QO'SHISH
               </Button>
             </div>
           </div>
         ) : (
           <>
+            {/* Header with search */}
             <section className="rounded-3xl border border-white/5 bg-[#0a1a1a]/40 p-5 shadow-xl backdrop-blur-md">
               <div className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-end">
                 <div className="space-y-2">
@@ -199,6 +243,7 @@ export default function XizmatlarPage() {
                   </p>
                 </div>
                 <div className="grid gap-3 sm:grid-cols-[320px_auto]">
+                  <div className="space-y-2">
                     <Label htmlFor="service-search" className="text-[9px] font-black uppercase tracking-[0.2em] text-primary/60">
                       Xizmatlarni qidirish
                     </Label>
@@ -209,12 +254,13 @@ export default function XizmatlarPage() {
                         name="service-search"
                         aria-label="Xizmat qidirish"
                         value={serviceSearch}
-                        onChange={(event) => setServiceSearch(event.target.value)}
+                        onChange={(e) => setServiceSearch(e.target.value)}
                         className="h-11 rounded-xl border-white/5 bg-[#051111] pl-11 text-sm font-bold"
                       />
                     </div>
+                  </div>
                   <Button
-                    onClick={() => setIsServiceModalOpen(true)}
+                    onClick={() => setIsModalOpen(true)}
                     className="h-11 self-end rounded-xl bg-primary px-6 font-black uppercase tracking-[0.2em] text-black"
                   >
                     <Plus className="mr-2 h-4 w-4" /> Xizmat qo'shish
@@ -224,6 +270,7 @@ export default function XizmatlarPage() {
             </section>
 
             <div className="space-y-6">
+              {/* Base services */}
               <section className="space-y-4">
                 <div className="flex items-center justify-between">
                   <h3 className="text-sm font-black uppercase tracking-widest text-white">Asosiy xizmatlar</h3>
@@ -248,22 +295,15 @@ export default function XizmatlarPage() {
                           </div>
                           <DeleteConfirmButton
                             itemName={service.name}
-                            title="Delete service"
-                            description={`Do you really want to delete ${service.name}?`}
-                            confirmLabel="Delete service"
+                            title="Xizmatni o'chirish"
+                            description={`${service.name} xizmatini o'chirishni xohlaysizmi?`}
+                            confirmLabel="O'chirish"
                             onConfirm={async () => {
                               try {
                                 await deleteService(service);
-                                toast({
-                                  title: "O'chirildi",
-                                  description: `${service.name} olib tashlandi.`,
-                                });
+                                toast({ title: "O'chirildi", description: `${service.name} olib tashlandi.` });
                               } catch (error) {
-                                toast({
-                                  variant: 'destructive',
-                                  title: "O'chirishda xatolik",
-                                  description: error instanceof Error ? error.message : "So'rov bajarilmadi.",
-                                });
+                                toast({ variant: 'destructive', title: "O'chirishda xatolik", description: error instanceof Error ? error.message : "So'rov bajarilmadi." });
                                 throw error;
                               }
                             }}
@@ -273,12 +313,10 @@ export default function XizmatlarPage() {
                             </button>
                           </DeleteConfirmButton>
                         </div>
-
                         <div className="rounded-2xl border border-white/5 bg-[#051111] px-4 py-3">
                           <p className="text-[8px] font-black uppercase tracking-widest text-white/30">Soatlik narx</p>
-                          <p className="mt-2 text-lg font-black text-primary">{(service.rate ?? service.price).toLocaleString()} UZS</p>
+                          <p className="mt-2 text-lg font-black text-primary">{(service.rate ?? service.price).toLocaleString()} so'm</p>
                         </div>
-
                         <div className="rounded-2xl border border-white/5 bg-white/5 px-4 py-3">
                           <p className="text-[8px] font-black uppercase tracking-widest text-white/30">Bog'langan jihozlar</p>
                           <p className="mt-2 text-sm font-black text-white">{service.assetsCount}</p>
@@ -289,6 +327,7 @@ export default function XizmatlarPage() {
                 )}
               </section>
 
+              {/* Bundles */}
               <section className="space-y-4">
                 <div className="flex items-center justify-between">
                   <h3 className="text-sm font-black uppercase tracking-widest text-white">Bundles</h3>
@@ -298,9 +337,7 @@ export default function XizmatlarPage() {
                 {filteredBundleServices.length === 0 ? (
                   <div className="flex h-[220px] flex-col items-center justify-center gap-4 rounded-3xl border border-dashed border-white/5 bg-[#061414]/20">
                     <Wrench className="h-10 w-10 text-primary/25" />
-                    <p className="text-[10px] font-black uppercase tracking-[0.4em] text-[#556060]">
-                      Bundle hali yaratilmagan
-                    </p>
+                    <p className="text-[10px] font-black uppercase tracking-[0.4em] text-[#556060]">Bundle hali yaratilmagan</p>
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 xl:grid-cols-3">
@@ -313,22 +350,15 @@ export default function XizmatlarPage() {
                           </div>
                           <DeleteConfirmButton
                             itemName={service.name}
-                            title="Delete bundle"
-                            description={`Do you really want to delete ${service.name}?`}
-                            confirmLabel="Delete bundle"
+                            title="Bundleni o'chirish"
+                            description={`${service.name} bundleni o'chirishni xohlaysizmi?`}
+                            confirmLabel="O'chirish"
                             onConfirm={async () => {
                               try {
                                 await deleteService(service);
-                                toast({
-                                  title: "O'chirildi",
-                                  description: `${service.name} olib tashlandi.`,
-                                });
+                                toast({ title: "O'chirildi", description: `${service.name} olib tashlandi.` });
                               } catch (error) {
-                                toast({
-                                  variant: 'destructive',
-                                  title: "O'chirishda xatolik",
-                                  description: error instanceof Error ? error.message : "So'rov bajarilmadi.",
-                                });
+                                toast({ variant: 'destructive', title: "O'chirishda xatolik", description: error instanceof Error ? error.message : "So'rov bajarilmadi." });
                                 throw error;
                               }
                             }}
@@ -338,31 +368,18 @@ export default function XizmatlarPage() {
                             </button>
                           </DeleteConfirmButton>
                         </div>
-
                         <div className="rounded-2xl border border-white/5 bg-[#051111] px-4 py-3">
                           <p className="text-[8px] font-black uppercase tracking-widest text-white/30">Tarkibi</p>
                           <p className="mt-2 text-sm font-black text-white">{formatBundleRequirements(service.requirements, allServices)}</p>
                         </div>
-
                         <div className="grid grid-cols-2 gap-3">
                           <div className="rounded-2xl border border-white/5 bg-[#051111] px-4 py-3">
                             <p className="text-[8px] font-black uppercase tracking-widest text-white/30">Bundle narxi</p>
-                            <p className="mt-2 text-sm font-black text-primary">{(service.rate ?? service.price).toLocaleString()} UZS</p>
+                            <p className="mt-2 text-sm font-black text-primary">{(service.rate ?? service.price).toLocaleString()} so'm</p>
                           </div>
                           <div className="rounded-2xl border border-white/5 bg-white/5 px-4 py-3">
-                            <p className="text-[8px] font-black uppercase tracking-widest text-white/30">Savings</p>
+                            <p className="text-[8px] font-black uppercase tracking-widest text-white/30">Tejam</p>
                             <p className="mt-2 text-sm font-black text-white">{Math.max(0, service.savingsRatio * 100).toFixed(1)}%</p>
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="rounded-2xl border border-white/5 bg-white/5 px-4 py-3">
-                            <p className="text-[8px] font-black uppercase tracking-widest text-white/30">Priority</p>
-                            <p className="mt-2 text-sm font-black text-white">{service.manualPriority ?? 'Auto'}</p>
-                          </div>
-                          <div className="rounded-2xl border border-white/5 bg-white/5 px-4 py-3">
-                            <p className="text-[8px] font-black uppercase tracking-widest text-white/30">Recommendable</p>
-                            <p className="mt-2 text-sm font-black text-white">{service.isRecommendable ? 'Yes' : 'No'}</p>
                           </div>
                         </div>
                       </div>
@@ -374,190 +391,174 @@ export default function XizmatlarPage() {
           </>
         )}
 
+        {/* ─── Unified Add Service Modal ──────────────────────────────────── */}
         <Dialog
-          open={isServiceModalOpen}
+          open={isModalOpen}
           onOpenChange={(open) => {
-            setIsServiceModalOpen(open);
-            if (!open) {
-              resetForm();
-            }
+            setIsModalOpen(open);
+            if (!open) resetForm();
           }}
         >
-          <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto rounded-3xl border-white/10 bg-[#0a1f1f] p-8 text-white shadow-2xl backdrop-blur-xl">
+          <DialogContent className="max-h-[90vh] max-w-xl overflow-y-auto rounded-3xl border-white/10 bg-[#0a1f1f] p-8 text-white shadow-2xl backdrop-blur-xl">
             <DialogHeader className="space-y-2">
               <DialogTitle className="text-base font-black uppercase tracking-tight">
-                {draft.isBundle ? 'YANGI BUNDLE' : 'YANGI XIZMAT'}
+                Xizmat qo'shish
               </DialogTitle>
               <DialogDescription className="text-[9px] font-medium uppercase tracking-[0.2em] text-muted-foreground/60">
-                Asosiy xizmatlar assetlarga ulanadi. Bundle esa booking hisobida qo'llanadi.
+                Bitta xizmat yoki bir nechta qo'shish mumkin. Bir nechta bo'lsa — bundle yaratiladi.
               </DialogDescription>
             </DialogHeader>
 
-            <div className="space-y-6 py-6">
-              <div className="grid gap-3 sm:grid-cols-2">
-                <button
-                  onClick={() => setDraft((current) => ({ ...current, isBundle: false, isRecommendable: false, manualPriority: '' }))}
-                  className={`rounded-2xl border px-4 py-4 text-left transition-all ${
-                    !draft.isBundle ? 'border-primary bg-primary/10' : 'border-white/5 bg-[#051111] hover:border-primary/20'
-                  }`}
-                >
-                  <p className="text-[10px] font-black uppercase tracking-widest text-white">Asosiy xizmat</p>
-                  <p className="mt-1 text-[10px] text-white/40">Assetlarga to'g'ridan to'g'ri ulanadi</p>
-                </button>
-                <button
-                  disabled={baseServices.length === 0}
-                  onClick={() => setDraft((current) => ({ ...current, isBundle: true }))}
-                  className={`rounded-2xl border px-4 py-4 text-left transition-all ${
-                    draft.isBundle ? 'border-primary bg-primary/10' : 'border-white/5 bg-[#051111] hover:border-primary/20'
-                  } disabled:cursor-not-allowed disabled:opacity-50`}
-                >
-                  <p className="text-[10px] font-black uppercase tracking-widest text-white">Bundle</p>
-                  <p className="mt-1 text-[10px] text-white/40">Bir nechta xizmatdan chegirmali paket</p>
-                </button>
-              </div>
+            <div className="space-y-3 py-4">
+              {rows.map((row, index) => {
+                const selectedSvc = row.existingServiceId
+                  ? baseServices.find((s) => String(s.backendId) === row.existingServiceId)
+                  : null;
 
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="service-name" className="text-[9px] font-black uppercase tracking-[0.2em] text-primary/60">
-                    {draft.isBundle ? 'Bundle nomi' : 'Xizmat nomi'}
-                  </Label>
-                  <Input
-                    id="service-name"
-                    name="service-name"
-                    aria-label={draft.isBundle ? 'Bundle nomi' : 'Xizmat nomi'}
-                    value={draft.name}
-                    onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))}
-                    className="h-12 rounded-xl border-white/5 bg-[#051111] px-4 text-sm font-bold"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="service-rate" className="text-[9px] font-black uppercase tracking-[0.2em] text-primary/60">Soatlik narx (UZS)</Label>
-                  <Input
-                    id="service-rate"
-                    name="service-rate"
-                    type="number"
-                    aria-label="Soatlik narx"
-                    value={draft.rate}
-                    onChange={(event) => setDraft((current) => ({ ...current, rate: event.target.value }))}
-                    className="h-12 rounded-xl border-white/5 bg-[#051111] px-4 text-sm font-bold"
-                  />
-                </div>
-              </div>
-
-              {draft.isBundle ? (
-                <>
-                  <div className="space-y-3 rounded-2xl border border-white/5 bg-[#051111] p-4">
+                return (
+                  <div
+                    key={row.id}
+                    className="space-y-3 rounded-2xl border border-white/5 bg-[#051111] p-4"
+                  >
+                    {/* Row header */}
                     <div className="flex items-center justify-between">
-                      <p className="text-[10px] font-black uppercase tracking-widest text-white">Bundle tarkibi</p>
-                      <Button
-                        type="button"
-                        onClick={() => setRequirementDrafts((current) => [...current, emptyRequirementDraft()])}
-                        className="h-9 rounded-xl bg-primary px-4 text-[10px] font-black uppercase tracking-[0.2em] text-black"
-                      >
-                        <Plus className="mr-2 h-4 w-4" /> Qator qo'shish
-                      </Button>
-                    </div>
-
-                    <div className="space-y-3">
-                      {requirementDrafts.map((row, index) => (
-                        <div key={`requirement-${index}`} className="grid gap-3 md:grid-cols-[1fr_140px_auto]">
-                          <div className="space-y-2">
-                            <Label htmlFor={`requirement-service-${index}`} className="text-[9px] font-black uppercase tracking-[0.2em] text-primary/60">Xizmat</Label>
-                            <select
-                              id={`requirement-service-${index}`}
-                              name={`requirement-service-${index}`}
-                              value={row.serviceId}
-                              onChange={(event) =>
-                                setRequirementDrafts((current) =>
-                                  current.map((item, itemIndex) =>
-                                    itemIndex === index ? { ...item, serviceId: event.target.value } : item,
-                                  ),
-                                )
-                              }
-                              className="h-12 w-full rounded-xl border border-white/5 bg-[#081616] px-4 text-sm font-bold text-white"
-                            >
-                              <option value="">Tanlang</option>
-                              {baseServices.map((service) => (
-                                <option key={service.id} value={String(service.backendId)}>
-                                  {service.name}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                          <div className="space-y-2">
-                            <Label htmlFor={`requirement-quantity-${index}`} className="text-[9px] font-black uppercase tracking-[0.2em] text-primary/60">Miqdor</Label>
-                            <Input
-                              id={`requirement-quantity-${index}`}
-                              name={`requirement-quantity-${index}`}
-                              type="number"
-                              min="1"
-                              aria-label={`Bundle miqdor ${index + 1}`}
-                              value={row.quantity}
-                              onChange={(event) =>
-                                setRequirementDrafts((current) =>
-                                  current.map((item, itemIndex) =>
-                                    itemIndex === index ? { ...item, quantity: event.target.value } : item,
-                                  ),
-                                )
-                              }
-                              className="h-12 rounded-xl border-white/5 bg-[#081616] px-4 text-sm font-bold"
-                            />
-                          </div>
-                          <div className="flex items-end">
-                            <Button
-                              type="button"
-                              disabled={requirementDrafts.length === 1}
-                              onClick={() =>
-                                setRequirementDrafts((current) => current.filter((_, itemIndex) => itemIndex !== index))
-                              }
-                              variant="ghost"
-                              className="h-12 w-full rounded-xl border border-destructive/10 bg-destructive/5 text-destructive hover:bg-destructive/10"
-                            >
-                              <Minus className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label htmlFor="service-priority" className="text-[9px] font-black uppercase tracking-[0.2em] text-primary/60">Admin priority</Label>
-                      <Input
-                        id="service-priority"
-                        name="service-priority"
-                        type="number"
-                        aria-label="Admin priority"
-                        value={draft.manualPriority}
-                        onChange={(event) => setDraft((current) => ({ ...current, manualPriority: event.target.value }))}
-                        className="h-12 rounded-xl border-white/5 bg-[#051111] px-4 text-sm font-bold"
-                      />
-                    </div>
-                    <div className="flex items-end">
-                      <div className="flex h-12 w-full items-center gap-3 rounded-xl border border-white/5 bg-[#051111] px-4">
-                        <Checkbox
-                          id="is_recommendable"
-                          checked={draft.isRecommendable}
-                          onCheckedChange={(checked) => setDraft((current) => ({ ...current, isRecommendable: Boolean(checked) }))}
-                        />
-                        <Label htmlFor="is_recommendable" className="text-[10px] font-black uppercase tracking-widest text-white">
-                          Recommendable bundle
-                        </Label>
+                      <p className="text-[9px] font-black uppercase tracking-[0.2em] text-primary/40">
+                        Xizmat {index + 1}
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={addRow}
+                          className="flex h-7 w-7 items-center justify-center rounded-lg border border-primary/20 bg-primary/5 text-primary transition-all hover:bg-primary/15"
+                          title="Yangi xizmat qatori qo'shish"
+                        >
+                          <Plus className="h-3.5 w-3.5" />
+                        </button>
+                        {index > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => removeRow(row.id)}
+                            className="flex h-7 w-7 items-center justify-center rounded-lg text-destructive/40 transition-all hover:bg-destructive/10 hover:text-destructive"
+                            title="Qatorni o'chirish"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        )}
                       </div>
                     </div>
+
+                    {/* Service selector */}
+                    <div className="space-y-2">
+                      <Label className="text-[9px] font-black uppercase tracking-[0.2em] text-primary/60">
+                        Xizmat nomi
+                      </Label>
+                      <select
+                        value={row.existingServiceId}
+                        onChange={(e) => handleSelectService(row.id, e.target.value)}
+                        className="h-11 w-full rounded-xl border border-white/5 bg-[#081616] px-3 text-sm font-bold text-white"
+                      >
+                        <option value="">— Yangi xizmat —</option>
+                        {baseServices.map((svc) => (
+                          <option key={svc.id} value={String(svc.backendId)}>
+                            {svc.name} — {(svc.rate ?? svc.price).toLocaleString()} so'm
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Name input for new service */}
+                    {!row.existingServiceId && (
+                      <div className="space-y-2">
+                        <Label className="text-[9px] font-black uppercase tracking-[0.2em] text-primary/60">
+                          Xizmat nomi (yangi)
+                        </Label>
+                        <Input
+                          aria-label={`Xizmat ${index + 1} nomi`}
+                          value={row.name}
+                          onChange={(e) => updateRow(row.id, { name: e.target.value })}
+                          className="h-11 rounded-xl border-white/5 bg-[#081616] px-4 text-sm font-bold"
+                        />
+                      </div>
+                    )}
+
+                    {/* Rate field */}
+                    <div className="space-y-2">
+                      <Label className="text-[9px] font-black uppercase tracking-[0.2em] text-primary/60">
+                        Narxi (so'm/soat)
+                      </Label>
+                      {row.existingServiceId ? (
+                        <div className="flex h-11 items-center rounded-xl border border-white/5 bg-[#051111]/50 px-4">
+                          <span className="text-sm font-black text-primary">
+                            {selectedSvc ? (selectedSvc.rate ?? selectedSvc.price).toLocaleString() : '—'} so'm
+                          </span>
+                        </div>
+                      ) : (
+                        <Input
+                          aria-label={`Xizmat ${index + 1} narxi`}
+                          type="number"
+                          min="0"
+                          value={row.rate}
+                          onChange={(e) => updateRow(row.id, { rate: e.target.value })}
+                          className="h-11 rounded-xl border-white/5 bg-[#081616] px-4 text-sm font-bold"
+                        />
+                      )}
+                    </div>
                   </div>
-                </>
-              ) : null}
+                );
+              })}
+
+              {/* Bundle section — only when multiple rows */}
+              {isBundle && (
+                <div className="space-y-4 rounded-2xl border border-primary/20 bg-primary/5 p-4">
+                  <p className="text-[9px] font-black uppercase tracking-[0.2em] text-primary/60">
+                    Bundle ma'lumotlari
+                  </p>
+
+                  <div className="space-y-2">
+                    <Label className="text-[9px] font-black uppercase tracking-[0.2em] text-primary/60">
+                      Bundle nomi
+                    </Label>
+                    <Input
+                      aria-label="Bundle nomi"
+                      value={bundleName}
+                      onChange={(e) => setBundleName(e.target.value)}
+                      className="h-11 rounded-xl border-white/5 bg-[#051111] px-4 text-sm font-bold"
+                    />
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="rounded-xl border border-white/5 bg-[#051111] px-4 py-3">
+                      <p className="text-[8px] font-black uppercase tracking-widest text-white/30">Hisoblangan narx</p>
+                      <p className="mt-1 text-sm font-black text-white">{calculatedTotal.toLocaleString()} so'm</p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-[9px] font-black uppercase tracking-[0.2em] text-primary/60">
+                        Xizmat narxi (ixtiyoriy)
+                      </Label>
+                      <Input
+                        aria-label="Bundle narxi"
+                        type="number"
+                        min="0"
+                        value={customBundleRate}
+                        onChange={(e) => setCustomBundleRate(e.target.value)}
+                        className="h-11 rounded-xl border-white/5 bg-[#051111] px-4 text-sm font-bold"
+                      />
+                      <p className="text-[9px] text-white/30">
+                        Bo'sh qolsa, hisoblangan narx ({calculatedTotal.toLocaleString()} so'm) ishlatiladi
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             <DialogFooter>
               <Button
                 disabled={isSaving}
-                onClick={() => void handleCreateService()}
+                onClick={() => void handleSubmit()}
                 className="h-12 w-full rounded-xl bg-primary text-xs font-black uppercase tracking-[0.3em] text-black shadow-[0_10px_30px_rgba(0,255,255,0.2)] transition-all hover:bg-primary/90 active:scale-[0.98]"
               >
-                Saqlash
+                {isSaving ? 'Saqlanmoqda...' : isBundle ? 'Bundle va xizmatlarni saqlash' : 'Saqlash'}
               </Button>
             </DialogFooter>
           </DialogContent>
