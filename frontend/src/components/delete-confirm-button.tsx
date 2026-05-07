@@ -17,7 +17,7 @@ type DeleteConfirmButtonProps = {
   itemName: string;
   onConfirm: () => Promise<void> | void;
   title?: string;
-  description?: string;
+  description?: React.ReactNode;
   confirmLabel?: string;
   cancelLabel?: string;
   children: React.ReactElement;

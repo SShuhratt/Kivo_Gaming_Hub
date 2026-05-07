@@ -71,6 +71,7 @@ export default function BandQilishPage() {
   const [selectedBundleServiceIds, setSelectedBundleServiceIds] = useState<number[]>([]);
   const [isCalculating, setIsCalculating] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [selectedBookingRoomLabel, setSelectedBookingRoomLabel] = useState<string | null>(null);
 
   const assetLookupById = useMemo(
     () => new Map(assets.map((asset) => [asset.id, asset])),
@@ -373,6 +374,9 @@ export default function BandQilishPage() {
   
   if (isCheckingAuth) return null;
 
+  const activeBookingRoom =
+    assetsByRoom.find((r) => r.roomLabel === selectedBookingRoomLabel) ?? assetsByRoom[0] ?? null;
+
   return (
     <DashboardLayout>
       <div className="animate-in fade-in slide-in-from-bottom-2 duration-500 space-y-6">
@@ -400,71 +404,81 @@ export default function BandQilishPage() {
                   </p>
                 </div>
               ) : (
-                <div className="overflow-x-auto pb-2">
-                  <div className="flex min-w-full gap-4">
-                    {assetsByRoom.map((roomGroup) => {
-                      return (
+                <div className="flex gap-3">
+                  {/* Room ruler */}
+                  <div className="flex w-36 flex-shrink-0 flex-col gap-1 self-start rounded-2xl border border-white/5 bg-[#051111] p-2">
+                    {assetsByRoom.map((roomGroup) => (
+                      <button
+                        key={roomGroup.roomLabel}
+                        onClick={() => setSelectedBookingRoomLabel(roomGroup.roomLabel)}
+                        className={cn(
+                          'flex items-center gap-2 rounded-xl px-3 py-2.5 text-left transition-all',
+                          activeBookingRoom?.roomLabel === roomGroup.roomLabel
+                            ? 'bg-primary/15 text-primary'
+                            : 'text-white/50 hover:bg-white/5 hover:text-white/80',
+                        )}
+                      >
                         <div
-                          key={roomGroup.roomLabel}
                           className={cn(
-                            'min-w-[320px] max-w-[360px] flex-1 rounded-3xl border p-4 shadow-xl',
-                            roomGroup.hasSelectedAssets
-                              ? 'border-primary bg-[#081919]'
-                              : 'border-white/5 bg-[#081616]',
+                            'h-1.5 w-1.5 flex-shrink-0 rounded-full',
+                            roomGroup.hasSelectedAssets ? 'bg-primary' : 'bg-white/20',
                           )}
-                        >
-                          <div className="mb-4 flex items-center gap-2">
-                            <div className="h-2 w-2 rounded-full bg-primary" />
-                            <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-white">
-                              {roomGroup.roomLabel}
-                            </h3>
-                          </div>
+                        />
+                        <span className="truncate text-[10px] font-black uppercase tracking-[0.1em]">
+                          {roomGroup.roomLabel}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
 
-                          <div className="space-y-4">
-                            {roomGroup.serviceGroups.map((group) => (
-                              <div key={group.serviceName} className="space-y-3 rounded-2xl border border-white/5 bg-[#051111] p-4">
-                                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">
-                                  {group.serviceName}
-                                </p>
-                                <div className="space-y-2">
-                                  {group.assets.map((asset) => {
-                                    const selected = selectedAssetIdSet.has(String(asset.id));
+                  {/* Assets for the active room */}
+                  <div className="min-w-0 flex-1 space-y-3">
+                    {activeBookingRoom === null ? null : activeBookingRoom.serviceGroups.length === 0 ? (
+                      <div className="flex min-h-[160px] items-center justify-center rounded-2xl border border-dashed border-white/5 bg-[#061414]/20">
+                        <p className="text-[10px] font-black uppercase tracking-[0.5em] text-[#444f4f]">Jihozlar yo'q</p>
+                      </div>
+                    ) : (
+                      activeBookingRoom.serviceGroups.map((group) => (
+                        <div key={group.serviceName} className="space-y-2 rounded-2xl border border-white/5 bg-[#051111] p-4">
+                          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">
+                            {group.serviceName}
+                          </p>
+                          <div className="space-y-2">
+                            {group.assets.map((asset) => {
+                              const selected = selectedAssetIdSet.has(String(asset.id));
 
-                                    return (
-                                      <button
-                                        key={String(asset.id)}
-                                        disabled={!servicesReady}
-                                        onClick={() => toggleAsset(String(asset.id))}
-                                        className={cn(
-                                          'w-full rounded-xl border p-3 text-left transition-all',
-                                          selected
-                                            ? 'border-primary bg-primary/10'
-                                            : 'border-white/5 bg-white/5 hover:border-primary/20',
-                                        )}
-                                      >
-                                        <div className="flex items-start justify-between gap-3">
-                                          <div className="min-w-0 space-y-1">
-                                            <p className="truncate text-sm font-black text-white">
-                                              {asset.displayOrder}. {asset.name}
-                                            </p>
-                                            <p className="text-[10px] font-bold uppercase tracking-widest text-white/40">
-                                              {group.serviceName}
-                                            </p>
-                                          </div>
-                                          <Badge className="border-primary/10 bg-primary/10 text-[9px] font-black uppercase text-primary">
-                                            {(asset.servicePrice ?? 0).toLocaleString()} UZS
-                                          </Badge>
-                                        </div>
-                                      </button>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            ))}
+                              return (
+                                <button
+                                  key={String(asset.id)}
+                                  disabled={!servicesReady}
+                                  onClick={() => toggleAsset(String(asset.id))}
+                                  className={cn(
+                                    'w-full rounded-xl border p-3 text-left transition-all',
+                                    selected
+                                      ? 'border-primary bg-primary/10'
+                                      : 'border-white/5 bg-white/5 hover:border-primary/20',
+                                  )}
+                                >
+                                  <div className="flex items-start justify-between gap-3">
+                                    <div className="min-w-0 space-y-1">
+                                      <p className="truncate text-sm font-black text-white">
+                                        {asset.displayOrder}. {asset.name}
+                                      </p>
+                                      <p className="text-[10px] font-bold uppercase tracking-widest text-white/40">
+                                        {group.serviceName}
+                                      </p>
+                                    </div>
+                                    <Badge className="border-primary/10 bg-primary/10 text-[9px] font-black uppercase text-primary">
+                                      {(asset.servicePrice ?? 0).toLocaleString()} UZS
+                                    </Badge>
+                                  </div>
+                                </button>
+                              );
+                            })}
                           </div>
                         </div>
-                      );
-                    })}
+                      ))
+                    )}
                   </div>
                 </div>
               )}

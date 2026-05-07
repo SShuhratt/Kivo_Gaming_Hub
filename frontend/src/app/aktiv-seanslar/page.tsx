@@ -199,9 +199,21 @@ export default function AktivSeanslarPage() {
 
                       <DeleteConfirmButton
                         itemName={`session ${session.backendId}`}
-                        title="End session"
-                        description="Do you want to end this active session now?"
-                        confirmLabel="End session"
+                        title="Bu seansni yakunlash"
+                        description={
+                          <span className="space-y-2 text-sm">
+                            <span className="block text-white/70">Bu seansni yakunlashni xohlaysizmi?</span>
+                            <span className="block">
+                              <span className="text-[10px] uppercase tracking-widest text-white/40">Ishlatilgan vaqt: </span>
+                              <span className="font-mono font-black text-white">{secondsToHHMMSS(elapsedSeconds)}</span>
+                            </span>
+                            <span className="block rounded-xl border border-primary/20 bg-primary/10 px-3 py-2">
+                              <span className="text-[10px] uppercase tracking-widest text-primary/60">Narx: </span>
+                              <span className="font-black text-primary">{liveCost.toLocaleString()} so'm</span>
+                            </span>
+                          </span>
+                        }
+                        confirmLabel="Yakunlash"
                         onConfirm={async () => {
                           try {
                             await endSession(session.backendId);
