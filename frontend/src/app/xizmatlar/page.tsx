@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useDashboard } from '@/context/dashboard-context';
 import { useToast } from '@/hooks/use-toast';
-import { formatBundleRequirements, getBaseServices } from '@/lib/service-bundles';
+import { formatBundleRequirements, formatUzErrorMessage, getBaseServices } from '@/lib/service-bundles';
 import { ChevronDown, Plus, Search, Trash2, Wrench, X } from 'lucide-react';
 
 type ServiceRow = {
@@ -113,11 +113,11 @@ export default function XizmatlarPage() {
         bundle: isBundle ? { name: bundleName.trim(), rate: bundleRate } : undefined,
       });
       const label = isBundle ? bundleName.trim() : rows[0].name.trim();
-      toast({ title: isBundle ? "Bundle qo'shildi" : "Xizmat qo'shildi", description: `${label} saqlandi.` });
+      toast({ title: "Xizmat qo'shildi", description: `${label} saqlandi.` });
       resetForm();
       setIsModalOpen(false);
     } catch (error) {
-      toast({ variant: 'destructive', title: 'Xizmat saqlanmadi', description: error instanceof Error ? error.message : "So'rov bajarilmadi." });
+      toast({ variant: 'destructive', title: 'Xizmat saqlanmadi', description: error instanceof Error ? formatUzErrorMessage(error.message) : "So'rov bajarilmadi." });
     } finally {
       setIsSaving(false);
     }
@@ -137,7 +137,7 @@ export default function XizmatlarPage() {
               <div className="space-y-1.5">
                 <h3 className="text-base font-black uppercase tracking-tight text-white">XIZMATLAR BO'SH</h3>
                 <p className="mx-auto max-w-xs text-[10px] font-medium uppercase tracking-[0.2em] text-[#444f4f]">
-                  Xizmat nomi va soatlik narxini kiriting. Bir nechta qo'shsangiz bundle yaratiladi.
+                  Xizmat nomi va soatlik narxini kiriting. Bir nechta qo'shsangiz bitta xizmat sifatida saqlanadi.
                 </p>
               </div>
               <Button onClick={() => setIsModalOpen(true)} className="h-12 gap-3 rounded-xl bg-primary px-8 text-xs font-black uppercase tracking-[0.2em] text-black shadow-[0_10px_30px_rgba(0,255,255,0.2)]">
@@ -151,8 +151,8 @@ export default function XizmatlarPage() {
             <section className="rounded-3xl border border-white/5 bg-[#0a1a1a]/40 p-5 shadow-xl backdrop-blur-md">
               <div className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-end">
                 <div className="space-y-1">
-                  <h2 className="text-sm font-black uppercase tracking-widest text-white">Xizmatlar va Bundles</h2>
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-white/40">Asosiy xizmatlar assetlarga, bundles bookingda qo'llanadi</p>
+                  <h2 className="text-sm font-black uppercase tracking-widest text-white">Xizmatlar</h2>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-white/40">Asosiy xizmatlar jihozlarga, qolgan xizmatlar bookingda qo'llanadi</p>
                 </div>
                 <div className="flex gap-3">
                   <div className="relative">
@@ -187,7 +187,7 @@ export default function XizmatlarPage() {
                             <h4 className="mt-1 text-sm font-black uppercase tracking-tight text-white">{svc.name}</h4>
                           </div>
                           <DeleteConfirmButton itemName={svc.name} title="Xizmatni o'chirish" description={`${svc.name} xizmatini o'chirishni xohlaysizmi?`} confirmLabel="O'chirish"
-                            onConfirm={async () => { try { await deleteService(svc); toast({ title: "O'chirildi", description: `${svc.name} olib tashlandi.` }); } catch (e) { toast({ variant: 'destructive', title: "Xatolik", description: e instanceof Error ? e.message : "So'rov bajarilmadi." }); throw e; } }}>
+                            onConfirm={async () => { try { await deleteService(svc); toast({ title: "O'chirildi", description: `${svc.name} olib tashlandi.` }); } catch (e) { toast({ variant: 'destructive', title: "Xatolik", description: e instanceof Error ? formatUzErrorMessage(e.message) : "So'rov bajarilmadi." }); throw e; } }}>
                             <button className="flex h-8 w-8 items-center justify-center rounded-lg text-destructive/40 hover:bg-destructive/10 hover:text-destructive transition-all"><Trash2 className="h-4 w-4" /></button>
                           </DeleteConfirmButton>
                         </div>
@@ -208,12 +208,12 @@ export default function XizmatlarPage() {
               {/* Bundles */}
               <section className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-black uppercase tracking-widest text-white">Bundles</h3>
+                  <h3 className="text-sm font-black uppercase tracking-widest text-white">Booking xizmatlari</h3>
                   <span className="text-[10px] font-black uppercase tracking-widest text-primary/60">{filteredBundles.length}</span>
                 </div>
                 {filteredBundles.length === 0 ? (
                   <div className="flex h-[220px] items-center justify-center rounded-3xl border border-dashed border-white/5 bg-[#061414]/20">
-                    <p className="text-[10px] font-black uppercase tracking-[0.4em] text-[#556060]">Bundle hali yaratilmagan</p>
+                    <p className="text-[10px] font-black uppercase tracking-[0.4em] text-[#556060]">Xizmat hali yaratilmagan</p>
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 xl:grid-cols-3">
@@ -221,11 +221,11 @@ export default function XizmatlarPage() {
                       <div key={svc.id} className="space-y-4 rounded-2xl border border-primary/20 bg-[#0a1515]/60 p-5 shadow-xl">
                         <div className="flex items-start justify-between gap-3">
                           <div>
-                            <p className="text-[9px] font-black uppercase tracking-[0.3em] text-primary/50">BUNDLE</p>
+                            <p className="text-[9px] font-black uppercase tracking-[0.3em] text-primary/50">XIZMAT</p>
                             <h4 className="mt-1 text-sm font-black uppercase tracking-tight text-white">{svc.name}</h4>
                           </div>
-                          <DeleteConfirmButton itemName={svc.name} title="Bundleni o'chirish" description={`${svc.name} bundleni o'chirishni xohlaysizmi?`} confirmLabel="O'chirish"
-                            onConfirm={async () => { try { await deleteService(svc); toast({ title: "O'chirildi", description: `${svc.name} olib tashlandi.` }); } catch (e) { toast({ variant: 'destructive', title: "Xatolik", description: e instanceof Error ? e.message : "So'rov bajarilmadi." }); throw e; } }}>
+                          <DeleteConfirmButton itemName={svc.name} title="Xizmatni o'chirish" description={`${svc.name} xizmatini o'chirishni xohlaysizmi?`} confirmLabel="O'chirish"
+                            onConfirm={async () => { try { await deleteService(svc); toast({ title: "O'chirildi", description: `${svc.name} olib tashlandi.` }); } catch (e) { toast({ variant: 'destructive', title: "Xatolik", description: e instanceof Error ? formatUzErrorMessage(e.message) : "So'rov bajarilmadi." }); throw e; } }}>
                             <button className="flex h-8 w-8 items-center justify-center rounded-lg text-destructive/40 hover:bg-destructive/10 hover:text-destructive transition-all"><Trash2 className="h-4 w-4" /></button>
                           </DeleteConfirmButton>
                         </div>
@@ -235,7 +235,7 @@ export default function XizmatlarPage() {
                         </div>
                         <div className="grid grid-cols-2 gap-3">
                           <div className="rounded-2xl border border-white/5 bg-[#051111] px-4 py-3">
-                            <p className="text-[8px] font-black uppercase tracking-widest text-white/30">Bundle narxi</p>
+                            <p className="text-[8px] font-black uppercase tracking-widest text-white/30">Xizmat narxi</p>
                             <p className="mt-2 text-sm font-black text-primary">{(svc.rate ?? svc.price).toLocaleString()} so'm</p>
                           </div>
                           <div className="rounded-2xl border border-white/5 bg-white/5 px-4 py-3">
@@ -258,7 +258,7 @@ export default function XizmatlarPage() {
             <DialogHeader className="space-y-1">
               <DialogTitle className="text-base font-black uppercase tracking-tight">Xizmat qo'shish</DialogTitle>
               <DialogDescription className="text-[9px] font-medium uppercase tracking-[0.2em] text-muted-foreground/60">
-                Bitta yoki bir nechta xizmat qo'shing. Bir nechta bo'lsa — bundle yaratiladi.
+                Bitta yoki bir nechta xizmat qo'shing. Bir nechta bo'lsa — bitta xizmat sifatida saqlanadi.
               </DialogDescription>
             </DialogHeader>
 
@@ -421,7 +421,7 @@ export default function XizmatlarPage() {
                         <Input
                           type="number"
                           min="0"
-                          aria-label="Bundle narxi"
+                          aria-label="Xizmat narxi"
                           value={customBundleRate}
                           onChange={(e) => setCustomBundleRate(e.target.value)}
                           className="h-11 rounded-xl border-white/5 bg-[#051111] px-4 pr-10 text-sm font-bold"
@@ -443,7 +443,7 @@ export default function XizmatlarPage() {
                 onClick={() => void handleSubmit()}
                 className="h-12 w-full rounded-xl bg-primary text-xs font-black uppercase tracking-[0.3em] text-black shadow-[0_10px_30px_rgba(0,255,255,0.2)] transition-all hover:bg-primary/90 active:scale-[0.98]"
               >
-                {isSaving ? 'Saqlanmoqda...' : isBundle ? 'Bundle va xizmatlarni saqlash' : 'Saqlash'}
+                {isSaving ? 'Saqlanmoqda...' : isBundle ? 'Xizmatlarni saqlash' : 'Saqlash'}
               </Button>
             </DialogFooter>
           </DialogContent>

@@ -21,6 +21,7 @@ import { type SessionRecord, useDashboard } from '@/context/dashboard-context';
 import { useToast } from '@/hooks/use-toast';
 import { getAssetCategoryKind } from '@/lib/asset-category';
 import { resolveAssetRoomLabel, resolveAssetServiceLabel } from '@/lib/asset-display';
+import { formatUzPricingLabel } from '@/lib/service-bundles';
 import { CheckCircle2, Clock3, Crown, Gamepad2, Monitor, Search, ShieldAlert, StopCircle, Trash2 } from 'lucide-react';
 
 function formatDateTime(value: string | null) {
@@ -261,7 +262,7 @@ export default function AktivSeanslarPage() {
                         </div>
                         <h4 className="text-lg font-black uppercase tracking-tight text-white">{session.roomLabel}</h4>
                         <p className="text-[10px] font-bold uppercase tracking-widest text-primary/60">
-                          {session.assetsCount} jihoz • {session.pricing.label === 'Service pricing' ? 'Xizmat narxi' : session.pricing.label}
+                          {session.assetsCount} jihoz • {formatUzPricingLabel(session.pricing.label)}
                         </p>
                       </div>
 
@@ -389,7 +390,7 @@ export default function AktivSeanslarPage() {
                         </div>
                         <h4 className="text-lg font-black uppercase tracking-tight text-white">{session.roomLabel}</h4>
                         <p className="text-[10px] font-bold uppercase tracking-widest text-primary/60">
-                          {session.assetsCount} jihoz • {session.pricing.label === 'Service pricing' ? 'Xizmat narxi' : session.pricing.label}
+                          {session.assetsCount} jihoz • {formatUzPricingLabel(session.pricing.label)}
                         </p>
                       </div>
 

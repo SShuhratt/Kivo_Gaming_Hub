@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { useDashboard } from '@/context/dashboard-context';
 import { useToast } from '@/hooks/use-toast';
 import { groupAssetsByService, resolveAssetRoomLabel, sortAssetsForDisplay } from '@/lib/asset-display';
-import { formatBundleRequirements } from '@/lib/service-bundles';
+import { formatBundleRequirements, formatUzErrorMessage } from '@/lib/service-bundles';
 import { cn } from '@/lib/utils';
 import { Calendar as CalendarIcon, Crown, Monitor, Timer, Zap } from 'lucide-react';
 
@@ -45,11 +45,11 @@ const durationOptions = [0.5, 1, 2, 2.5, 3];
 function formatBundlePhaseLabel(phase: 'explicit_selection' | 'admin_override' | 'best_value' | 'residual') {
   switch (phase) {
     case 'explicit_selection':
-      return 'Tanlangan bundle';
+      return 'Tanlangan xizmat';
     case 'admin_override':
       return 'Admin qoida';
     case 'best_value':
-      return 'Avtomatik bundle';
+      return 'Avtomatik xizmat';
     default:
       return 'Standard';
   }
@@ -197,7 +197,7 @@ export default function BandQilishPage() {
           if (!cancelled) {
             startTransition(() => {
               setCalculation(null);
-              setCalculationError(error instanceof Error ? error.message : "So'rov bajarilmadi.");
+              setCalculationError(error instanceof Error ? formatUzErrorMessage(error.message) : "So'rov bajarilmadi.");
             });
           }
         } finally {
@@ -303,7 +303,7 @@ export default function BandQilishPage() {
       toast({
         variant: 'destructive',
         title: 'Band qilish amalga oshmadi',
-        description: error instanceof Error ? error.message : "So'rov bajarilmadi.",
+        description: error instanceof Error ? formatUzErrorMessage(error.message) : "So'rov bajarilmadi.",
       });
     } finally {
       setIsSubmitting(false);
@@ -672,7 +672,7 @@ export default function BandQilishPage() {
                   <span>{selectedAssetsBaseHourlyTotal.toLocaleString()} UZS</span>
                 </div>
                 <div className="flex items-center justify-between text-[11px] font-bold text-white/60">
-                  <span>Qo'llangan bundles</span>
+                  <span>Qo'llangan xizmatlar</span>
                   <span>{appliedBundles.length}</span>
                 </div>
                 <div className="flex items-center justify-between text-[11px] font-bold text-white/60">
@@ -685,7 +685,7 @@ export default function BandQilishPage() {
                 </div>
                 {bundleSavingsPerHour > 0 ? (
                   <div className="flex items-center justify-between text-[11px] font-bold text-primary">
-                    <span>Bundle tejami / soat</span>
+                    <span>Xizmat tejami / soat</span>
                     <span>-{bundleSavingsPerHour.toLocaleString()} UZS</span>
                   </div>
                 ) : null}
@@ -710,7 +710,7 @@ export default function BandQilishPage() {
                 {appliedBundles.length > 0 ? (
                   <div className="space-y-2">
                     <p className="text-[10px] font-black uppercase tracking-widest text-primary/60">
-                      Qo'llangan bundles
+                      Qo'llangan xizmatlar
                     </p>
                     {appliedBundles.map((bundle, idx) => (
                       <div
@@ -721,7 +721,7 @@ export default function BandQilishPage() {
                           <div className="space-y-2">
                             <div className="flex flex-wrap items-center gap-2">
                               <Badge className="h-5 border-none bg-primary px-2 text-[8px] font-black text-black">
-                                BUNDLE
+                                XIZMAT
                               </Badge>
                               <Badge variant="outline" className="border-primary/30 text-[8px] font-black uppercase tracking-widest text-primary">
                                 {formatBundlePhaseLabel(bundle.phase)}

@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useDashboard } from '@/context/dashboard-context';
 import { useToast } from '@/hooks/use-toast';
 import { groupAssetsByService, matchesAssetSearch } from '@/lib/asset-display';
+import { formatUzErrorMessage } from '@/lib/service-bundles';
 import { AlertTriangle, Building2, Layers3, Monitor, Plus, Search, Trash2 } from 'lucide-react';
 
 const roomDeleteBlockMessage = "This room has assets. Delete its assets first.";
@@ -117,7 +118,7 @@ export default function XonalarPage() {
       toast({
         variant: 'destructive',
         title: 'Xona saqlanmadi',
-        description: error instanceof Error ? error.message : "So'rov bajarilmadi.",
+        description: error instanceof Error ? formatUzErrorMessage(error.message) : "So'rov bajarilmadi.",
       });
     } finally {
       setIsSavingRoom(false);
@@ -186,7 +187,7 @@ export default function XonalarPage() {
       toast({
         variant: 'destructive',
         title: 'Jihoz saqlanmadi',
-        description: error instanceof Error ? error.message : "So'rov bajarilmadi.",
+        description: error instanceof Error ? formatUzErrorMessage(error.message) : "So'rov bajarilmadi.",
       });
     } finally {
       setIsSavingAsset(false);
@@ -343,7 +344,7 @@ export default function XonalarPage() {
                               toast({
                                 variant: 'destructive',
                                 title: "Jihozlar o'chirilmadi",
-                                description: error instanceof Error ? error.message : "So'rov bajarilmadi.",
+                                description: error instanceof Error ? formatUzErrorMessage(error.message) : "So'rov bajarilmadi.",
                               });
                               throw error;
                             }
@@ -371,7 +372,7 @@ export default function XonalarPage() {
                             toast({
                               variant: 'destructive',
                               title: "Xona o'chirilmadi",
-                              description: error instanceof Error ? error.message : "So'rov bajarilmadi.",
+                              description: error instanceof Error ? formatUzErrorMessage(error.message) : "So'rov bajarilmadi.",
                             });
                             throw error;
                           }
@@ -461,7 +462,7 @@ export default function XonalarPage() {
                                         toast({
                                           variant: 'destructive',
                                           title: "Jihoz o'chirilmadi",
-                                          description: error instanceof Error ? error.message : "So'rov bajarilmadi.",
+                                          description: error instanceof Error ? formatUzErrorMessage(error.message) : "So'rov bajarilmadi.",
                                         });
                                         throw error;
                                       }
