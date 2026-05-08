@@ -12,9 +12,10 @@ trait FormatsSessionPayloads
     protected function formatSession(Booking $booking): array
     {
         $assets = $this->snapshotAssets($booking->asset_snapshot, $booking->relationLoaded('assets') ? $booking->assets : collect());
-        $tradeExists = $booking->relationLoaded('trade')
-            ? $booking->trade !== null
-            : $booking->trade()->exists();
+        $trade = $booking->relationLoaded('trade')
+            ? $booking->trade
+            : $booking->trade()->first();
+        $tradeExists = $trade !== null;
 
         return [
             'id' => $booking->id,
@@ -38,6 +39,20 @@ trait FormatsSessionPayloads
             'room_label' => $this->roomLabelFromAssets($assets),
             'trade_exists' => $tradeExists,
             'can_delete' => $booking->session_status !== 'active' && $tradeExists,
+            'trade' => $trade ? $this->formatSessionTrade($trade) : null,
+        ];
+    }
+
+    protected function formatSessionTrade(Trade $trade): array
+    {
+        return [
+            'id' => $trade->id,
+            'status' => $trade->payment_status,
+            'session_status' => $trade->session_status,
+            'saved_cost' => (float) $trade->total_cost,
+            'duration_minutes' => $trade->duration_minutes,
+            'start_time' => $trade->start_time,
+            'end_time' => $trade->end_time,
         ];
     }
 

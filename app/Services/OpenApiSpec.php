@@ -169,6 +169,16 @@ class OpenApiSpec
                     'room_label' => ['type' => 'string', 'example' => 'Xona 1'],
                     'trade_exists' => ['type' => 'boolean', 'example' => false],
                     'can_delete' => ['type' => 'boolean', 'example' => false],
+                    'trade' => ['$ref' => '#/components/schemas/SessionTrade'],
+                ]),
+                'SessionTrade' => $this->object([
+                    'id' => ['type' => 'integer', 'example' => 12],
+                    'status' => ['type' => 'string', 'enum' => ['submitted', 'debt_closed'], 'example' => 'submitted'],
+                    'session_status' => ['type' => 'string', 'enum' => ['completed', 'cancelled'], 'example' => 'completed'],
+                    'saved_cost' => ['type' => 'number', 'example' => 110000],
+                    'duration_minutes' => ['type' => 'integer', 'example' => 125],
+                    'start_time' => ['type' => 'string', 'format' => 'date-time', 'nullable' => true],
+                    'end_time' => ['type' => 'string', 'format' => 'date-time', 'nullable' => true],
                 ]),
                 'TradeLedgerEntry' => $this->object([
                     'id' => ['type' => 'integer', 'example' => 1],

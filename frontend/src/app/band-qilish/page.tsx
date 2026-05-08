@@ -594,22 +594,22 @@ export default function BandQilishPage() {
                 {status === 'debt_closed' ? (
                   <div className="space-y-3">
                     <div className="space-y-2">
-                      <Label htmlFor="debt-name" className="text-[9px] font-black uppercase tracking-[0.2em] text-primary/60">Qarz ismi</Label>
+                      <Label htmlFor="debt-name" className="text-[9px] font-black uppercase tracking-[0.2em] text-primary/60">Qarzdorning ismi</Label>
                       <Input
                         id="debt-name"
                         name="debt-name"
-                        aria-label="Qarz ismi"
+                        aria-label="Qarzdorning ismi"
                         value={debtName}
                         onChange={(event) => setDebtName(event.target.value)}
                         className="h-12 rounded-xl border-white/5 bg-[#051111] font-bold"
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="debt-phone" className="text-[9px] font-black uppercase tracking-[0.2em] text-primary/60">Qarz telefoni</Label>
+                      <Label htmlFor="debt-phone" className="text-[9px] font-black uppercase tracking-[0.2em] text-primary/60">Qarzdorning telefon raqami</Label>
                       <Input
                         id="debt-phone"
                         name="debt-phone"
-                        aria-label="Qarz telefoni"
+                        aria-label="Qarzdorning telefon raqami"
                         value={debtPhoneNumber}
                         onChange={(event) => setDebtPhoneNumber(event.target.value)}
                         className="h-12 rounded-xl border-white/5 bg-[#051111] font-bold"

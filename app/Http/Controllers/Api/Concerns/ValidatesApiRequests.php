@@ -8,9 +8,14 @@ use Illuminate\Support\Facades\Validator;
 
 trait ValidatesApiRequests
 {
-    protected function validateApi(Request $request, array $rules): array
+    protected function validateApi(
+        Request $request,
+        array $rules,
+        array $messages = [],
+        array $attributes = [],
+    ): array
     {
-        $validator = Validator::make($request->all(), $rules);
+        $validator = Validator::make($request->all(), $rules, $messages, $attributes);
 
         if ($validator->fails()) {
             throw new HttpResponseException(response()->json([

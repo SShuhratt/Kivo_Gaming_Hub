@@ -104,40 +104,7 @@ export type DashboardBootstrapResponse = {
     paid: number;
     timestamp: number;
   }>;
-  sessions: Array<{
-    id: number;
-    status: 'submitted' | 'debt_closed';
-    session_status: 'active' | 'completed' | 'cancelled';
-    start_time: string;
-    end_time: string | null;
-    ended_at: string | null;
-    duration_minutes: number;
-    requested_duration_hours: number | null;
-    total_cost: number;
-    debt_name: string | null;
-    debt_phone_number: string | null;
-    is_vip: boolean;
-    pricing: {
-      label: string;
-      hourly_rate: number;
-    };
-    assets: Array<{
-      id: number | null;
-      name: string | null;
-      category: string | null;
-      service_id?: number | null;
-      service_name?: string | null;
-      room_id: number | null;
-      room_name: string | null;
-      room_number: string | null;
-      asset_order?: number | null;
-      hourly_price: number | null;
-    }>;
-    assets_count: number;
-    room_label: string;
-    trade_exists: boolean;
-    can_delete: boolean;
-  }>;
+  sessions: ApiSession[];
   companies: Array<{
     id: string;
     backend_id: number;
@@ -169,6 +136,52 @@ export type DashboardBootstrapResponse = {
     total_usage_duration_minutes: number;
     total_earned_money: number;
   }>;
+};
+
+export type ApiSessionTrade = {
+  id: number;
+  status: 'submitted' | 'debt_closed';
+  session_status: 'completed' | 'cancelled';
+  saved_cost: number;
+  duration_minutes: number;
+  start_time: string | null;
+  end_time: string | null;
+};
+
+export type ApiSession = {
+  id: number;
+  status: 'submitted' | 'debt_closed';
+  session_status: 'active' | 'completed' | 'cancelled';
+  start_time: string;
+  end_time: string | null;
+  ended_at: string | null;
+  duration_minutes: number;
+  requested_duration_hours: number | null;
+  total_cost: number;
+  debt_name: string | null;
+  debt_phone_number: string | null;
+  is_vip: boolean;
+  pricing: {
+    label: string;
+    hourly_rate: number;
+  };
+  assets: Array<{
+    id: number | null;
+    name: string | null;
+    category: string | null;
+    service_id?: number | null;
+    service_name?: string | null;
+    room_id: number | null;
+    room_name: string | null;
+    room_number: string | null;
+    asset_order?: number | null;
+    hourly_price: number | null;
+  }>;
+  assets_count: number;
+  room_label: string;
+  trade_exists: boolean;
+  can_delete: boolean;
+  trade: ApiSessionTrade | null;
 };
 
 export class ApiError extends Error {
@@ -610,7 +623,7 @@ export function createBookingRequest(
 }
 
 export function endSessionRequest(token: string, sessionId: number) {
-  return apiRequest(`/sessions/${sessionId}/end`, {
+  return apiRequest<ApiSession>(`/sessions/${sessionId}/end`, {
     method: 'POST',
     token,
   });

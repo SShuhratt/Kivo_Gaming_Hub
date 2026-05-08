@@ -305,7 +305,7 @@ export default function XonalarPage() {
               </div>
             </section>
 
-            <section className="min-h-[460px] overflow-hidden rounded-3xl border border-white/5 bg-[#0a1515]/60 p-6 shadow-xl xl:h-[70vh]">
+            <section className="min-h-[500px] overflow-hidden rounded-3xl border border-white/5 bg-[#0a1515]/60 p-6 shadow-xl xl:h-[calc(70vh+2.5rem)]">
               {selectedRoom ? (
                 <div className="flex h-full flex-col space-y-5">
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">

@@ -206,7 +206,11 @@ class BookingAndFinanceApiTest extends TestCase
             ->assertJsonPath('trade_exists', true)
             ->assertJsonPath('duration_minutes', 120)
             ->assertJsonPath('requested_duration_hours', 2)
-            ->assertJsonPath('total_cost', 110000);
+            ->assertJsonPath('total_cost', 110000)
+            ->assertJsonPath('trade.status', 'submitted')
+            ->assertJsonPath('trade.session_status', 'completed')
+            ->assertJsonPath('trade.saved_cost', 110000)
+            ->assertJsonPath('trade.duration_minutes', 120);
 
         $this->assertDatabaseHas('trades', [
             'booking_id' => $bookingId,
@@ -272,6 +276,23 @@ class BookingAndFinanceApiTest extends TestCase
             'total_usage_duration_minutes' => 90,
             'total_earned_money' => 52500,
         ]);
+    }
+
+    public function test_booking_create_requires_debt_fields_with_updated_labels(): void
+    {
+        Carbon::setTestNow('2026-04-25T09:00:00+05:00');
+
+        [$assetOne] = $this->createPricedAssets();
+
+        $this->postJson('/api/bookings', [
+            'asset_ids' => [$assetOne->id],
+            'start_time' => '2026-04-25T10:00:00+05:00',
+            'duration_hours' => 1,
+            'status' => 'debt_closed',
+        ], $this->authHeaders())
+            ->assertStatus(400)
+            ->assertJsonPath('errors.debt_name.0', 'Qarzdorning ismi maydoni qarz uchun majburiy.')
+            ->assertJsonPath('errors.debt_phone_number.0', 'Qarzdorning telefon raqami maydoni qarz uchun majburiy.');
     }
 
     public function test_finance_ledger_excludes_active_sessions_and_keeps_existing_filters(): void

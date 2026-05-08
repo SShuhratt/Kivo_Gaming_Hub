@@ -64,7 +64,12 @@ class BookingController extends Controller
     ) {
         $serviceSetupGuard->ensureServicesExist();
 
-        $validated = $this->validateApi($request, $this->rules(false));
+        $validated = $this->validateApi(
+            $request,
+            $this->rules(false),
+            $this->validationMessages(),
+            $this->validationAttributes(),
+        );
         $timing = $this->resolveTiming($validated);
 
         [$cart, $assets] = $this->resolvePricingInputs($validated, $priceCalculator, false);
@@ -114,7 +119,12 @@ class BookingController extends Controller
     ) {
         $serviceSetupGuard->ensureServicesExist();
 
-        $validated = $this->validateApi($request, $this->rules(true));
+        $validated = $this->validateApi(
+            $request,
+            $this->rules(true),
+            $this->validationMessages(),
+            $this->validationAttributes(),
+        );
         $timing = $this->resolveTiming($validated);
 
         $booking = DB::transaction(function () use (
@@ -380,5 +390,21 @@ class BookingController extends Controller
             'message' => 'Bad request.',
             'errors' => $errors,
         ], 400));
+    }
+
+    protected function validationMessages(): array
+    {
+        return [
+            'debt_name.required_if' => 'Qarzdorning ismi maydoni qarz uchun majburiy.',
+            'debt_phone_number.required_if' => 'Qarzdorning telefon raqami maydoni qarz uchun majburiy.',
+        ];
+    }
+
+    protected function validationAttributes(): array
+    {
+        return [
+            'debt_name' => 'Qarzdorning ismi',
+            'debt_phone_number' => 'Qarzdorning telefon raqami',
+        ];
     }
 }

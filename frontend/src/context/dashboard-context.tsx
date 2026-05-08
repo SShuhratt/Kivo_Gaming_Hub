@@ -3,6 +3,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import {
   ApiError,
+  type ApiSession,
   type ApiUser,
   type DashboardBootstrapResponse,
   calculateBookingRequest,
@@ -130,6 +131,16 @@ export interface SessionAssetSnapshot {
   hourlyPrice: number | null;
 }
 
+export interface SessionTradeRecord {
+  id: number;
+  status: 'submitted' | 'debt_closed';
+  sessionStatus: 'completed' | 'cancelled';
+  savedCost: number;
+  durationMinutes: number;
+  startTime: string | null;
+  endTime: string | null;
+}
+
 export interface SessionRecord {
   id: string;
   backendId: number;
@@ -153,6 +164,7 @@ export interface SessionRecord {
     hourlyRate: number;
   };
   assets: SessionAssetSnapshot[];
+  trade: SessionTradeRecord | null;
 }
 
 export interface BookingCalculation {
@@ -274,7 +286,7 @@ interface DashboardContextType {
     debtName?: string;
     debtPhoneNumber?: string;
   }) => Promise<void>;
-  endSession: (sessionId: number) => Promise<void>;
+  endSession: (sessionId: number) => Promise<SessionRecord>;
   deleteSession: (sessionId: number) => Promise<void>;
   createServiceBatch: (payload: {
     rows: Array<{ existingBackendId?: number; name: string; rate: number }>;
@@ -321,6 +333,55 @@ function mapAssetDevice(asset: DashboardBootstrapResponse['assets'][number]): As
     assetOrder: asset.asset_order,
     totalUsageDurationMinutes: asset.total_usage_duration_minutes,
     totalEarnedMoney: asset.total_earned_money,
+  };
+}
+
+function mapSessionRecord(session: ApiSession): SessionRecord {
+  return {
+    id: String(session.id),
+    backendId: session.id,
+    status: session.status,
+    sessionStatus: session.session_status,
+    startTime: session.start_time,
+    endTime: session.end_time,
+    endedAt: session.ended_at,
+    durationMinutes: session.duration_minutes,
+    requestedDurationHours: session.requested_duration_hours,
+    totalCost: session.total_cost,
+    debtName: session.debt_name,
+    debtPhoneNumber: session.debt_phone_number,
+    roomLabel: session.room_label,
+    assetsCount: session.assets_count,
+    tradeExists: session.trade_exists,
+    canDelete: session.can_delete,
+    isVip: session.is_vip,
+    pricing: {
+      label: session.pricing.label,
+      hourlyRate: session.pricing.hourly_rate,
+    },
+    assets: session.assets.map((asset) => ({
+      id: asset.id,
+      name: asset.name,
+      category: asset.category,
+      serviceId: asset.service_id,
+      serviceName: asset.service_name ?? asset.category ?? null,
+      roomId: asset.room_id,
+      roomName: asset.room_name,
+      roomNumber: asset.room_name ?? asset.room_number,
+      assetOrder: asset.asset_order ?? null,
+      hourlyPrice: asset.hourly_price,
+    })),
+    trade: session.trade
+      ? {
+          id: session.trade.id,
+          status: session.trade.status,
+          sessionStatus: session.trade.session_status,
+          savedCost: session.trade.saved_cost,
+          durationMinutes: session.trade.duration_minutes,
+          startTime: session.trade.start_time,
+          endTime: session.trade.end_time,
+        }
+      : null,
   };
 }
 
@@ -371,41 +432,7 @@ function mapBootstrapPayload(payload: DashboardBootstrapResponse) {
       paid: sale.paid,
       timestamp: sale.timestamp,
     })),
-    sessions: payload.sessions.map((session) => ({
-      id: String(session.id),
-      backendId: session.id,
-      status: session.status,
-      sessionStatus: session.session_status,
-      startTime: session.start_time,
-      endTime: session.end_time,
-      endedAt: session.ended_at,
-      durationMinutes: session.duration_minutes,
-      requestedDurationHours: session.requested_duration_hours,
-      totalCost: session.total_cost,
-      debtName: session.debt_name,
-      debtPhoneNumber: session.debt_phone_number,
-      roomLabel: session.room_label,
-      assetsCount: session.assets_count,
-      tradeExists: session.trade_exists,
-      canDelete: session.can_delete,
-      isVip: session.is_vip,
-      pricing: {
-        label: session.pricing.label,
-        hourlyRate: session.pricing.hourly_rate,
-      },
-      assets: session.assets.map((asset) => ({
-        id: asset.id,
-        name: asset.name,
-        category: asset.category,
-        serviceId: asset.service_id,
-        serviceName: asset.service_name ?? asset.category ?? null,
-        roomId: asset.room_id,
-        roomName: asset.room_name,
-        roomNumber: asset.room_name ?? asset.room_number,
-        assetOrder: asset.asset_order ?? null,
-        hourlyPrice: asset.hourly_price,
-      })),
-    })),
+    sessions: payload.sessions.map(mapSessionRecord),
     companies: payload.companies.map((company) => ({
       id: company.id,
       backendId: company.backend_id,
@@ -922,9 +949,21 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
   const endSession = useCallback(
     async (sessionId: number) => {
       const activeToken = requireToken();
+      const endedSession = mapSessionRecord(await endSessionRequest(activeToken, sessionId));
 
-      await endSessionRequest(activeToken, sessionId);
+      setSessions((current) => {
+        const remainingSessions = current.filter((session) => session.backendId !== sessionId);
+        const activeSessionRecords = remainingSessions.filter((session) => session.sessionStatus === 'active');
+        const endedSessionRecords = remainingSessions
+          .filter((session) => session.sessionStatus !== 'active')
+          .concat(endedSession)
+          .sort((left, right) => new Date(right.startTime).getTime() - new Date(left.startTime).getTime());
+
+        return [...activeSessionRecords, ...endedSessionRecords];
+      });
+
       await refreshDashboard();
+      return endedSession;
     },
     [refreshDashboard, requireToken]
   );
