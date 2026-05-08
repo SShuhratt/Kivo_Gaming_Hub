@@ -81,6 +81,10 @@ function buildLiveSessionMetrics(session: SessionRecord, referenceNow: number) {
   };
 }
 
+function hasDebtorInfo(session: SessionRecord) {
+  return Boolean(session.debtName?.trim() || session.debtPhoneNumber?.trim());
+}
+
 export default function AktivSeanslarPage() {
   const { sessions, endSession, deleteSession, isCheckingAuth } = useDashboard();
   const { toast } = useToast();
@@ -305,6 +309,28 @@ export default function AktivSeanslarPage() {
                       </div>
                     </div>
 
+                    {hasDebtorInfo(session) ? (
+                      <div className="rounded-2xl border border-amber-500/15 bg-amber-500/5 p-4">
+                        <p className="text-[8px] font-black uppercase tracking-widest text-amber-200/70">
+                          Qarzdor ma'lumotlari
+                        </p>
+                        <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+                          {session.debtName ? (
+                            <div className="rounded-2xl border border-white/5 bg-[#051111] p-4">
+                              <p className="text-[8px] font-black uppercase tracking-widest text-white/30">Qarzdorning ismi</p>
+                              <p className="mt-2 text-[11px] font-bold text-white">{session.debtName}</p>
+                            </div>
+                          ) : null}
+                          {session.debtPhoneNumber ? (
+                            <div className="rounded-2xl border border-white/5 bg-[#051111] p-4">
+                              <p className="text-[8px] font-black uppercase tracking-widest text-white/30">Qarzdorning telefon raqami</p>
+                              <p className="mt-2 text-[11px] font-bold text-white">{session.debtPhoneNumber}</p>
+                            </div>
+                          ) : null}
+                        </div>
+                      </div>
+                    ) : null}
+
                     <div className="space-y-3">
                       <p className="text-[8px] font-black uppercase tracking-widest text-white/30">Jihozlar</p>
                       <div className="space-y-2">
@@ -372,6 +398,7 @@ export default function AktivSeanslarPage() {
                 const savedTradeStatus = session.trade
                   ? (session.trade.status === 'submitted' ? "To'langan" : 'Qarz')
                   : 'Kutilmoqda';
+                const showDebtorInfo = hasDebtorInfo(session);
 
                 return (
                   <div key={session.id} className="space-y-5 rounded-3xl border border-white/5 bg-[#0a1515]/60 p-5 shadow-xl">
@@ -447,6 +474,33 @@ export default function AktivSeanslarPage() {
                         <p className="text-[8px] font-black uppercase tracking-widest text-white/30">Holati</p>
                         <p className="mt-2 text-sm font-black text-primary">{savedTradeStatus}</p>
                       </div>
+                      {showDebtorInfo ? (
+                        <div className="col-span-2 rounded-2xl border border-amber-500/15 bg-amber-500/5 p-4">
+                          <p className="text-[8px] font-black uppercase tracking-widest text-amber-200/70">
+                            Qarzdor ma'lumotlari
+                          </p>
+                          <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
+                            {session.debtName ? (
+                              <div className="rounded-2xl border border-white/5 bg-[#051111] p-4">
+                                <p className="text-[8px] font-black uppercase tracking-widest text-white/30">Qarzdorning ismi</p>
+                                <p className="mt-2 text-[11px] font-bold text-white">{session.debtName}</p>
+                              </div>
+                            ) : null}
+                            {session.debtPhoneNumber ? (
+                              <div className="rounded-2xl border border-white/5 bg-[#051111] p-4">
+                                <p className="text-[8px] font-black uppercase tracking-widest text-white/30">Qarzdorning telefon raqami</p>
+                                <p className="mt-2 text-[11px] font-bold text-white">{session.debtPhoneNumber}</p>
+                              </div>
+                            ) : null}
+                            <div className="rounded-2xl border border-white/5 bg-[#051111] p-4">
+                              <p className="text-[8px] font-black uppercase tracking-widest text-white/30">Yakuniy qarz summasi</p>
+                              <p className="mt-2 text-sm font-black text-amber-200">
+                                {savedTradeCost.toLocaleString()} so'm
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      ) : null}
                       <div className="col-span-2 rounded-2xl border border-primary/20 bg-primary/5 p-4">
                         <p className="text-[8px] font-black uppercase tracking-widest text-primary/50">Savdo</p>
                         <p className="mt-2 text-sm font-black text-primary">

@@ -3,6 +3,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import {
   ApiError,
+  type ApiDebtRecord,
   type ApiSession,
   type ApiUser,
   type DashboardBootstrapResponse,
@@ -118,6 +119,30 @@ export interface SaleRecord {
   timestamp: number;
 }
 
+export interface DebtRecord {
+  id: string;
+  source: 'booking' | 'trade';
+  bookingId: number | null;
+  tradeId: number | null;
+  sessionId: number | null;
+  debtorName: string | null;
+  debtorPhoneNumber: string | null;
+  debtAmount: number;
+  finalCost: number;
+  sessionState: 'active' | 'ended';
+  paymentState: 'paid' | 'unpaid';
+  sessionStatus: 'active' | 'completed' | 'cancelled';
+  paymentStatus: 'submitted' | 'debt_closed';
+  createdAt: string | null;
+  sessionDate: string | null;
+  startTime: string | null;
+  endTime: string | null;
+  durationMinutes: number | null;
+  roomLabel: string;
+  pricingLabel: string;
+  referenceLabel: string;
+}
+
 export interface SessionAssetSnapshot {
   id: number | null;
   name: string | null;
@@ -217,6 +242,7 @@ interface DashboardContextType {
   services: ServiceItem[];
   rooms: RoomRecord[];
   sales: SaleRecord[];
+  debts: DebtRecord[];
   sessions: SessionRecord[];
   companies: WarehouseCompany[];
   assets: AssetDevice[];
@@ -336,6 +362,32 @@ function mapAssetDevice(asset: DashboardBootstrapResponse['assets'][number]): As
   };
 }
 
+function mapDebtRecord(record: ApiDebtRecord): DebtRecord {
+  return {
+    id: record.id,
+    source: record.source,
+    bookingId: record.booking_id,
+    tradeId: record.trade_id,
+    sessionId: record.session_id,
+    debtorName: record.debtor_name,
+    debtorPhoneNumber: record.debtor_phone_number,
+    debtAmount: record.debt_amount,
+    finalCost: record.final_cost,
+    sessionState: record.session_state,
+    paymentState: record.payment_state,
+    sessionStatus: record.session_status as DebtRecord['sessionStatus'],
+    paymentStatus: record.payment_status,
+    createdAt: record.created_at,
+    sessionDate: record.session_date,
+    startTime: record.start_time,
+    endTime: record.end_time,
+    durationMinutes: record.duration_minutes,
+    roomLabel: record.room_label,
+    pricingLabel: record.pricing_label,
+    referenceLabel: record.reference_label,
+  };
+}
+
 function mapSessionRecord(session: ApiSession): SessionRecord {
   return {
     id: String(session.id),
@@ -432,6 +484,7 @@ function mapBootstrapPayload(payload: DashboardBootstrapResponse) {
       paid: sale.paid,
       timestamp: sale.timestamp,
     })),
+    debts: payload.debts.map(mapDebtRecord),
     sessions: payload.sessions.map(mapSessionRecord),
     companies: payload.companies.map((company) => ({
       id: company.id,
@@ -459,6 +512,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
   const [services, setServices] = useState<ServiceItem[]>([]);
   const [rooms, setRooms] = useState<RoomRecord[]>([]);
   const [sales, setSales] = useState<SaleRecord[]>([]);
+  const [debts, setDebts] = useState<DebtRecord[]>([]);
   const [sessions, setSessions] = useState<SessionRecord[]>([]);
   const [companies, setCompanies] = useState<WarehouseCompany[]>([]);
   const [assets, setAssets] = useState<AssetDevice[]>([]);
@@ -471,6 +525,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     setServices([]);
     setRooms([]);
     setSales([]);
+    setDebts([]);
     setSessions([]);
     setCompanies([]);
     setAssets([]);
@@ -502,6 +557,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
         setServices(mapped.services);
         setRooms(mapped.rooms);
         setSales(mapped.sales);
+        setDebts(mapped.debts);
         setSessions(mapped.sessions);
         setCompanies(mapped.companies);
         setAssets(mapped.assets);
@@ -988,6 +1044,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       services,
       rooms,
       sales,
+      debts,
       sessions,
       companies,
       assets,
@@ -1023,6 +1080,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       createService,
       createServiceBatch,
       currentUser,
+      debts,
       deleteAsset,
       deleteManufacturer,
       deleteRoom,

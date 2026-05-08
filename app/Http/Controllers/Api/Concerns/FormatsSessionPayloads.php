@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\Concerns;
 use App\Models\Booking;
 use App\Models\Trade;
 use App\Services\AssetDisplayOrderService;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 
 trait FormatsSessionPayloads
@@ -108,6 +109,110 @@ trait FormatsSessionPayloads
             'paid' => $submitted ? (float) $trade->total_cost : 0,
             'timestamp' => optional($trade->created_at)->getTimestampMs(),
         ];
+    }
+
+    protected function collectDebtRecords(): Collection
+    {
+        $trades = Trade::query()
+            ->where(fn (Builder $query) => $this->constrainDebtRelatedQuery($query, 'payment_status', 'debt_name', 'debt_phone_number'))
+            ->latest('end_time')
+            ->get()
+            ->map(fn (Trade $trade) => $this->formatDebtRecordFromTrade($trade));
+
+        $bookings = Booking::query()
+            ->with(['assets.room', 'assets.service'])
+            ->whereDoesntHave('trade')
+            ->where(fn (Builder $query) => $this->constrainDebtRelatedQuery($query, 'status', 'debt_name', 'debt_phone_number'))
+            ->latest('start_time')
+            ->get()
+            ->map(fn (Booking $booking) => $this->formatDebtRecordFromBooking($booking));
+
+        return $trades
+            ->concat($bookings)
+            ->sortByDesc(fn (array $record) => $record['sort_time'])
+            ->values()
+            ->map(function (array $record) {
+                unset($record['sort_time']);
+
+                return $record;
+            });
+    }
+
+    protected function formatDebtRecordFromTrade(Trade $trade): array
+    {
+        $assets = $this->snapshotAssets($trade->asset_snapshot, collect());
+        $sessionDate = $trade->end_time ?? $trade->start_time ?? $trade->created_at;
+
+        return [
+            'id' => "trade-{$trade->id}",
+            'source' => 'trade',
+            'booking_id' => $trade->booking_id,
+            'trade_id' => $trade->id,
+            'session_id' => $trade->booking_id,
+            'debtor_name' => $trade->debt_name,
+            'debtor_phone_number' => $trade->debt_phone_number,
+            'debt_amount' => (float) $trade->total_cost,
+            'final_cost' => (float) $trade->total_cost,
+            'session_state' => 'ended',
+            'payment_state' => $trade->payment_status === 'submitted' ? 'paid' : 'unpaid',
+            'session_status' => $trade->session_status,
+            'payment_status' => $trade->payment_status,
+            'created_at' => $trade->created_at,
+            'session_date' => $sessionDate,
+            'start_time' => $trade->start_time,
+            'end_time' => $trade->end_time,
+            'duration_minutes' => $trade->duration_minutes,
+            'room_label' => $this->roomLabelFromAssets($assets),
+            'pricing_label' => $trade->tariff_name ?: 'Service pricing',
+            'reference_label' => "Trade #{$trade->id}",
+            'sort_time' => optional($sessionDate)->getTimestamp() ?? 0,
+        ];
+    }
+
+    protected function formatDebtRecordFromBooking(Booking $booking): array
+    {
+        $assets = $this->snapshotAssets(
+            $booking->asset_snapshot,
+            $booking->relationLoaded('assets') ? $booking->assets : collect(),
+        );
+        $sessionDate = $booking->ended_at ?? $booking->start_time ?? $booking->created_at;
+
+        return [
+            'id' => "booking-{$booking->id}",
+            'source' => 'booking',
+            'booking_id' => $booking->id,
+            'trade_id' => null,
+            'session_id' => $booking->id,
+            'debtor_name' => $booking->debt_name,
+            'debtor_phone_number' => $booking->debt_phone_number,
+            'debt_amount' => (float) $booking->total_cost,
+            'final_cost' => (float) $booking->total_cost,
+            'session_state' => $booking->session_status === 'active' ? 'active' : 'ended',
+            'payment_state' => $booking->status === 'submitted' ? 'paid' : 'unpaid',
+            'session_status' => $booking->session_status,
+            'payment_status' => $booking->status,
+            'created_at' => $booking->created_at,
+            'session_date' => $sessionDate,
+            'start_time' => $booking->start_time,
+            'end_time' => $booking->ended_at ?? $booking->end_time,
+            'duration_minutes' => $booking->duration_minutes,
+            'room_label' => $this->roomLabelFromAssets($assets),
+            'pricing_label' => $booking->tariff_name_snapshot ?: 'Service pricing',
+            'reference_label' => "Session #{$booking->id}",
+            'sort_time' => optional($sessionDate)->getTimestamp() ?? 0,
+        ];
+    }
+
+    protected function constrainDebtRelatedQuery(
+        Builder $query,
+        string $statusColumn,
+        string $nameColumn,
+        string $phoneColumn,
+    ): void {
+        $query
+            ->where($statusColumn, 'debt_closed')
+            ->orWhereNotNull($nameColumn)
+            ->orWhereNotNull($phoneColumn);
     }
 
     protected function roomLabelFromAssets(array $assets): string

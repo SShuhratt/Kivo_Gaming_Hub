@@ -40,4 +40,24 @@ class TradeController extends Controller
 
         return response()->json($ledger);
     }
+
+    public function debts(Request $request, SessionLifecycleService $sessionLifecycle)
+    {
+        $validated = $this->validateApi($request, [
+            'status' => 'nullable|in:active,ended,paid,unpaid',
+        ]);
+
+        $sessionLifecycle->syncElapsedSessions();
+
+        $debts = $this->collectDebtRecords();
+
+        if ($validated['status'] ?? null) {
+            $status = $validated['status'];
+            $debts = $debts
+                ->filter(fn (array $entry) => $entry['session_state'] === $status || $entry['payment_state'] === $status)
+                ->values();
+        }
+
+        return response()->json($debts);
+    }
 }

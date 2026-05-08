@@ -104,6 +104,7 @@ export type DashboardBootstrapResponse = {
     paid: number;
     timestamp: number;
   }>;
+  debts: ApiDebtRecord[];
   sessions: ApiSession[];
   companies: Array<{
     id: string;
@@ -136,6 +137,30 @@ export type DashboardBootstrapResponse = {
     total_usage_duration_minutes: number;
     total_earned_money: number;
   }>;
+};
+
+export type ApiDebtRecord = {
+  id: string;
+  source: 'booking' | 'trade';
+  booking_id: number | null;
+  trade_id: number | null;
+  session_id: number | null;
+  debtor_name: string | null;
+  debtor_phone_number: string | null;
+  debt_amount: number;
+  final_cost: number;
+  session_state: 'active' | 'ended';
+  payment_state: 'paid' | 'unpaid';
+  session_status: string;
+  payment_status: 'submitted' | 'debt_closed';
+  created_at: string | null;
+  session_date: string | null;
+  start_time: string | null;
+  end_time: string | null;
+  duration_minutes: number | null;
+  room_label: string;
+  pricing_label: string;
+  reference_label: string;
 };
 
 export type ApiSessionTrade = {

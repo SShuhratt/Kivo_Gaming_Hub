@@ -132,6 +132,8 @@ class BookingAndFinanceApiTest extends TestCase
             ->assertCreated()
             ->assertJsonPath('status', 'debt_closed')
             ->assertJsonPath('session_status', 'active')
+            ->assertJsonPath('debt_name', 'Alex Debt')
+            ->assertJsonPath('debt_phone_number', '+998991234567')
             ->assertJsonPath('requested_duration_hours', 2)
             ->assertJsonPath('total_cost', 110000)
             ->assertJsonPath('trade_exists', false)
@@ -435,6 +437,92 @@ class BookingAndFinanceApiTest extends TestCase
             ->assertJsonCount(1)
             ->assertJsonPath('0.type', 'Debt')
             ->assertJsonPath('0.status', 'debt_closed');
+    }
+
+    public function test_debt_list_includes_active_and_saved_records_without_duplicates_and_survives_session_deletion(): void
+    {
+        Carbon::setTestNow('2026-04-25T09:00:00+05:00');
+
+        [$assetOne, $assetTwo] = $this->createPricedAssets();
+
+        $activeDebtBookingId = $this->postJson('/api/bookings', [
+            'asset_ids' => [$assetOne->id],
+            'start_time' => '2026-04-25T11:30:00+05:00',
+            'duration_hours' => 3,
+            'status' => 'debt_closed',
+            'debt_name' => 'Ali',
+            'debt_phone_number' => '+998901234567',
+        ], $this->authHeaders())
+            ->assertCreated()
+            ->json('id');
+
+        $endedDebtBookingId = $this->postJson('/api/bookings', [
+            'asset_ids' => [$assetTwo->id],
+            'start_time' => '2026-04-25T12:00:00+05:00',
+            'duration_hours' => 2,
+            'status' => 'debt_closed',
+            'debt_name' => 'Vali',
+            'debt_phone_number' => '+998909876543',
+        ], $this->authHeaders())
+            ->assertCreated()
+            ->json('id');
+
+        Carbon::setTestNow('2026-04-25T13:00:00+05:00');
+
+        $endedTradeId = $this->postJson("/api/sessions/{$endedDebtBookingId}/end", [], $this->authHeaders())
+            ->assertOk()
+            ->assertJsonPath('trade.status', 'debt_closed')
+            ->assertJsonPath('trade.saved_cost', 35000)
+            ->json('trade.id');
+        $this->assertNotNull($endedTradeId);
+
+        $debtResponse = $this->getJson('/api/debts', $this->authHeaders())
+            ->assertOk()
+            ->assertJsonCount(2);
+
+        $debtRecords = $debtResponse->json();
+
+        $activeRecord = collect($debtRecords)->firstWhere('booking_id', $activeDebtBookingId);
+        $endedRecord = collect($debtRecords)->firstWhere('trade_id', $endedTradeId);
+
+        $this->assertNotNull($activeRecord);
+        $this->assertSame('Ali', $activeRecord['debtor_name']);
+        $this->assertSame('+998901234567', $activeRecord['debtor_phone_number']);
+        $this->assertSame('booking', $activeRecord['source']);
+        $this->assertSame('active', $activeRecord['session_state']);
+        $this->assertSame('unpaid', $activeRecord['payment_state']);
+        $this->assertEquals(60000.0, $activeRecord['final_cost']);
+
+        $this->assertNotNull($endedRecord);
+        $this->assertSame('Vali', $endedRecord['debtor_name']);
+        $this->assertSame('+998909876543', $endedRecord['debtor_phone_number']);
+        $this->assertSame('trade', $endedRecord['source']);
+        $this->assertSame('ended', $endedRecord['session_state']);
+        $this->assertSame('unpaid', $endedRecord['payment_state']);
+        $this->assertEquals(35000.0, $endedRecord['final_cost']);
+
+        $bootstrapDebts = $this->getJson('/api/dashboard/bootstrap', $this->authHeaders())
+            ->assertOk()
+            ->assertJsonCount(2, 'debts')
+            ->json('debts');
+
+        $this->assertCount(1, collect($bootstrapDebts)->where('debtor_name', 'Ali'));
+        $this->assertCount(1, collect($bootstrapDebts)->where('debtor_name', 'Vali'));
+
+        $this->deleteJson("/api/sessions/{$endedDebtBookingId}", [], $this->authHeaders())
+            ->assertNoContent();
+
+        $debtResponseAfterDelete = $this->getJson('/api/debts', $this->authHeaders())
+            ->assertOk()
+            ->assertJsonCount(2);
+
+        $debtRecordsAfterDelete = $debtResponseAfterDelete->json();
+        $remainingEndedRecord = collect($debtRecordsAfterDelete)->firstWhere('trade_id', $endedTradeId);
+
+        $this->assertNotNull($remainingEndedRecord);
+        $this->assertNull($remainingEndedRecord['booking_id']);
+        $this->assertSame('Vali', $remainingEndedRecord['debtor_name']);
+        $this->assertCount(1, collect($debtRecordsAfterDelete)->where('debtor_name', 'Vali'));
     }
 
     public function test_protected_api_requires_a_real_jwt_bearer_token(): void

@@ -119,6 +119,7 @@ class DashboardController extends Controller
             ->get()
             ->map(fn (Trade $trade) => $this->formatDashboardSale($trade))
             ->values();
+        $debts = $this->collectDebtRecords();
 
         $today = Carbon::now()->startOfDay();
 
@@ -137,6 +138,7 @@ class DashboardController extends Controller
             'services' => $services,
             'rooms' => $rooms,
             'sales' => $sales,
+            'debts' => $debts,
             'sessions' => $sessions->map(fn (Booking $booking) => $this->formatSession($booking))->values(),
             'companies' => $companies,
             'assets' => $assets,

@@ -32,6 +32,8 @@ Route::middleware('api.token')->group(function () {
 
     Route::get('/trades', [TradeController::class, 'index'])
         ->defaults('openapiOperation', 'listTrades');
+    Route::get('/debts', [TradeController::class, 'debts'])
+        ->defaults('openapiOperation', 'listDebts');
 
     Route::get('/rooms', [RoomController::class, 'index'])
         ->defaults('openapiOperation', 'listRooms');

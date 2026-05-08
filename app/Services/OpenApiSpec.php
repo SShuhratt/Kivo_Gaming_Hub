@@ -125,6 +125,7 @@ class OpenApiSpec
                     ]),
                     'services' => ['type' => 'array', 'items' => ['type' => 'object']],
                     'sales' => ['type' => 'array', 'items' => ['type' => 'object']],
+                    'debts' => ['type' => 'array', 'items' => ['$ref' => '#/components/schemas/DebtRecord']],
                     'sessions' => ['type' => 'array', 'items' => ['$ref' => '#/components/schemas/Session']],
                     'companies' => ['type' => 'array', 'items' => ['type' => 'object']],
                     'assets' => ['type' => 'array', 'items' => ['$ref' => '#/components/schemas/Asset']],
@@ -191,6 +192,29 @@ class OpenApiSpec
                     'pricing_label' => ['type' => 'string', 'example' => 'Service pricing'],
                     'pricing' => ['$ref' => '#/components/schemas/PricingSummary'],
                     'assets' => ['type' => 'array', 'items' => ['$ref' => '#/components/schemas/Asset']],
+                ]),
+                'DebtRecord' => $this->object([
+                    'id' => ['type' => 'string', 'example' => 'trade-5'],
+                    'source' => ['type' => 'string', 'enum' => ['booking', 'trade'], 'example' => 'trade'],
+                    'booking_id' => ['type' => 'integer', 'nullable' => true, 'example' => 7],
+                    'trade_id' => ['type' => 'integer', 'nullable' => true, 'example' => 5],
+                    'session_id' => ['type' => 'integer', 'nullable' => true, 'example' => 7],
+                    'debtor_name' => ['type' => 'string', 'nullable' => true, 'example' => 'Ali'],
+                    'debtor_phone_number' => ['type' => 'string', 'nullable' => true, 'example' => '+998901234567'],
+                    'debt_amount' => ['type' => 'number', 'example' => 25000],
+                    'final_cost' => ['type' => 'number', 'example' => 25000],
+                    'session_state' => ['type' => 'string', 'enum' => ['active', 'ended'], 'example' => 'ended'],
+                    'payment_state' => ['type' => 'string', 'enum' => ['paid', 'unpaid'], 'example' => 'unpaid'],
+                    'session_status' => ['type' => 'string', 'example' => 'completed'],
+                    'payment_status' => ['type' => 'string', 'enum' => ['submitted', 'debt_closed'], 'example' => 'debt_closed'],
+                    'created_at' => ['type' => 'string', 'format' => 'date-time', 'nullable' => true],
+                    'session_date' => ['type' => 'string', 'format' => 'date-time', 'nullable' => true],
+                    'start_time' => ['type' => 'string', 'format' => 'date-time', 'nullable' => true],
+                    'end_time' => ['type' => 'string', 'format' => 'date-time', 'nullable' => true],
+                    'duration_minutes' => ['type' => 'integer', 'nullable' => true, 'example' => 90],
+                    'room_label' => ['type' => 'string', 'example' => 'Opshiy zal'],
+                    'pricing_label' => ['type' => 'string', 'example' => 'Service pricing'],
+                    'reference_label' => ['type' => 'string', 'example' => 'Trade #5'],
                 ]),
                 'AssetCreateRequest' => $this->object([
                     'name' => ['type' => 'string', 'example' => 'computer1'],
@@ -363,7 +387,23 @@ class OpenApiSpec
             ],
         ];
 
-        return ['/trades' => ['get' => $operation]];
+        $debtOperation = $this->operation('Finance', 'List debtors and debt records', 'listDebts', null, null);
+        $debtOperation['parameters'] = [
+            ['name' => 'status', 'in' => 'query', 'required' => false, 'schema' => ['type' => 'string', 'enum' => ['active', 'ended', 'paid', 'unpaid']]],
+        ];
+        $debtOperation['responses']['200'] = [
+            'description' => 'Debt records',
+            'content' => [
+                'application/json' => [
+                    'schema' => ['type' => 'array', 'items' => ['$ref' => '#/components/schemas/DebtRecord']],
+                ],
+            ],
+        ];
+
+        return [
+            '/trades' => ['get' => $operation],
+            '/debts' => ['get' => $debtOperation],
+        ];
     }
 
     protected function manufacturerPaths(): array
