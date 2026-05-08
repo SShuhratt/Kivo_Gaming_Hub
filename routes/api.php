@@ -34,6 +34,10 @@ Route::middleware('api.token')->group(function () {
         ->defaults('openapiOperation', 'listTrades');
     Route::get('/debts', [TradeController::class, 'debts'])
         ->defaults('openapiOperation', 'listDebts');
+    Route::patch('/debts/{id}/mark-paid', [TradeController::class, 'markPaid'])
+        ->defaults('openapiOperation', 'markDebtPaid');
+    Route::delete('/debts/{id}', [TradeController::class, 'destroyDebt'])
+        ->defaults('openapiOperation', 'deleteDebt');
 
     Route::get('/rooms', [RoomController::class, 'index'])
         ->defaults('openapiOperation', 'listRooms');

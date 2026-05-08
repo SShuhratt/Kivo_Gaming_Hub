@@ -23,6 +23,8 @@ import {
   endSessionRequest,
   getDashboardBootstrap,
   loginRequest,
+  markDebtPaidRequest,
+  deleteDebtRequest,
   updateAssetRequest,
   updateWarehouseItemRequest,
 } from '@/lib/api';
@@ -318,6 +320,8 @@ interface DashboardContextType {
     rows: Array<{ existingBackendId?: number; name: string; rate: number }>;
     bundle?: { name: string; rate: number };
   }) => Promise<void>;
+  markDebtPaid: (debtId: string) => Promise<void>;
+  deleteDebt: (debtId: string) => Promise<void>;
 }
 
 const DashboardContext = createContext<DashboardContextType | undefined>(undefined);
@@ -1034,6 +1038,24 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     [refreshDashboard, requireToken]
   );
 
+  const markDebtPaid = useCallback(
+    async (debtId: string) => {
+      const activeToken = requireToken();
+      await markDebtPaidRequest(activeToken, debtId);
+      await refreshDashboard();
+    },
+    [refreshDashboard, requireToken]
+  );
+
+  const deleteDebt = useCallback(
+    async (debtId: string) => {
+      const activeToken = requireToken();
+      await deleteDebtRequest(activeToken, debtId);
+      await refreshDashboard();
+    },
+    [refreshDashboard, requireToken]
+  );
+
   const servicesReady = services.length > 0;
 
   const value = useMemo(
@@ -1069,6 +1091,8 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       createBooking,
       endSession,
       deleteSession,
+      markDebtPaid,
+      deleteDebt,
     }),
     [
       assets,
@@ -1102,6 +1126,8 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       summary,
       token,
       updateAsset,
+      markDebtPaid,
+      deleteDebt,
     ]
   );
 

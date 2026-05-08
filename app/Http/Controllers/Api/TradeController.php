@@ -60,4 +60,51 @@ class TradeController extends Controller
 
         return response()->json($debts);
     }
+    public function markPaid(string $id)
+    {
+        if (str_starts_with($id, 'trade-')) {
+            $tradeId = substr($id, 6);
+            $trade = Trade::findOrFail($tradeId);
+
+            if ($trade->payment_status !== 'submitted') {
+                $trade->update(['payment_status' => 'submitted']);
+            }
+
+            return response()->json(['message' => 'Debt marked as paid']);
+        } elseif (str_starts_with($id, 'booking-')) {
+            $bookingId = substr($id, 8);
+            $booking = \App\Models\Booking::findOrFail($bookingId);
+
+            $updates = ['status' => 'submitted'];
+            if ($booking->session_status === 'active') {
+                $updates['session_status'] = 'completed';
+                $updates['ended_at'] = now();
+            }
+
+            $booking->update($updates);
+
+            return response()->json(['message' => 'Debt marked as paid']);
+        }
+
+        abort(404);
+    }
+
+    public function destroyDebt(string $id)
+    {
+        if (str_starts_with($id, 'trade-')) {
+            $tradeId = substr($id, 6);
+            $trade = Trade::findOrFail($tradeId);
+            $trade->update(['is_deleted_from_debts' => true]);
+
+            return response()->json(['message' => 'Debt removed from list']);
+        } elseif (str_starts_with($id, 'booking-')) {
+            $bookingId = substr($id, 8);
+            $booking = \App\Models\Booking::findOrFail($bookingId);
+            $booking->update(['is_deleted_from_debts' => true]);
+
+            return response()->json(['message' => 'Debt removed from list']);
+        }
+
+        abort(404);
+    }
 }

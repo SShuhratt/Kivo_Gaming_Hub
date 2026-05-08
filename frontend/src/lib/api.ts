@@ -660,3 +660,17 @@ export function deleteSessionRequest(token: string, sessionId: number) {
     token,
   });
 }
+
+export function markDebtPaidRequest(token: string, debtId: string) {
+  return apiRequest(`/debts/${debtId}/mark-paid`, {
+    method: 'PATCH',
+    token,
+  });
+}
+
+export function deleteDebtRequest(token: string, debtId: string) {
+  return apiRequest(`/debts/${debtId}`, {
+    method: 'DELETE',
+    token,
+  });
+}

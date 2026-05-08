@@ -41,6 +41,17 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Trash2, CheckCircle2 } from 'lucide-react';
 
 const COLORS = ['#00ffff', '#00cccc', '#009999', '#006666', '#ff4444'];
 
@@ -187,7 +198,7 @@ function resolveDebtDisplayDate(record: DebtRecord) {
 }
 
 export default function MoliyaPage() {
-  const { sales, debts, isCheckingAuth } = useDashboard();
+  const { sales, debts, isCheckingAuth, markDebtPaid, deleteDebt } = useDashboard();
   const [activePanel, setActivePanel] = useState<'overview' | 'debts'>('overview');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -199,6 +210,9 @@ export default function MoliyaPage() {
   });
   const [debtSearch, setDebtSearch] = useState('');
   const [debtStatus, setDebtStatus] = useState<'all' | 'active' | 'ended' | 'paid' | 'unpaid'>('all');
+
+  const [debtToPay, setDebtToPay] = useState<string | null>(null);
+  const [debtToDelete, setDebtToDelete] = useState<string | null>(null);
 
   const filteredSales = useMemo(() => {
     return sales.filter((sale) => {
@@ -599,7 +613,7 @@ export default function MoliyaPage() {
                       Sana
                     </TableHead>
                     <TableHead className="h-10 pr-5 text-right text-[8px] font-black uppercase tracking-widest text-primary/60">
-                      Bog'liq yozuv
+                      Amallar
                     </TableHead>
                   </TableRow>
                 </TableHeader>
@@ -654,11 +668,32 @@ export default function MoliyaPage() {
                             {formatDateTime(resolveDebtDisplayDate(record))}
                           </TableCell>
                           <TableCell className="py-4 pr-5 text-right">
-                            <p className="text-[10px] font-black uppercase tracking-widest text-white">
-                              {record.referenceLabel}
-                            </p>
-                            <p className="mt-1 text-[9px] font-bold uppercase tracking-widest text-white/35">
-                              {record.source === 'trade' && record.tradeId ? `Trade ID #${record.tradeId}` : `Session ID #${record.sessionId ?? '-'}`}
+                            <div className="flex items-center justify-end gap-2">
+                              {record.paymentState === 'unpaid' ? (
+                                <Button
+                                  onClick={() => setDebtToPay(record.id)}
+                                  size="sm"
+                                  className="h-8 rounded-lg bg-emerald-500/10 text-[10px] font-black uppercase tracking-widest text-emerald-400 hover:bg-emerald-500/20"
+                                >
+                                  <CheckCircle2 className="mr-1.5 h-3 w-3" />
+                                  To'landi
+                                </Button>
+                              ) : null}
+
+                              {record.paymentState === 'paid' ? (
+                                <Button
+                                  onClick={() => setDebtToDelete(record.id)}
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-8 rounded-lg bg-red-500/10 text-[10px] font-black uppercase tracking-widest text-red-400 hover:bg-red-500/20"
+                                >
+                                  <Trash2 className="mr-1.5 h-3 w-3" />
+                                  O'chirish
+                                </Button>
+                              ) : null}
+                            </div>
+                            <p className="mt-2 text-[9px] font-bold uppercase tracking-widest text-white/35">
+                              {record.source === 'trade' ? `Trade ID #${record.tradeId}` : `Session ID #${record.sessionId ?? '-'}`}
                             </p>
                           </TableCell>
                         </TableRow>
@@ -685,6 +720,62 @@ export default function MoliyaPage() {
                 </div>
               </div>
             </div>
+
+            {/* Pay Debt Dialog */}
+            <AlertDialog open={!!debtToPay} onOpenChange={(open) => !open && setDebtToPay(null)}>
+              <AlertDialogContent className="border-emerald-500/20 bg-[#0a1a1a]">
+                <AlertDialogHeader>
+                  <AlertDialogTitle className="text-white">Qarz to'langanini tasdiqlaysizmi?</AlertDialogTitle>
+                  <AlertDialogDescription className="text-white/60">
+                    Qarz holati "To'landi" bo'lib o'zgaradi. Tasdiqlaysizmi? (Do you confirm the debt is paid back?)
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel className="border-white/10 bg-transparent text-white hover:bg-white/5 hover:text-white">
+                    Bekor qilish
+                  </AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={() => {
+                      if (debtToPay) {
+                        markDebtPaid(debtToPay).catch(console.error);
+                        setDebtToPay(null);
+                      }
+                    }}
+                    className="bg-emerald-500 text-white hover:bg-emerald-600"
+                  >
+                    Tasdiqlash
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+
+            {/* Delete Debt Dialog */}
+            <AlertDialog open={!!debtToDelete} onOpenChange={(open) => !open && setDebtToDelete(null)}>
+              <AlertDialogContent className="border-red-500/20 bg-[#0a1a1a]">
+                <AlertDialogHeader>
+                  <AlertDialogTitle className="text-white">To'langan qarzni ro'yxatdan o'chirishni xohlaysizmi?</AlertDialogTitle>
+                  <AlertDialogDescription className="text-white/60">
+                    Bu qarz ro'yxatdan o'chiriladi, lekin tarixda saqlanib qoladi. (Do you want to delete this paid debt from the list?)
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel className="border-white/10 bg-transparent text-white hover:bg-white/5 hover:text-white">
+                    Bekor qilish
+                  </AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={() => {
+                      if (debtToDelete) {
+                        deleteDebt(debtToDelete).catch(console.error);
+                        setDebtToDelete(null);
+                      }
+                    }}
+                    className="bg-red-500 text-white hover:bg-red-600"
+                  >
+                    O'chirish
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </>
         )}
       </div>

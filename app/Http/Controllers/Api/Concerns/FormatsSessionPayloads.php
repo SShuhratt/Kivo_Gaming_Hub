@@ -209,10 +209,12 @@ trait FormatsSessionPayloads
         string $nameColumn,
         string $phoneColumn,
     ): void {
-        $query
-            ->where($statusColumn, 'debt_closed')
-            ->orWhereNotNull($nameColumn)
-            ->orWhereNotNull($phoneColumn);
+        $query->where('is_deleted_from_debts', false)
+              ->where(function (Builder $q) use ($statusColumn, $nameColumn, $phoneColumn) {
+                  $q->where($statusColumn, 'debt_closed')
+                    ->orWhereNotNull($nameColumn)
+                    ->orWhereNotNull($phoneColumn);
+              });
     }
 
     protected function roomLabelFromAssets(array $assets): string
