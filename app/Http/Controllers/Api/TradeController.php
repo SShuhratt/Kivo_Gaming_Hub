@@ -94,12 +94,22 @@ class TradeController extends Controller
         if (str_starts_with($id, 'trade-')) {
             $tradeId = substr($id, 6);
             $trade = Trade::findOrFail($tradeId);
+            
+            if ($trade->payment_status !== 'submitted') {
+                return response()->json(['message' => 'Faqat to\'liq to\'langan qarzlarni o\'chirish mumkin.'], 400);
+            }
+            
             $trade->update(['is_deleted_from_debts' => true]);
 
             return response()->json(['message' => 'Debt removed from list']);
         } elseif (str_starts_with($id, 'booking-')) {
             $bookingId = substr($id, 8);
             $booking = \App\Models\Booking::findOrFail($bookingId);
+            
+            if ($booking->status !== 'submitted') {
+                return response()->json(['message' => 'Faqat to\'liq to\'langan qarzlarni o\'chirish mumkin.'], 400);
+            }
+            
             $booking->update(['is_deleted_from_debts' => true]);
 
             return response()->json(['message' => 'Debt removed from list']);

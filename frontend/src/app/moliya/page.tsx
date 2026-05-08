@@ -742,10 +742,15 @@ export default function MoliyaPage() {
                     Bekor qilish
                   </AlertDialogCancel>
                   <AlertDialogAction
-                    onClick={() => {
+                    onClick={async (e) => {
+                      e.preventDefault();
                       if (debtToPay) {
-                        markDebtPaid(debtToPay).catch(console.error);
-                        setDebtToPay(null);
+                        try {
+                          await markDebtPaid(debtToPay);
+                          setDebtToPay(null);
+                        } catch (error: any) {
+                          alert(error?.message || 'Xatolik yuz berdi');
+                        }
                       }
                     }}
                     className="bg-emerald-500 text-white hover:bg-emerald-600"
@@ -770,10 +775,15 @@ export default function MoliyaPage() {
                     Bekor qilish
                   </AlertDialogCancel>
                   <AlertDialogAction
-                    onClick={() => {
+                    onClick={async (e) => {
+                      e.preventDefault();
                       if (debtToDelete) {
-                        deleteDebt(debtToDelete).catch(console.error);
-                        setDebtToDelete(null);
+                        try {
+                          await deleteDebt(debtToDelete);
+                          setDebtToDelete(null);
+                        } catch (error: any) {
+                          alert(error?.message || 'Xatolik yuz berdi');
+                        }
                       }
                     }}
                     className="bg-red-500 text-white hover:bg-red-600"
