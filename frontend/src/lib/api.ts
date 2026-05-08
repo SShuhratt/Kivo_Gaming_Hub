@@ -149,6 +149,9 @@ export type ApiDebtRecord = {
   debtor_phone_number: string | null;
   debt_amount: number;
   final_cost: number;
+  original_amount: number;
+  paid_amount: number;
+  remaining_amount: number;
   session_state: 'active' | 'ended';
   payment_state: 'paid' | 'unpaid';
   session_status: string;

@@ -142,6 +142,8 @@ trait FormatsSessionPayloads
     {
         $assets = $this->snapshotAssets($trade->asset_snapshot, collect());
         $sessionDate = $trade->end_time ?? $trade->start_time ?? $trade->created_at;
+        $isPaid = $trade->payment_status === 'submitted';
+        $originalAmount = (float) $trade->total_cost;
 
         return [
             'id' => "trade-{$trade->id}",
@@ -151,10 +153,13 @@ trait FormatsSessionPayloads
             'session_id' => $trade->booking_id,
             'debtor_name' => $trade->debt_name,
             'debtor_phone_number' => $trade->debt_phone_number,
-            'debt_amount' => (float) $trade->total_cost,
-            'final_cost' => (float) $trade->total_cost,
+            'debt_amount' => $originalAmount,
+            'final_cost' => $originalAmount,
+            'original_amount' => $originalAmount,
+            'paid_amount' => $isPaid ? $originalAmount : 0,
+            'remaining_amount' => $isPaid ? 0 : $originalAmount,
             'session_state' => 'ended',
-            'payment_state' => $trade->payment_status === 'submitted' ? 'paid' : 'unpaid',
+            'payment_state' => $isPaid ? 'paid' : 'unpaid',
             'session_status' => $trade->session_status,
             'payment_status' => $trade->payment_status,
             'created_at' => $trade->created_at,
@@ -176,6 +181,8 @@ trait FormatsSessionPayloads
             $booking->relationLoaded('assets') ? $booking->assets : collect(),
         );
         $sessionDate = $booking->ended_at ?? $booking->start_time ?? $booking->created_at;
+        $isPaid = $booking->status === 'submitted';
+        $originalAmount = (float) $booking->total_cost;
 
         return [
             'id' => "booking-{$booking->id}",
@@ -185,10 +192,13 @@ trait FormatsSessionPayloads
             'session_id' => $booking->id,
             'debtor_name' => $booking->debt_name,
             'debtor_phone_number' => $booking->debt_phone_number,
-            'debt_amount' => (float) $booking->total_cost,
-            'final_cost' => (float) $booking->total_cost,
+            'debt_amount' => $originalAmount,
+            'final_cost' => $originalAmount,
+            'original_amount' => $originalAmount,
+            'paid_amount' => $isPaid ? $originalAmount : 0,
+            'remaining_amount' => $isPaid ? 0 : $originalAmount,
             'session_state' => $booking->session_status === 'active' ? 'active' : 'ended',
-            'payment_state' => $booking->status === 'submitted' ? 'paid' : 'unpaid',
+            'payment_state' => $isPaid ? 'paid' : 'unpaid',
             'session_status' => $booking->session_status,
             'payment_status' => $booking->status,
             'created_at' => $booking->created_at,

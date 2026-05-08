@@ -262,7 +262,7 @@ export default function MoliyaPage() {
 
   const debtSummary = useMemo(() => {
     return {
-      totalAmount: debts.reduce((acc, record) => acc + record.finalCost, 0),
+      totalAmount: debts.reduce((acc, record) => acc + record.remainingAmount, 0),
       activeCount: debts.filter((record) => record.sessionState === 'active').length,
       unpaidCount: debts.filter((record) => record.paymentState === 'unpaid').length,
     };
@@ -641,8 +641,15 @@ export default function MoliyaPage() {
                           <TableCell className="py-4 text-[10px] font-bold text-white/70">
                             {record.debtorPhoneNumber ?? '-'}
                           </TableCell>
-                          <TableCell className="py-4 text-[10px] font-black text-amber-200">
-                            {formatCurrency(record.finalCost)} so'm
+                          <TableCell className="py-4">
+                            <p className="text-[10px] font-black text-amber-200">
+                              {formatCurrency(record.remainingAmount)} so'm
+                            </p>
+                            {record.paymentState === 'paid' && (
+                              <p className="mt-1 text-[8px] font-bold text-white/40 line-through">
+                                {formatCurrency(record.originalAmount)} so'm
+                              </p>
+                            )}
                           </TableCell>
                           <TableCell className="py-4">
                             <div className="flex flex-wrap gap-2">
@@ -707,7 +714,7 @@ export default function MoliyaPage() {
                 <div className="flex items-center gap-4">
                   <span className="text-[9px] font-bold uppercase tracking-widest text-white/30">Jami qarz:</span>
                   <span className="text-xs font-black uppercase tracking-tight text-amber-200">
-                    {formatCurrency(filteredDebts.reduce((acc, record) => acc + record.finalCost, 0))} UZS
+                    {formatCurrency(filteredDebts.reduce((acc, record) => acc + record.remainingAmount, 0))} UZS
                   </span>
                 </div>
                 <div className="flex items-center gap-3">
@@ -755,7 +762,7 @@ export default function MoliyaPage() {
                 <AlertDialogHeader>
                   <AlertDialogTitle className="text-white">To'langan qarzni ro'yxatdan o'chirishni xohlaysizmi?</AlertDialogTitle>
                   <AlertDialogDescription className="text-white/60">
-                    Bu qarz ro'yxatdan o'chiriladi, lekin tarixda saqlanib qoladi. (Do you want to delete this paid debt from the list?)
+                    Bu qarz ro'yxatdan o'chiriladi, lekin tarixda saqlanib qoladi. (Do you want to remove this paid debt from the list?)
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>

@@ -131,6 +131,9 @@ export interface DebtRecord {
   debtorPhoneNumber: string | null;
   debtAmount: number;
   finalCost: number;
+  originalAmount: number;
+  paidAmount: number;
+  remainingAmount: number;
   sessionState: 'active' | 'ended';
   paymentState: 'paid' | 'unpaid';
   sessionStatus: 'active' | 'completed' | 'cancelled';
@@ -377,6 +380,9 @@ function mapDebtRecord(record: ApiDebtRecord): DebtRecord {
     debtorPhoneNumber: record.debtor_phone_number,
     debtAmount: record.debt_amount,
     finalCost: record.final_cost,
+    originalAmount: record.original_amount,
+    paidAmount: record.paid_amount,
+    remainingAmount: record.remaining_amount,
     sessionState: record.session_state,
     paymentState: record.payment_state,
     sessionStatus: record.session_status as DebtRecord['sessionStatus'],
