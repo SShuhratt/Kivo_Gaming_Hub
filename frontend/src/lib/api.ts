@@ -59,6 +59,8 @@ export type DownloadedApiFile = {
   blob: Blob;
 };
 
+const XLSX_MIME_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+
 export type ApiUser = {
   id: number;
   name: string;
@@ -345,7 +347,7 @@ async function requestAgainstBase<T>(baseUrl: string, path: string, options: Req
 
 async function downloadFileAgainstBase(baseUrl: string, path: string, options: RequestOptions = {}): Promise<DownloadedApiFile> {
   const headers = new Headers({
-    Accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/octet-stream,application/vnd.ms-excel,text/csv',
+    Accept: XLSX_MIME_TYPE,
   });
 
   if (options.token) {
@@ -364,6 +366,17 @@ async function downloadFileAgainstBase(baseUrl: string, path: string, options: R
       ? await response.json()
       : await response.text();
     const message = extractApiErrorMessage(payload, response.status);
+
+    throw new ApiError(message, response.status, payload);
+  }
+
+  const contentType = response.headers.get('content-type') ?? '';
+
+  if (!contentType.toLowerCase().includes(XLSX_MIME_TYPE)) {
+    const payload = contentType.includes('application/json')
+      ? await response.json()
+      : await response.text();
+    const message = extractApiErrorMessage(payload, response.status) || 'Unexpected export response.';
 
     throw new ApiError(message, response.status, payload);
   }

@@ -2,21 +2,11 @@
 
 namespace App\Exports;
 
-use Maatwebsite\Excel\Concerns\FromArray;
-use Maatwebsite\Excel\Concerns\WithHeadings;
-
-class ManufacturerProductsExport implements FromArray, WithHeadings
+class ManufacturerProductsExport
 {
-    protected $rows;
-
-    public function __construct(array $rows)
-    {
-        $this->rows = $rows;
-    }
-
-    public function array(): array
-    {
-        return $this->rows;
+    public function __construct(
+        protected array $rows,
+    ) {
     }
 
     public function headings(): array
@@ -35,5 +25,31 @@ class ManufacturerProductsExport implements FromArray, WithHeadings
             'Yaratilgan sana',
             'Yangilangan sana',
         ];
+    }
+
+    public function rows(): array
+    {
+        return array_map(
+            fn (array $row) => [
+                $row['product_id'] ?? '',
+                $row['product_name'] ?? '',
+                $row['manufacturer'] ?? '',
+                $row['category'] ?? '',
+                $row['barcode'] ?? '',
+                $row['stock'] ?? 0,
+                $row['unit'] ?? '',
+                $row['purchase_price'] ?? 0,
+                $row['sell_price'] ?? 0,
+                $row['total_stock_value'] ?? 0,
+                $row['created_at'] ?? '',
+                $row['updated_at'] ?? '',
+            ],
+            $this->rows,
+        );
+    }
+
+    public function sheetName(): string
+    {
+        return 'Mahsulotlar';
     }
 }

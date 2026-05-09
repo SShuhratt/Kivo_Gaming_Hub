@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Exports\TradesExport;
+use App\Http\Controllers\Api\Concerns\DownloadsXlsxExports;
 use App\Http\Controllers\Api\Concerns\FormatsSessionPayloads;
 use App\Http\Controllers\Api\Concerns\ValidatesApiRequests;
 use App\Http\Controllers\Controller;
@@ -15,10 +16,10 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
-use Maatwebsite\Excel\Facades\Excel;
 
 class TradeController extends Controller
 {
+    use DownloadsXlsxExports;
     use FormatsSessionPayloads;
     use ValidatesApiRequests;
 
@@ -71,21 +72,25 @@ class TradeController extends Controller
         ]);
 
         try {
-            return Excel::download(
-                new TradesExport($rows),
+            $export = new TradesExport($rows);
+
+            return $this->downloadXlsx(
                 'savdo-export-'.now()->format('Y-m-d').'.xlsx',
-                \Maatwebsite\Excel\Excel::XLSX
+                $export->sheetName(),
+                $export->headings(),
+                $export->rows(),
             );
         } catch (\Throwable $e) {
             Log::error('Trade export failed', [
                 'endpoint' => 'GET /api/trades/export',
                 'user_id' => $request->user()?->id,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
             ]);
 
             return response()->json([
-                'message' => 'Export failed: ' . $e->getMessage()
+                'message' => 'Export failed',
             ], 500);
         }
     }

@@ -3,15 +3,19 @@
 namespace App\Http\Controllers\Api;
 
 use App\Exports\ManufacturerProductsExport;
+use App\Http\Controllers\Api\Concerns\DownloadsXlsxExports;
 use App\Http\Controllers\Api\Concerns\ValidatesApiRequests;
 use App\Http\Controllers\Controller;
 use App\Models\Manufacturer;
 use App\Models\Warehouse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
-use Maatwebsite\Excel\Facades\Excel;
+use Illuminate\Support\Facades\Log;
 
 class ManufacturerController extends Controller
 {
+    use DownloadsXlsxExports;
     use ValidatesApiRequests;
 
     public function destroy(Manufacturer $manufacturer)
@@ -40,9 +44,10 @@ class ManufacturerController extends Controller
         }
     }
 
-    public function exportProducts(Request $request, $id)
+    public function exportProducts(Request $request, string $manufacturer)
     {
-        $manufacturer = Manufacturer::find($id);
+        $manufacturerId = (int) $manufacturer;
+        $manufacturer = Manufacturer::find($manufacturerId);
 
         if (! $manufacturer) {
             return response()->json([
@@ -92,25 +97,28 @@ class ManufacturerController extends Controller
         ]);
 
         try {
-            return Excel::download(
-                new ManufacturerProductsExport(
-                    $products->map(fn (Warehouse $product) => [
-                        'product_id' => $product->id,
-                        'product_name' => $product->product_name ?? '',
-                        'manufacturer' => $product->manufacturer ?? '',
-                        'category' => '',
-                        'barcode' => $product->shtrix_code ?? '',
-                        'stock' => (int) $product->count,
-                        'unit' => Warehouse::unitLabel($product->unit) ?? '',
-                        'purchase_price' => (float) $product->purchase_price,
-                        'sell_price' => (float) $product->sell_price,
-                        'total_stock_value' => round((float) $product->count * (float) $product->sell_price, 2),
-                        'created_at' => $this->formatExportDate($product->created_at),
-                        'updated_at' => $this->formatExportDate($product->updated_at),
-                    ])->all()
-                ),
+            $export = new ManufacturerProductsExport(
+                $products->map(fn (Warehouse $product) => [
+                    'product_id' => $product->id ?? '',
+                    'product_name' => (string) ($product->product_name ?? ''),
+                    'manufacturer' => (string) ($product->manufacturer ?? ''),
+                    'category' => '',
+                    'barcode' => (string) ($product->shtrix_code ?? ''),
+                    'stock' => (int) ($product->count ?? 0),
+                    'unit' => (string) Warehouse::unitLabel($product->unit),
+                    'purchase_price' => round((float) ($product->purchase_price ?? 0), 2),
+                    'sell_price' => round((float) ($product->sell_price ?? 0), 2),
+                    'total_stock_value' => round((float) ($product->count ?? 0) * (float) ($product->sell_price ?? 0), 2),
+                    'created_at' => $this->formatExportDate($product->created_at),
+                    'updated_at' => $this->formatExportDate($product->updated_at),
+                ])->all()
+            );
+
+            return $this->downloadXlsx(
                 'manufacturer-products-'.($this->manufacturerSlug($manufacturer) ?: 'manufacturer').'-'.now()->format('Y-m-d').'.xlsx',
-                \Maatwebsite\Excel\Excel::XLSX
+                $export->sheetName(),
+                $export->headings(),
+                $export->rows(),
             );
         } catch (\Throwable $e) {
             Log::error('Manufacturer products export failed', [
@@ -118,11 +126,12 @@ class ManufacturerController extends Controller
                 'user_id' => $request->user()?->id,
                 'manufacturer_id' => $manufacturer->id,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
             ]);
 
             return response()->json([
-                'message' => 'Export failed: ' . $e->getMessage()
+                'message' => 'Export failed',
             ], 500);
         }
     }
@@ -132,8 +141,16 @@ class ManufacturerController extends Controller
         return Str::slug($manufacturer->name);
     }
 
-    protected function formatExportDate(?Carbon $value): string
+    protected function formatExportDate(mixed $value): string
     {
-        return $value?->format('Y-m-d H:i:s') ?? '';
+        if ($value instanceof Carbon) {
+            return $value->format('Y-m-d H:i:s');
+        }
+
+        if (is_string($value) && trim($value) !== '') {
+            return Carbon::parse($value)->format('Y-m-d H:i:s');
+        }
+
+        return '';
     }
 }
