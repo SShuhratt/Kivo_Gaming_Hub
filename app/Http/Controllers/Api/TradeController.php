@@ -71,6 +71,12 @@ class TradeController extends Controller
 
         $rows = $ledger->map(fn (array $entry) => $this->mapTradeExportRow($entry))->all();
 
+        Log::info('Trade export requested', [
+            'user_id' => $request->user()?->id,
+            'count' => count($rows),
+            'filters' => $validated,
+        ]);
+
         return Excel::download(
             new TradesExport($rows),
             'savdo-export-'.now()->format('Y-m-d').'.xlsx',

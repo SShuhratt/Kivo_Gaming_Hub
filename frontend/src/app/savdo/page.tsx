@@ -125,6 +125,8 @@ export default function SavdoPage() {
             <div className="relative w-48">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3 w-3 text-primary/40" />
               <Input 
+                id="savdo-search"
+                name="savdo_search"
                 aria-label="Savdo qidiruvi"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}

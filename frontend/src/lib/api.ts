@@ -19,11 +19,26 @@ function normalizeApiBaseUrl(value?: string | null): string | null {
 }
 
 function resolveApiBaseUrls(): string[] {
+  // Try Vite env var first, then Next.js env var
+  const envApiUrl = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_URL) 
+    || process.env.NEXT_PUBLIC_API_URL 
+    || process.env.VITE_API_URL;
+
   const candidates = [
-    normalizeApiBaseUrl(process.env.NEXT_PUBLIC_API_URL),
+    normalizeApiBaseUrl(envApiUrl),
     typeof window !== 'undefined' ? normalizeApiBaseUrl(window.location.origin) : null,
     normalizeApiBaseUrl('http://localhost:8000'),
   ].filter((value): value is string => Boolean(value));
+
+  // In production, if we have an env API URL, use ONLY that to prevent incorrect fallbacks
+  if (envApiUrl && process.env.NODE_ENV === 'production') {
+    const primary = normalizeApiBaseUrl(envApiUrl);
+    if (primary) return [primary];
+  }
+
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('Resolved API URLs:', Array.from(new Set(candidates)));
+  }
 
   return Array.from(new Set(candidates));
 }

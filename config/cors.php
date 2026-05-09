@@ -25,6 +25,8 @@ return [
         'https://kivo-gaming-hub.onrender.com',
         'https://kivo-gaming-hub-1.onrender.com',
         'http://localhost:3000',
+        'http://localhost:5173',
+        'http://localhost:8000',
         'http://localhost:9002',
     ], static fn ($origin) => is_string($origin) && $origin !== ''))),
 
@@ -32,7 +34,7 @@ return [
 
     'allowed_headers' => ['*'],
 
-    'exposed_headers' => [],
+    'exposed_headers' => ['Content-Disposition', 'Content-Type'],
 
     'max_age' => 0,
 

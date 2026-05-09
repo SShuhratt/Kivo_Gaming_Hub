@@ -83,6 +83,13 @@ class ManufacturerController extends Controller
             ], 422);
         }
 
+        Log::info('Manufacturer products export requested', [
+            'user_id' => $request->user()?->id,
+            'manufacturer_id' => $manufacturer->id,
+            'count' => $products->count(),
+            'filters' => $validated,
+        ]);
+
         return Excel::download(
             new ManufacturerProductsExport(
                 $products->map(fn (Warehouse $product) => [

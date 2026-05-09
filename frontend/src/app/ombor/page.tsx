@@ -294,10 +294,12 @@ export default function OmborPage() {
 
               <div className="grid gap-4 rounded-[24px] border border-white/5 bg-[#0a1f1f]/40 p-4 backdrop-blur-md md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase tracking-widest text-primary/60">Ishlab chiqaruvchini qidirish</Label>
+                  <Label htmlFor="manufacturer-search" className="text-[10px] font-black uppercase tracking-widest text-primary/60">Ishlab chiqaruvchini qidirish</Label>
                   <div className="relative">
                     <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/25" />
                     <Input
+                      id="manufacturer-search"
+                      name="manufacturer_search"
                       aria-label="Ishlab chiqaruvchi qidirish"
                       value={manufacturerSearch}
                       onChange={(e) => setManufacturerSearch(e.target.value)}
@@ -306,10 +308,12 @@ export default function OmborPage() {
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase tracking-widest text-primary/60">Mahsulot yoki turi bo'yicha qidirish</Label>
+                  <Label htmlFor="global-product-search" className="text-[10px] font-black uppercase tracking-widest text-primary/60">Mahsulot yoki turi bo'yicha qidirish</Label>
                   <div className="relative">
                     <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/25" />
                     <Input
+                      id="global-product-search"
+                      name="global_product_search"
                       aria-label="Mahsulot qidirish"
                       value={productSearch}
                       onChange={(e) => setProductSearch(e.target.value)}
@@ -425,10 +429,12 @@ export default function OmborPage() {
         <div className="bg-[#0a1a1a]/60 border border-white/5 rounded-[32px] overflow-hidden shadow-2xl backdrop-blur-md">
           <div className="grid gap-4 border-b border-white/5 bg-[#0d1f1f]/40 p-4 md:grid-cols-2">
             <div className="space-y-2">
-              <Label className="text-[10px] font-black uppercase tracking-widest text-primary/60">Mahsulotlarni qidirish</Label>
+              <Label htmlFor="company-product-search" className="text-[10px] font-black uppercase tracking-widest text-primary/60">Mahsulotlarni qidirish</Label>
               <div className="relative">
                 <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/25" />
                 <Input
+                  id="company-product-search"
+                  name="company_product_search"
                   aria-label="Mahsulotlarni qidirish"
                   value={productSearch}
                   onChange={(e) => setProductSearch(e.target.value)}
@@ -437,8 +443,10 @@ export default function OmborPage() {
               </div>
             </div>
             <div className="space-y-2">
-              <Label className="text-[10px] font-black uppercase tracking-widest text-primary/60">Ishlab chiqaruvchi</Label>
+              <Label htmlFor="selected-manufacturer" className="text-[10px] font-black uppercase tracking-widest text-primary/60">Ishlab chiqaruvchi</Label>
               <Input
+                id="selected-manufacturer"
+                name="selected_manufacturer"
                 aria-label="Tanlangan ishlab chiqaruvchi"
                 value={selectedCompany.name}
                 readOnly
