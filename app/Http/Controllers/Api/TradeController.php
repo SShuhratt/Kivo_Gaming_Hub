@@ -70,11 +70,24 @@ class TradeController extends Controller
             'filters' => $validated,
         ]);
 
-        return Excel::download(
-            new TradesExport($rows),
-            'savdo-export-'.now()->format('Y-m-d').'.xlsx',
-            \Maatwebsite\Excel\Excel::XLSX
-        );
+        try {
+            return Excel::download(
+                new TradesExport($rows),
+                'savdo-export-'.now()->format('Y-m-d').'.xlsx',
+                \Maatwebsite\Excel\Excel::XLSX
+            );
+        } catch (\Exception $e) {
+            Log::error('Trade export failed', [
+                'endpoint' => 'GET /api/trades/export',
+                'user_id' => $request->user()?->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                'message' => 'Export failed: ' . $e->getMessage()
+            ], 500);
+        }
     }
 
     public function debts(Request $request, SessionLifecycleService $sessionLifecycle)
@@ -263,18 +276,18 @@ class TradeController extends Controller
             'transaction_id' => $entry['source'] === 'trade'
                 ? 'trade-'.$entry['id']
                 : 'checkout-sale-item-'.$entry['id'],
-            'type' => $entry['type_label'] ?? $entry['type'],
-            'description' => data_get($entry, 'details.reference_label'),
-            'product_service_session' => $serviceOrSession,
-            'quantity' => data_get($entry, 'details.product.quantity'),
-            'unit' => Warehouse::unitLabel($unit),
-            'unit_price' => $unitPrice,
-            'total_amount' => $entry['amount'],
-            'payment_method' => data_get($entry, 'details.payment_method_label', $this->paymentMethodLabel($entry['payment_method'] ?? 'cash')),
-            'debtor_name' => data_get($entry, 'details.debt_info.name'),
-            'debtor_phone' => data_get($entry, 'details.debt_info.phone'),
-            'status' => $entry['status'] ?? null,
-            'created_at' => $this->formatExportDate($entry['created_at'] ?? null),
+            'type' => $entry['type_label'] ?? $entry['type'] ?? '',
+            'description' => data_get($entry, 'details.reference_label') ?? '',
+            'product_service_session' => $serviceOrSession ?? '',
+            'quantity' => (float) (data_get($entry, 'details.product.quantity') ?? 0),
+            'unit' => Warehouse::unitLabel($unit) ?? '',
+            'unit_price' => (float) ($unitPrice ?? 0),
+            'total_amount' => (float) ($entry['amount'] ?? 0),
+            'payment_method' => data_get($entry, 'details.payment_method_label', $this->paymentMethodLabel($entry['payment_method'] ?? 'cash')) ?? '',
+            'debtor_name' => data_get($entry, 'details.debt_info.name') ?? '',
+            'debtor_phone' => data_get($entry, 'details.debt_info.phone') ?? '',
+            'status' => $entry['status'] ?? '',
+            'created_at' => $this->formatExportDate($entry['created_at'] ?? null) ?? '',
         ];
     }
 

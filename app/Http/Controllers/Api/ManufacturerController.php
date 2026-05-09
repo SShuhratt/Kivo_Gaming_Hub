@@ -83,26 +83,40 @@ class ManufacturerController extends Controller
             'filters' => $validated,
         ]);
 
-        return Excel::download(
-            new ManufacturerProductsExport(
-                $products->map(fn (Warehouse $product) => [
-                    'product_id' => $product->id,
-                    'product_name' => $product->product_name,
-                    'manufacturer' => $product->manufacturer,
-                    'category' => '',
-                    'barcode' => $product->shtrix_code,
-                    'stock' => $product->count,
-                    'unit' => Warehouse::unitLabel($product->unit),
-                    'purchase_price' => (float) $product->purchase_price,
-                    'sell_price' => (float) $product->sell_price,
-                    'total_stock_value' => round((float) $product->count * (float) $product->sell_price, 2),
-                    'created_at' => $this->formatExportDate($product->created_at),
-                    'updated_at' => $this->formatExportDate($product->updated_at),
-                ])->all()
-            ),
-            'manufacturer-products-'.($this->manufacturerSlug($manufacturer) ?: 'manufacturer').'-'.now()->format('Y-m-d').'.xlsx',
-            \Maatwebsite\Excel\Excel::XLSX
-        );
+        try {
+            return Excel::download(
+                new ManufacturerProductsExport(
+                    $products->map(fn (Warehouse $product) => [
+                        'product_id' => $product->id,
+                        'product_name' => $product->product_name ?? '',
+                        'manufacturer' => $product->manufacturer ?? '',
+                        'category' => '',
+                        'barcode' => $product->shtrix_code ?? '',
+                        'stock' => (int) $product->count,
+                        'unit' => Warehouse::unitLabel($product->unit) ?? '',
+                        'purchase_price' => (float) $product->purchase_price,
+                        'sell_price' => (float) $product->sell_price,
+                        'total_stock_value' => round((float) $product->count * (float) $product->sell_price, 2),
+                        'created_at' => $this->formatExportDate($product->created_at),
+                        'updated_at' => $this->formatExportDate($product->updated_at),
+                    ])->all()
+                ),
+                'manufacturer-products-'.($this->manufacturerSlug($manufacturer) ?: 'manufacturer').'-'.now()->format('Y-m-d').'.xlsx',
+                \Maatwebsite\Excel\Excel::XLSX
+            );
+        } catch (\Exception $e) {
+            Log::error('Manufacturer products export failed', [
+                'endpoint' => 'GET /api/manufacturers/{id}/products/export',
+                'user_id' => $request->user()?->id,
+                'manufacturer_id' => $manufacturer->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                'message' => 'Export failed: ' . $e->getMessage()
+            ], 500);
+        }
     }
 
     protected function manufacturerSlug(Manufacturer $manufacturer): string
