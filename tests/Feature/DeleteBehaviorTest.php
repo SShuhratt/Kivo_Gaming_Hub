@@ -70,6 +70,7 @@ class DeleteBehaviorTest extends TestCase
             ->assertStatus(409)
             ->assertJson([
                 'message' => 'Delete the manufacturer only after deleting all of its products.',
+                'message_uz' => "Bu ishlab chiqaruvchiga tegishli mahsulotlar mavjud. Avval mahsulotlarni o'chiring.",
             ]);
 
         $this->deleteJson("/api/warehouse/{$product->id}", [], $this->authHeaders())

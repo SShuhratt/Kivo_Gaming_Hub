@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Models\Warehouse;
+
 class OpenApiSpec
 {
     public function toArray(): array
@@ -183,11 +185,17 @@ class OpenApiSpec
                 ]),
                 'TradeLedgerEntry' => $this->object([
                     'id' => ['type' => 'integer', 'example' => 1],
+                    'source' => ['type' => 'string', 'enum' => ['trade', 'checkout_sale_item'], 'example' => 'trade'],
                     'booking_id' => ['type' => 'integer', 'nullable' => true, 'example' => 1],
-                    'type' => ['type' => 'string', 'enum' => ['Income', 'Debt'], 'example' => 'Income'],
+                    'checkout_sale_id' => ['type' => 'integer', 'nullable' => true, 'example' => 1],
+                    'checkout_sale_item_id' => ['type' => 'integer', 'nullable' => true, 'example' => 1],
+                    'type' => ['type' => 'string', 'enum' => ['Income', 'Debt', 'Product Sale'], 'example' => 'Income'],
                     'amount' => ['type' => 'number', 'example' => 240000],
                     'status' => ['type' => 'string', 'enum' => ['submitted', 'debt_closed'], 'example' => 'submitted'],
                     'session_status' => ['type' => 'string', 'enum' => ['completed', 'cancelled'], 'example' => 'completed'],
+                    'payment_method' => ['type' => 'string', 'enum' => ['cash', 'terminal', 'click', 'payme', 'debt'], 'example' => 'cash'],
+                    'cashier_name' => ['type' => 'string', 'nullable' => true, 'example' => 'Cashier User'],
+                    'created_at' => ['type' => 'string', 'format' => 'date-time', 'nullable' => true],
                     'details' => ['type' => 'object'],
                     'pricing_label' => ['type' => 'string', 'example' => 'Service pricing'],
                     'pricing' => ['$ref' => '#/components/schemas/PricingSummary'],
@@ -267,7 +275,7 @@ class OpenApiSpec
                     'manufacturer' => ['type' => 'string', 'example' => 'Asus'],
                     'product_name' => ['type' => 'string', 'example' => 'Gaming Mouse'],
                     'shtrix_code' => ['type' => 'string', 'example' => 'WH-10001'],
-                    'unit' => ['type' => 'string', 'enum' => ['bottle', 'box', 'container', 'bag'], 'example' => 'box'],
+                    'unit' => ['type' => 'string', 'enum' => Warehouse::allowedUnits(), 'example' => 'piece'],
                     'count' => ['type' => 'integer', 'example' => 10],
                     'purchase_price' => ['type' => 'number', 'example' => 20],
                     'sell_price' => ['type' => 'number', 'example' => 35],
@@ -276,7 +284,7 @@ class OpenApiSpec
                     'manufacturer' => ['type' => 'string', 'example' => 'Asus'],
                     'product_name' => ['type' => 'string', 'example' => 'Gaming Mouse Pro'],
                     'shtrix_code' => ['type' => 'string', 'example' => 'WH-10001'],
-                    'unit' => ['type' => 'string', 'enum' => ['bottle', 'box', 'container', 'bag'], 'example' => 'box'],
+                    'unit' => ['type' => 'string', 'enum' => Warehouse::allowedUnits(), 'example' => 'piece'],
                     'count' => ['type' => 'integer', 'example' => 12],
                     'purchase_price' => ['type' => 'number', 'example' => 20],
                     'sell_price' => ['type' => 'number', 'example' => 40],
@@ -286,11 +294,42 @@ class OpenApiSpec
                     'manufacturer' => ['type' => 'string', 'example' => 'Asus'],
                     'product_name' => ['type' => 'string', 'example' => 'Gaming Mouse'],
                     'shtrix_code' => ['type' => 'string', 'example' => 'WH-10001'],
-                    'unit' => ['type' => 'string', 'enum' => ['bottle', 'box', 'container', 'bag'], 'example' => 'box'],
+                    'unit' => ['type' => 'string', 'enum' => Warehouse::allowedUnits(), 'example' => 'piece'],
                     'count' => ['type' => 'integer', 'example' => 10],
                     'purchase_price' => ['type' => 'number', 'example' => 20],
                     'sell_price' => ['type' => 'number', 'example' => 35],
                     'profit_percentage' => ['type' => 'number', 'readOnly' => true, 'example' => 75],
+                ]),
+                'CheckoutSaleCreateRequest' => $this->object([
+                    'payment_method' => ['type' => 'string', 'enum' => ['cash', 'terminal', 'click', 'payme'], 'example' => 'cash'],
+                    'items' => [
+                        'type' => 'array',
+                        'items' => $this->object([
+                            'warehouse_id' => ['type' => 'integer', 'example' => 1],
+                            'quantity' => ['type' => 'integer', 'example' => 2],
+                        ], ['warehouse_id', 'quantity']),
+                    ],
+                ], ['payment_method', 'items']),
+                'CheckoutSaleResponse' => $this->object([
+                    'id' => ['type' => 'integer', 'example' => 1],
+                    'payment_method' => ['type' => 'string', 'enum' => ['cash', 'terminal', 'click', 'payme'], 'example' => 'cash'],
+                    'total_amount' => ['type' => 'number', 'example' => 18000],
+                    'cashier_name' => ['type' => 'string', 'nullable' => true, 'example' => 'Cashier User'],
+                    'created_at' => ['type' => 'string', 'format' => 'date-time', 'nullable' => true],
+                    'items' => [
+                        'type' => 'array',
+                        'items' => $this->object([
+                            'id' => ['type' => 'integer', 'example' => 1],
+                            'warehouse_id' => ['type' => 'integer', 'nullable' => true, 'example' => 1],
+                            'manufacturer_name' => ['type' => 'string', 'example' => 'Pepsi'],
+                            'product_name' => ['type' => 'string', 'example' => 'Pepsi 0.5L'],
+                            'barcode' => ['type' => 'string', 'example' => '4780099999999'],
+                            'unit' => ['type' => 'string', 'enum' => Warehouse::allowedUnits(), 'example' => 'bottle'],
+                            'quantity' => ['type' => 'integer', 'example' => 2],
+                            'unit_price' => ['type' => 'number', 'example' => 9000],
+                            'total_price' => ['type' => 'number', 'example' => 18000],
+                        ]),
+                    ],
                 ]),
                 'ServiceCreateRequest' => $this->object([
                     'name' => ['type' => 'string', 'example' => 'Computer'],
@@ -377,7 +416,7 @@ class OpenApiSpec
         $operation = $this->operation('Finance', 'List financial ledger entries', 'listTrades', null, null);
         $operation['parameters'] = [
             ['name' => 'status', 'in' => 'query', 'required' => false, 'schema' => ['type' => 'string', 'enum' => ['submitted', 'debt_closed']]],
-            ['name' => 'type', 'in' => 'query', 'required' => false, 'schema' => ['type' => 'string', 'enum' => ['Income', 'Debt']]],
+            ['name' => 'type', 'in' => 'query', 'required' => false, 'schema' => ['type' => 'string', 'enum' => ['Income', 'Debt', 'Product Sale']]],
         ];
         $operation['responses']['200'] = [
             'description' => 'Ledger entries',
@@ -404,6 +443,9 @@ class OpenApiSpec
         return [
             '/trades' => ['get' => $operation],
             '/debts' => ['get' => $debtOperation],
+            '/checkout-sales' => [
+                'post' => $this->operation('Finance', 'Create checkout sale', 'createCheckoutSale', 'CheckoutSaleCreateRequest', 'CheckoutSaleResponse', 201),
+            ],
         ];
     }
 

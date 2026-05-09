@@ -8,6 +8,7 @@ import {
   type ApiUser,
   type DashboardBootstrapResponse,
   calculateBookingRequest,
+  createCheckoutSaleRequest,
   createAssetRequest,
   createBookingRequest,
   createRoomRequest,
@@ -28,6 +29,7 @@ import {
   updateAssetRequest,
   updateWarehouseItemRequest,
 } from '@/lib/api';
+import type { WarehouseUnit } from '@/lib/warehouse-units';
 
 const AUTH_TOKEN_STORAGE_KEY = 'kivo:auth-token';
 
@@ -54,7 +56,7 @@ export interface Product {
   name: string;
   barcode: string;
   quantity: number;
-  unit: 'bottle' | 'box' | 'container' | 'bag';
+  unit: WarehouseUnit;
   purchasePrice: number;
   sellingPrice: number;
 }
@@ -105,10 +107,14 @@ export interface AssetDevice {
 
 export interface SaleRecord {
   id: string;
+  source: 'trade' | 'checkout_sale_item';
+  transactionType: 'session_trade' | 'debt_trade' | 'product_sale';
+  transactionLabel: string;
+  referenceLabel: string;
   room: string;
   basePrice: number;
-  start: string;
-  end: string;
+  start: string | null;
+  end: string | null;
   serviceCost: number;
   products: number;
   total: number;
@@ -118,7 +124,17 @@ export interface SaleRecord {
   payme: number;
   debt: number;
   paid: number;
-  timestamp: number;
+  timestamp: number | null;
+  dateTime: string | null;
+  paymentMethod: 'cash' | 'terminal' | 'click' | 'payme' | 'debt';
+  productName: string | null;
+  manufacturer: string | null;
+  quantity: number | null;
+  unit: WarehouseUnit | null;
+  unitPrice: number | null;
+  cashierName: string | null;
+  relatedSaleId: number | null;
+  barcode: string | null;
 }
 
 export interface DebtRecord {
@@ -296,6 +312,10 @@ interface DashboardContextType {
   }) => Promise<void>;
   deleteWarehouseProduct: (backendId: number) => Promise<void>;
   deleteManufacturer: (company: WarehouseCompany) => Promise<void>;
+  completeCheckoutSale: (payload: {
+    items: Array<{ warehouseId: number; quantity: number }>;
+    paymentMethod: 'cash' | 'terminal' | 'click' | 'payme';
+  }) => Promise<void>;
   calculateBooking: (payload: {
     assetIds?: number[];
     cartItems?: Array<{ serviceId: number; quantity: number }>;
@@ -481,6 +501,10 @@ function mapBootstrapPayload(payload: DashboardBootstrapResponse) {
     })),
     sales: payload.sales.map((sale) => ({
       id: sale.id,
+      source: sale.source,
+      transactionType: sale.transaction_type,
+      transactionLabel: sale.transaction_label,
+      referenceLabel: sale.reference_label,
       room: sale.room,
       basePrice: sale.base_price,
       start: sale.start,
@@ -495,6 +519,16 @@ function mapBootstrapPayload(payload: DashboardBootstrapResponse) {
       debt: sale.debt,
       paid: sale.paid,
       timestamp: sale.timestamp,
+      dateTime: sale.date_time,
+      paymentMethod: sale.payment_method,
+      productName: sale.product_name,
+      manufacturer: sale.manufacturer,
+      quantity: sale.quantity,
+      unit: sale.unit,
+      unitPrice: sale.unit_price,
+      cashierName: sale.cashier_name,
+      relatedSaleId: sale.related_sale_id,
+      barcode: sale.barcode,
     })),
     debts: payload.debts.map(mapDebtRecord),
     sessions: payload.sessions.map(mapSessionRecord),
@@ -887,6 +921,26 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     [refreshDashboard, requireToken]
   );
 
+  const completeCheckoutSale = useCallback(
+    async (payload: {
+      items: Array<{ warehouseId: number; quantity: number }>;
+      paymentMethod: 'cash' | 'terminal' | 'click' | 'payme';
+    }) => {
+      const activeToken = requireToken();
+
+      await createCheckoutSaleRequest(activeToken, {
+        items: payload.items.map((item) => ({
+          warehouse_id: item.warehouseId,
+          quantity: item.quantity,
+        })),
+        payment_method: payload.paymentMethod,
+      });
+
+      await refreshDashboard();
+    },
+    [refreshDashboard, requireToken]
+  );
+
   const calculateBooking = useCallback(
     async ({
       assetIds,
@@ -1095,6 +1149,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       saveWarehouseProduct,
       deleteWarehouseProduct,
       deleteManufacturer,
+      completeCheckoutSale,
       calculateBooking,
       createBooking,
       endSession,
@@ -1128,6 +1183,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       rooms,
       sales,
       saveWarehouseProduct,
+      completeCheckoutSale,
       services,
       servicesReady,
       sessions,

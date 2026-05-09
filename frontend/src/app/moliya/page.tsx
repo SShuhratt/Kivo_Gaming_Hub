@@ -52,6 +52,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Trash2, CheckCircle2 } from 'lucide-react';
+import { getWarehouseUnitLabel } from '@/lib/warehouse-units';
 
 const COLORS = ['#00ffff', '#00cccc', '#009999', '#006666', '#ff4444'];
 
@@ -159,11 +160,44 @@ function formatCurrency(value: number) {
   return value > 0 ? value.toLocaleString() : '0';
 }
 
+function matchesDateRange(value: string | null, startDate: string, endDate: string) {
+  if (!startDate && !endDate) {
+    return true;
+  }
+
+  if (!value) {
+    return false;
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return false;
+  }
+
+  if (startDate) {
+    const start = new Date(`${startDate}T00:00:00`);
+    if (date < start) {
+      return false;
+    }
+  }
+
+  if (endDate) {
+    const end = new Date(`${endDate}T23:59:59.999`);
+    if (date > end) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 function matchesSelectedPaymentType(
   sale: {
     cash: number;
     terminal: number;
     click: number;
+    payme: number;
     debt: number;
   },
   filter: string,
@@ -175,6 +209,8 @@ function matchesSelectedPaymentType(
       return sale.terminal > 0;
     case 'CLICK':
       return sale.click > 0;
+    case 'PAYME':
+      return sale.payme > 0;
     case 'QARZ':
       return sale.debt > 0;
     default:
@@ -199,7 +235,7 @@ function resolveDebtDisplayDate(record: DebtRecord) {
 
 export default function MoliyaPage() {
   const { sales, debts, isCheckingAuth, markDebtPaid, deleteDebt } = useDashboard();
-  const [activePanel, setActivePanel] = useState<'overview' | 'debts'>('overview');
+  const [activePanel, setActivePanel] = useState<'overview' | 'traded' | 'debts'>('overview');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [selectedRoom, setSelectedRoom] = useState('BARCHA XONALAR');
@@ -207,9 +243,14 @@ export default function MoliyaPage() {
   const [appliedFilters, setAppliedFilters] = useState({
     room: 'BARCHA XONALAR',
     type: 'BARCHASI',
+    startDate: '',
+    endDate: '',
   });
   const [debtSearch, setDebtSearch] = useState('');
   const [debtStatus, setDebtStatus] = useState<'all' | 'active' | 'ended' | 'paid' | 'unpaid'>('all');
+  const [tradedSearch, setTradedSearch] = useState('');
+  const [tradedManufacturer, setTradedManufacturer] = useState('BARCHASI');
+  const [tradedPaymentMethod, setTradedPaymentMethod] = useState('BARCHASI');
 
   const [debtToPay, setDebtToPay] = useState<string | null>(null);
   const [debtToDelete, setDebtToDelete] = useState<string | null>(null);
@@ -218,10 +259,56 @@ export default function MoliyaPage() {
     return sales.filter((sale) => {
       const matchesRoom = appliedFilters.room === 'BARCHA XONALAR' || sale.room.includes(appliedFilters.room);
       const matchesType = appliedFilters.type === 'BARCHASI' || matchesSelectedPaymentType(sale, appliedFilters.type);
+      const matchesDate = matchesDateRange(sale.dateTime, appliedFilters.startDate, appliedFilters.endDate);
 
-      return matchesRoom && matchesType;
+      return matchesRoom && matchesType && matchesDate;
     });
   }, [sales, appliedFilters]);
+
+  const soldItems = useMemo(
+    () => sales.filter((sale) => sale.transactionType === 'product_sale'),
+    [sales],
+  );
+
+  const soldItemSummary = useMemo(() => {
+    return {
+      totalAmount: soldItems.reduce((acc, item) => acc + item.total, 0),
+      count: soldItems.length,
+    };
+  }, [soldItems]);
+
+  const soldItemManufacturers = useMemo(
+    () => ['BARCHASI', ...new Set(soldItems.map((item) => item.manufacturer).filter((value): value is string => Boolean(value)))],
+    [soldItems],
+  );
+
+  const filteredSoldItems = useMemo(() => {
+    const query = tradedSearch.trim().toLowerCase();
+
+    return soldItems.filter((item) => {
+      const matchesSearch =
+        query === ''
+        || [
+          item.productName ?? '',
+          item.manufacturer ?? '',
+          item.referenceLabel,
+          item.cashierName ?? '',
+          item.barcode ?? '',
+        ].some((value) => value.toLowerCase().includes(query));
+
+      const matchesManufacturer =
+        tradedManufacturer === 'BARCHASI'
+        || item.manufacturer === tradedManufacturer;
+
+      const matchesPaymentMethod =
+        tradedPaymentMethod === 'BARCHASI'
+        || item.paymentMethod === tradedPaymentMethod;
+
+      const matchesDate = matchesDateRange(item.dateTime, startDate, endDate);
+
+      return matchesSearch && matchesManufacturer && matchesPaymentMethod && matchesDate;
+    });
+  }, [soldItems, tradedSearch, tradedManufacturer, tradedPaymentMethod, startDate, endDate]);
 
   const stats = useMemo(() => {
     const totalRevenue = filteredSales.reduce((acc, curr) => acc + curr.total, 0);
@@ -296,6 +383,8 @@ export default function MoliyaPage() {
     setAppliedFilters({
       room: selectedRoom,
       type: selectedType,
+      startDate,
+      endDate,
     });
   };
 
@@ -309,13 +398,27 @@ export default function MoliyaPage() {
     { value: 'unpaid', label: "TO'LANMAGAN" },
     { value: 'paid', label: "TO'LANGAN" },
   ];
+  const tradedPaymentOptions = [
+    { value: 'BARCHASI', label: 'BARCHASI' },
+    { value: 'cash', label: 'NAQD' },
+    { value: 'terminal', label: 'TERMINAL' },
+    { value: 'click', label: 'CLICK' },
+    { value: 'payme', label: 'PAYME' },
+  ];
 
   return (
     <DashboardLayout>
       <div className="animate-in fade-in space-y-8 duration-500">
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
           <FinanceCard title="Jami savdo xarajatlari" value={`${stats.totalRevenue.toLocaleString()} UZS`} icon={DollarSign} />
-          <FinanceCard title="Savdo qilingan" value={`${stats.totalProducts.toLocaleString()} UZS`} icon={TrendingUp} />
+          <FinanceCard
+            title="Savdo qilingan"
+            value={`${soldItemSummary.totalAmount.toLocaleString()} UZS`}
+            icon={TrendingUp}
+            subValue={soldItemSummary.count > 0 ? `${soldItemSummary.count} ta sotuv qatori` : "Kassa mahsulot savdolari"}
+            onClick={() => setActivePanel('traded')}
+            isActive={activePanel === 'traded'}
+          />
           <FinanceCard title="Marjanalniy foyda" value={`${(stats.totalRevenue * 0.1).toLocaleString()} UZS`} icon={DollarSign} />
           <FinanceCard title="Sarflangan pul" value="0 UZS" icon={Wallet} />
           <FinanceCard
@@ -348,6 +451,18 @@ export default function MoliyaPage() {
             )}
           >
             Umumiy tahlil
+          </Button>
+          <Button
+            type="button"
+            onClick={() => setActivePanel('traded')}
+            className={cn(
+              'h-11 rounded-2xl px-6 text-[10px] font-black uppercase tracking-[0.25em]',
+              activePanel === 'traded'
+                ? 'bg-primary text-black hover:bg-primary/90'
+                : 'border border-white/10 bg-white/5 text-white/70 hover:bg-white/10 hover:text-white',
+            )}
+          >
+            Savdo qilingan
           </Button>
           <Button
             type="button"
@@ -427,7 +542,7 @@ export default function MoliyaPage() {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent className="min-w-[220px] rounded-2xl border-white/10 bg-[#0a1a1a] p-1 text-white shadow-2xl backdrop-blur-xl">
-                      {['BARCHASI', 'NAQD', 'TERMINAL', 'CLICK', 'QARZ'].map((type) => (
+                      {['BARCHASI', 'NAQD', 'TERMINAL', 'CLICK', 'PAYME', 'QARZ'].map((type) => (
                         <DropdownMenuItem
                           key={type}
                           onClick={() => setSelectedType(type)}
@@ -524,6 +639,199 @@ export default function MoliyaPage() {
                     </div>
                   </CardContent>
                 </Card>
+              </div>
+            </div>
+          </>
+        ) : activePanel === 'traded' ? (
+          <>
+            <div className="space-y-6 rounded-[32px] border border-white/5 bg-[#0a1a1a]/40 p-8 backdrop-blur-md">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                <div>
+                  <h2 className="text-sm font-black uppercase tracking-widest text-white">Savdo qilingan mahsulotlar</h2>
+                  <p className="mt-1 text-[10px] font-bold uppercase tracking-widest text-white/40">
+                    Kassa orqali sotilgan mahsulotlar ro'yxati
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3">
+                  <p className="text-[8px] font-black uppercase tracking-widest text-primary/60">Jami</p>
+                  <p className="mt-1 text-lg font-black text-white">{soldItemSummary.totalAmount.toLocaleString()} UZS</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-6 lg:grid-cols-6">
+                <div className="space-y-2.5 lg:col-span-2">
+                  <Label className="ml-1 text-[10px] font-black uppercase tracking-[0.2em] text-white/20">
+                    Mahsulot yoki ishlab chiqaruvchi
+                  </Label>
+                  <div className="relative">
+                    <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-primary/40" />
+                    <Input
+                      aria-label="Savdo qilingan mahsulot qidiruvi"
+                      value={tradedSearch}
+                      onChange={(event) => setTradedSearch(event.target.value)}
+                      className="h-14 rounded-2xl border-white/5 bg-[#051111] pl-11 text-[12px] font-bold text-white"
+                      placeholder="Mahsulot nomi, ishlab chiqaruvchi..."
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2.5">
+                  <Label className="ml-1 text-[10px] font-black uppercase tracking-[0.2em] text-white/20">Ishlab chiqaruvchi</Label>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className="h-14 w-full justify-between rounded-2xl border-white/5 bg-[#051111] px-5 text-[11px] font-black uppercase text-white/60 transition-all hover:bg-[#081818] hover:text-white"
+                      >
+                        {tradedManufacturer}
+                        <ChevronDown className="h-5 w-5 text-white/20" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent className="min-w-[220px] rounded-2xl border-white/10 bg-[#0a1a1a] p-1 text-white shadow-2xl backdrop-blur-xl">
+                      {soldItemManufacturers.map((manufacturer) => (
+                        <DropdownMenuItem
+                          key={manufacturer}
+                          onClick={() => setTradedManufacturer(manufacturer)}
+                          className="cursor-pointer rounded-xl px-5 py-3.5 text-[10px] font-black uppercase tracking-widest focus:bg-primary/10 focus:text-primary"
+                        >
+                          {manufacturer}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+                <div className="space-y-2.5">
+                  <Label className="ml-1 text-[10px] font-black uppercase tracking-[0.2em] text-white/20">To'lov usuli</Label>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className="h-14 w-full justify-between rounded-2xl border-white/5 bg-[#051111] px-5 text-[11px] font-black uppercase text-white/60 transition-all hover:bg-[#081818] hover:text-white"
+                      >
+                        {tradedPaymentOptions.find((option) => option.value === tradedPaymentMethod)?.label ?? 'BARCHASI'}
+                        <ChevronDown className="h-5 w-5 text-white/20" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent className="min-w-[220px] rounded-2xl border-white/10 bg-[#0a1a1a] p-1 text-white shadow-2xl backdrop-blur-xl">
+                      {tradedPaymentOptions.map((option) => (
+                        <DropdownMenuItem
+                          key={option.value}
+                          onClick={() => setTradedPaymentMethod(option.value)}
+                          className="cursor-pointer rounded-xl px-5 py-3.5 text-[10px] font-black uppercase tracking-widest focus:bg-primary/10 focus:text-primary"
+                        >
+                          {option.label}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+                <div className="space-y-2.5">
+                  <Label className="ml-1 text-[10px] font-black uppercase tracking-[0.2em] text-white/20">Boshlanish sanasi</Label>
+                  <div className="flex h-14 items-center gap-3 rounded-2xl border border-white/5 bg-[#051111] px-4">
+                    <CalendarIcon className="h-5 w-5 text-primary/40" />
+                    <input
+                      type="date"
+                      value={startDate}
+                      onChange={(event) => setStartDate(event.target.value)}
+                      className="w-full appearance-none border-none bg-transparent text-[12px] font-bold text-white focus:ring-0"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2.5">
+                  <Label className="ml-1 text-[10px] font-black uppercase tracking-[0.2em] text-white/20">Tugash sanasi</Label>
+                  <div className="flex h-14 items-center gap-3 rounded-2xl border border-white/5 bg-[#051111] px-4">
+                    <CalendarIcon className="h-5 w-5 text-primary/40" />
+                    <input
+                      type="date"
+                      value={endDate}
+                      onChange={(event) => setEndDate(event.target.value)}
+                      className="w-full appearance-none border-none bg-transparent text-[12px] font-bold text-white focus:ring-0"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="overflow-hidden rounded-[32px] border border-white/5 bg-[#0a1f1f]/60 shadow-2xl backdrop-blur-md">
+              <Table>
+                <TableHeader className="bg-[#0d1f1f]/50">
+                  <TableRow className="border-white/5 hover:bg-transparent">
+                    <TableHead className="h-10 px-5 text-[8px] font-black uppercase tracking-widest text-primary/60">Mahsulot</TableHead>
+                    <TableHead className="h-10 text-[8px] font-black uppercase tracking-widest text-primary/60">Ishlab chiqaruvchi</TableHead>
+                    <TableHead className="h-10 text-[8px] font-black uppercase tracking-widest text-primary/60">Miqdor</TableHead>
+                    <TableHead className="h-10 text-[8px] font-black uppercase tracking-widest text-primary/60">Birlik narxi</TableHead>
+                    <TableHead className="h-10 text-[8px] font-black uppercase tracking-widest text-primary/60">Jami</TableHead>
+                    <TableHead className="h-10 text-[8px] font-black uppercase tracking-widest text-primary/60">Sana</TableHead>
+                    <TableHead className="h-10 text-[8px] font-black uppercase tracking-widest text-primary/60">To'lov</TableHead>
+                    <TableHead className="h-10 text-[8px] font-black uppercase tracking-widest text-primary/60">Kassir</TableHead>
+                    <TableHead className="h-10 pr-5 text-right text-[8px] font-black uppercase tracking-widest text-primary/60">Chek</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredSoldItems.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={9} className="py-12 text-center text-[10px] font-bold uppercase tracking-widest text-white/30">
+                        {soldItems.length === 0 ? "Hozircha mahsulot savdolari yo'q" : "Filtr bo'yicha savdo topilmadi"}
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredSoldItems.map((item) => (
+                      <TableRow key={item.id} className="border-white/5 transition-colors hover:bg-white/5">
+                        <TableCell className="px-5 py-4">
+                          <p className="text-[11px] font-black uppercase tracking-tight text-white">
+                            {item.productName ?? "Noma'lum"}
+                          </p>
+                          <p className="mt-1 text-[9px] font-bold uppercase tracking-widest text-white/35">
+                            {item.barcode ?? item.referenceLabel}
+                          </p>
+                        </TableCell>
+                        <TableCell className="py-4 text-[10px] font-bold text-white/70">
+                          {item.manufacturer ?? '-'}
+                        </TableCell>
+                        <TableCell className="py-4 text-[10px] font-bold text-white/70">
+                          {item.quantity ?? 0} {getWarehouseUnitLabel(item.unit)}
+                        </TableCell>
+                        <TableCell className="py-4 text-[10px] font-bold text-white/70">
+                          {formatCurrency(item.unitPrice ?? 0)} UZS
+                        </TableCell>
+                        <TableCell className="py-4 text-[10px] font-black text-primary">
+                          {formatCurrency(item.total)} UZS
+                        </TableCell>
+                        <TableCell className="py-4 text-[10px] font-bold text-white/70">
+                          {formatDateTime(item.dateTime)}
+                        </TableCell>
+                        <TableCell className="py-4 text-[10px] font-bold text-white/70">
+                          {item.paymentMethod === 'cash'
+                            ? 'Naqd'
+                            : item.paymentMethod === 'terminal'
+                              ? 'Terminal'
+                              : item.paymentMethod === 'click'
+                                ? 'Click'
+                                : 'Payme'}
+                        </TableCell>
+                        <TableCell className="py-4 text-[10px] font-bold text-white/70">
+                          {item.cashierName ?? '-'}
+                        </TableCell>
+                        <TableCell className="py-4 pr-5 text-right text-[10px] font-bold text-white/45">
+                          #{item.relatedSaleId ?? '-'}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+
+              <div className="flex flex-col gap-4 border-t border-white/5 bg-[#051111] p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-center gap-4">
+                  <span className="text-[9px] font-bold uppercase tracking-widest text-white/30">Jami savdo:</span>
+                  <span className="text-xs font-black uppercase tracking-tight text-primary">
+                    {formatCurrency(filteredSoldItems.reduce((acc, item) => acc + item.total, 0))} UZS
+                  </span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Badge className="border-primary/20 bg-primary/10 text-primary">
+                    Qatorlar: {filteredSoldItems.length}
+                  </Badge>
+                </div>
               </div>
             </div>
           </>

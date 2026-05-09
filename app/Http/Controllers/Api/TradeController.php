@@ -21,19 +21,18 @@ class TradeController extends Controller
     {
         $validated = $this->validateApi($request, [
             'status' => 'nullable|in:submitted,debt_closed',
-            'type' => 'nullable|in:Income,Debt',
+            'type' => 'nullable|in:Income,Debt,Product Sale',
         ]);
 
         $sessionLifecycle->syncElapsedSessions();
 
-        $ledger = Trade::query()
-            ->when(
-                $validated['status'] ?? null,
-                fn ($query, $status) => $query->where('payment_status', $status)
-            )
-            ->latest('end_time')
-            ->get()
-            ->map(fn (Trade $trade) => $this->formatTradeLedgerEntry($trade));
+        $ledger = $this->collectFinancialLedgerEntries();
+
+        if ($validated['status'] ?? null) {
+            $ledger = $ledger
+                ->filter(fn (array $entry) => $entry['status'] === $validated['status'])
+                ->values();
+        }
 
         if ($validated['type'] ?? null) {
             $ledger = $ledger

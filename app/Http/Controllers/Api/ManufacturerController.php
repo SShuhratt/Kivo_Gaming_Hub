@@ -13,6 +13,7 @@ class ManufacturerController extends Controller
         if ($manufacturer->warehouseItems()->exists()) {
             return response()->json([
                 'message' => 'Delete the manufacturer only after deleting all of its products.',
+                'message_uz' => "Bu ishlab chiqaruvchiga tegishli mahsulotlar mavjud. Avval mahsulotlarni o'chiring.",
             ], 409);
         }
 
@@ -28,6 +29,7 @@ class ManufacturerController extends Controller
 
             return response()->json([
                 'message' => 'Failed to delete manufacturer.',
+                'message_uz' => "Ishlab chiqaruvchini o'chirib bo'lmadi.",
             ], 500);
         }
     }

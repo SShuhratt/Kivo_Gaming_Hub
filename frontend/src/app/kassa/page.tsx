@@ -11,22 +11,37 @@ import {
   Plus, 
   Minus, 
   Trash2, 
-  CheckCircle2,
-  Tag,
-  Coins
+  CheckCircle2
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
-import { cn } from '@/lib/utils';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { getWarehouseUnitLabel } from '@/lib/warehouse-units';
+
+const PAYMENT_METHOD_OPTIONS = [
+  { value: 'cash', label: 'Naqd' },
+  { value: 'terminal', label: 'Terminal' },
+  { value: 'click', label: 'Click' },
+  { value: 'payme', label: 'Payme' },
+] as const;
 
 export default function KassaPOSPage() {
-  const { companies, isCheckingAuth } = useDashboard();
+  const { companies, currentUser, completeCheckoutSale, isCheckingAuth } = useDashboard();
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
   const [cart, setCart] = useState<{ product: Product; qty: number }[]>([]);
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'terminal' | 'click' | 'payme'>('cash');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Barcha mahsulotlarni bitta listga yig'ish
   const allProducts = useMemo(() => {
@@ -43,7 +58,31 @@ export default function KassaPOSPage() {
     );
   }, [allProducts, searchTerm]);
 
+  const getProductStock = (productId: string) => {
+    return allProducts.find((product) => product.id === productId)?.quantity ?? 0;
+  };
+
   const addToCart = (product: Product) => {
+    if (product.quantity <= 0) {
+      toast({
+        variant: 'destructive',
+        title: "Mahsulot tugagan",
+        description: `${product.name} omborda qolmagan.`,
+      });
+      return;
+    }
+
+    const currentQty = cart.find((item) => item.product.id === product.id)?.qty ?? 0;
+
+    if (currentQty >= product.quantity) {
+      toast({
+        variant: 'destructive',
+        title: "Ombor cheklovi",
+        description: `${product.name} uchun yetarli qoldiq yo'q.`,
+      });
+      return;
+    }
+
     setCart(prev => {
       const existing = prev.find(item => item.product.id === product.id);
       if (existing) {
@@ -62,6 +101,21 @@ export default function KassaPOSPage() {
   };
 
   const updateQty = (productId: string, delta: number) => {
+    if (delta > 0) {
+      const currentQty = cart.find((item) => item.product.id === productId)?.qty ?? 0;
+      const stock = getProductStock(productId);
+
+      if (currentQty >= stock) {
+        const productName = cart.find((item) => item.product.id === productId)?.product.name ?? 'Mahsulot';
+        toast({
+          variant: 'destructive',
+          title: "Ombor cheklovi",
+          description: `${productName} uchun yetarli qoldiq yo'q.`,
+        });
+        return;
+      }
+    }
+
     setCart(prev => prev.map(item => {
       if (item.product.id === productId) {
         const newQty = Math.max(1, item.qty + delta);
@@ -75,13 +129,33 @@ export default function KassaPOSPage() {
     return cart.reduce((acc, curr) => acc + (curr.product.sellingPrice * curr.qty), 0);
   }, [cart]);
 
-  const handleCheckout = () => {
+  const handleCheckout = async () => {
     if (cart.length === 0) return;
-    toast({
-      title: "Muvaffaqiyatli!",
-      description: `Sotuv amalga oshirildi: ${cartTotal.toLocaleString()} UZS`,
-    });
-    setCart([]);
+
+    try {
+      setIsSubmitting(true);
+      await completeCheckoutSale({
+        items: cart.map((item) => ({
+          warehouseId: item.product.backendId,
+          quantity: item.qty,
+        })),
+        paymentMethod,
+      });
+
+      toast({
+        title: "Sotuv yakunlandi",
+        description: `${cartTotal.toLocaleString()} UZS ${PAYMENT_METHOD_OPTIONS.find((option) => option.value === paymentMethod)?.label?.toLowerCase()} orqali qabul qilindi.`,
+      });
+      setCart([]);
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: "Sotuv yakunlanmadi",
+        description: error instanceof Error ? error.message : "So'rov bajarilmadi.",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (isCheckingAuth) return null;
@@ -118,20 +192,27 @@ export default function KassaPOSPage() {
                 {filteredProducts.map((product) => (
                   <div 
                     key={product.id}
-                    onClick={() => addToCart(product)}
-                    className="bg-[#0a1f1f]/60 border border-white/5 rounded-2xl p-4 space-y-4 hover:border-primary/40 transition-all cursor-pointer group shadow-xl relative overflow-hidden"
+                    onClick={() => product.quantity > 0 && addToCart(product)}
+                    className={`bg-[#0a1f1f]/60 border border-white/5 rounded-2xl p-4 space-y-4 transition-all group shadow-xl relative overflow-hidden ${
+                      product.quantity > 0 ? 'hover:border-primary/40 cursor-pointer' : 'cursor-not-allowed opacity-50'
+                    }`}
                   >
                     <div className="space-y-1">
                       <h3 className="text-[11px] font-black text-white uppercase tracking-tight line-clamp-2">{product.name}</h3>
-                      <p className="text-[9px] font-black text-primary/40 uppercase tracking-widest">{product.barcode}</p>
+                      <p className="text-[9px] font-black text-primary/40 uppercase tracking-widest">{product.manufacturer}</p>
+                      <p className="text-[9px] font-black text-white/25 tracking-widest">{product.barcode}</p>
                     </div>
                     
                     <div className="flex items-center justify-between pt-2">
                        <p className="text-sm font-black text-primary">{product.sellingPrice.toLocaleString()} <span className="text-[8px] opacity-50">UZS</span></p>
-                       <Badge variant="outline" className="border-white/10 text-[8px] font-black text-white/40 uppercase">
-                         Qoldi: {product.quantity}
+                       <Badge variant="outline" className="border-white/10 text-[8px] font-black text-white/40">
+                         Qoldi: {product.quantity} {getWarehouseUnitLabel(product.unit)}
                        </Badge>
                     </div>
+
+                    <p className="text-[9px] font-black text-white/30">
+                      Birligi: {getWarehouseUnitLabel(product.unit)}
+                    </p>
                     
                     <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
                        <div className="h-6 w-6 rounded-full bg-primary text-black flex items-center justify-center">
@@ -169,6 +250,9 @@ export default function KassaPOSPage() {
                       <div className="space-y-0.5 max-w-[200px]">
                         <h4 className="text-[10px] font-black text-white uppercase tracking-tight truncate">{item.product.name}</h4>
                         <p className="text-[9px] font-black text-primary/40">{item.product.sellingPrice.toLocaleString()} UZS</p>
+                        <p className="text-[9px] font-black text-white/25">
+                          {getWarehouseUnitLabel(item.product.unit)}
+                        </p>
                       </div>
                       <button 
                         onClick={() => removeFromCart(item.product.id)}
@@ -197,6 +281,30 @@ export default function KassaPOSPage() {
           </ScrollArea>
 
           <div className="p-8 bg-[#051111]/80 border-t border-white/5 space-y-6">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label className="text-[9px] font-black uppercase tracking-[0.2em] text-white/30">To'lov usuli</Label>
+                <Select value={paymentMethod} onValueChange={(value: 'cash' | 'terminal' | 'click' | 'payme') => setPaymentMethod(value)}>
+                  <SelectTrigger className="h-11 rounded-xl border-white/5 bg-[#0a1a1a] text-[10px] font-black uppercase text-white/70">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl border-white/10 bg-[#0a1a1a] text-white">
+                    {PAYMENT_METHOD_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value} className="text-[10px] font-black uppercase">
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-[9px] font-black uppercase tracking-[0.2em] text-white/30">Kassir</Label>
+                <div className="flex h-11 items-center rounded-xl border border-white/5 bg-[#0a1a1a] px-4 text-[10px] font-black uppercase text-white/70">
+                  {currentUser?.name ?? "Noma'lum"}
+                </div>
+              </div>
+            </div>
+
             <div className="space-y-3">
               <div className="flex justify-between text-[10px] font-black text-white/30 uppercase tracking-[0.2em]">
                 <span>ORALIQ JAMI:</span>
@@ -210,10 +318,10 @@ export default function KassaPOSPage() {
 
             <Button 
               onClick={handleCheckout}
-              disabled={cart.length === 0}
+              disabled={cart.length === 0 || isSubmitting}
               className="w-full h-16 bg-primary text-black font-black uppercase tracking-[0.3em] rounded-2xl shadow-[0_12px_40px_rgba(0,255,255,0.3)] hover:bg-primary/90 transition-all flex items-center justify-center gap-3 text-xs"
             >
-              SOTUVNI YAKUNLASH <CheckCircle2 className="h-5 w-5" />
+              {isSubmitting ? 'SOTUV SAQLANMOQDA' : 'SOTUVNI YAKUNLASH'} <CheckCircle2 className="h-5 w-5" />
             </Button>
             
             <div className="flex items-center justify-center gap-3 opacity-20">

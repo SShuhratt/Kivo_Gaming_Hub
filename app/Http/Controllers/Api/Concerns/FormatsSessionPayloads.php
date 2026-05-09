@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\Concerns;
 
 use App\Models\Booking;
+use App\Models\CheckoutSaleItem;
 use App\Models\Trade;
 use App\Services\AssetDisplayOrderService;
 use Illuminate\Database\Eloquent\Builder;
@@ -60,18 +61,29 @@ trait FormatsSessionPayloads
     protected function formatTradeLedgerEntry(Trade $trade): array
     {
         $assets = $this->snapshotAssets($trade->asset_snapshot, collect());
+        $paymentMethod = $trade->payment_status === 'submitted' ? 'cash' : 'debt';
 
         return [
             'id' => $trade->id,
+            'source' => 'trade',
             'booking_id' => $trade->booking_id,
+            'checkout_sale_id' => null,
+            'checkout_sale_item_id' => null,
             'type' => $trade->payment_status === 'submitted' ? 'Income' : 'Debt',
+            'type_label' => $trade->payment_status === 'submitted' ? 'Xizmat savdosi' : 'Qarz',
             'amount' => (float) $trade->total_cost,
             'status' => $trade->payment_status,
             'session_status' => $trade->session_status,
+            'payment_method' => $paymentMethod,
+            'cashier_name' => null,
+            'created_at' => $trade->created_at,
             'details' => [
+                'reference_label' => "Trade #{$trade->id}",
+                'room_label' => $this->roomLabelFromAssets($assets),
                 'start_time' => $trade->start_time,
                 'end_time' => $trade->end_time,
                 'duration_minutes' => $trade->duration_minutes,
+                'payment_method_label' => $this->paymentMethodLabel($paymentMethod),
                 'debt_info' => [
                     'name' => $trade->debt_name,
                     'phone' => $trade->debt_phone_number,
@@ -84,16 +96,23 @@ trait FormatsSessionPayloads
             ],
             'assets' => $assets,
             'assets_count' => count($assets),
+            'sort_time' => optional($trade->created_at ?? $trade->end_time)->getTimestamp() ?? 0,
         ];
     }
 
     protected function formatDashboardSale(Trade $trade): array
     {
         $assets = $this->snapshotAssets($trade->asset_snapshot, collect());
-        $submitted = $trade->payment_status === 'submitted';
+        $paymentMethod = $trade->payment_status === 'submitted' ? 'cash' : 'debt';
+        $paymentBreakdown = $this->paymentBreakdown((float) $trade->total_cost, $paymentMethod);
+        $dateTime = $trade->end_time ?? $trade->created_at;
 
         return [
-            'id' => (string) $trade->id,
+            'id' => "trade-{$trade->id}",
+            'source' => 'trade',
+            'transaction_type' => $trade->payment_status === 'submitted' ? 'session_trade' : 'debt_trade',
+            'transaction_label' => $trade->payment_status === 'submitted' ? 'Xizmat savdosi' : 'Qarz savdosi',
+            'reference_label' => "Trade #{$trade->id}",
             'room' => $this->roomLabelFromAssets($assets),
             'base_price' => (float) $trade->hourly_rate,
             'start' => optional($trade->start_time)->format('H:i'),
@@ -101,14 +120,141 @@ trait FormatsSessionPayloads
             'service_cost' => (float) $trade->total_cost,
             'products' => 0,
             'total' => (float) $trade->total_cost,
-            'cash' => $submitted ? (float) $trade->total_cost : 0,
-            'terminal' => 0,
-            'click' => 0,
-            'payme' => 0,
-            'debt' => $submitted ? 0 : (float) $trade->total_cost,
-            'paid' => $submitted ? (float) $trade->total_cost : 0,
-            'timestamp' => optional($trade->created_at)->getTimestampMs(),
+            'cash' => $paymentBreakdown['cash'],
+            'terminal' => $paymentBreakdown['terminal'],
+            'click' => $paymentBreakdown['click'],
+            'payme' => $paymentBreakdown['payme'],
+            'debt' => $paymentBreakdown['debt'],
+            'paid' => $paymentBreakdown['paid'],
+            'timestamp' => optional($dateTime)->getTimestampMs(),
+            'date_time' => optional($dateTime)->toISOString(),
+            'payment_method' => $paymentMethod,
+            'product_name' => null,
+            'manufacturer' => null,
+            'quantity' => null,
+            'unit' => null,
+            'unit_price' => null,
+            'cashier_name' => null,
+            'related_sale_id' => null,
+            'barcode' => null,
+            'sort_time' => optional($dateTime)->getTimestamp() ?? 0,
         ];
+    }
+
+    protected function formatCheckoutSaleLedgerEntry(CheckoutSaleItem $item): array
+    {
+        $sale = $item->relationLoaded('checkoutSale') ? $item->checkoutSale : $item->checkoutSale()->with('user')->first();
+        $paymentMethod = $sale?->payment_method ?? 'cash';
+
+        return [
+            'id' => $item->id,
+            'source' => 'checkout_sale_item',
+            'booking_id' => null,
+            'checkout_sale_id' => $sale?->id,
+            'checkout_sale_item_id' => $item->id,
+            'type' => 'Product Sale',
+            'type_label' => 'Mahsulot savdosi',
+            'amount' => (float) $item->total_price,
+            'status' => 'submitted',
+            'session_status' => 'completed',
+            'payment_method' => $paymentMethod,
+            'cashier_name' => $sale?->user?->name,
+            'created_at' => $sale?->created_at ?? $item->created_at,
+            'details' => [
+                'reference_label' => $sale ? "Checkout sale #{$sale->id}" : "Checkout item #{$item->id}",
+                'payment_method_label' => $this->paymentMethodLabel($paymentMethod),
+                'product' => [
+                    'name' => $item->product_name,
+                    'manufacturer' => $item->manufacturer_name,
+                    'barcode' => $item->barcode,
+                    'quantity' => $item->quantity,
+                    'unit' => $item->unit,
+                    'unit_price' => (float) $item->unit_price,
+                    'total_price' => (float) $item->total_price,
+                ],
+            ],
+            'pricing_label' => 'Checkout sale',
+            'pricing' => [
+                'label' => 'Checkout sale',
+                'hourly_rate' => 0,
+            ],
+            'assets' => [],
+            'assets_count' => 0,
+            'sort_time' => optional($sale?->created_at ?? $item->created_at)->getTimestamp() ?? 0,
+        ];
+    }
+
+    protected function formatDashboardCheckoutSale(CheckoutSaleItem $item): array
+    {
+        $sale = $item->relationLoaded('checkoutSale') ? $item->checkoutSale : $item->checkoutSale()->with('user')->first();
+        $paymentMethod = $sale?->payment_method ?? 'cash';
+        $paymentBreakdown = $this->paymentBreakdown((float) $item->total_price, $paymentMethod);
+        $dateTime = $sale?->created_at ?? $item->created_at;
+
+        return [
+            'id' => "checkout-sale-item-{$item->id}",
+            'source' => 'checkout_sale_item',
+            'transaction_type' => 'product_sale',
+            'transaction_label' => 'Mahsulot savdosi',
+            'reference_label' => $sale ? "Checkout sale #{$sale->id}" : "Checkout item #{$item->id}",
+            'room' => 'Kassa',
+            'base_price' => 0,
+            'start' => optional($dateTime)->format('H:i'),
+            'end' => optional($dateTime)->format('H:i'),
+            'service_cost' => 0,
+            'products' => (float) $item->total_price,
+            'total' => (float) $item->total_price,
+            'cash' => $paymentBreakdown['cash'],
+            'terminal' => $paymentBreakdown['terminal'],
+            'click' => $paymentBreakdown['click'],
+            'payme' => $paymentBreakdown['payme'],
+            'debt' => $paymentBreakdown['debt'],
+            'paid' => $paymentBreakdown['paid'],
+            'timestamp' => optional($dateTime)->getTimestampMs(),
+            'date_time' => optional($dateTime)->toISOString(),
+            'payment_method' => $paymentMethod,
+            'product_name' => $item->product_name,
+            'manufacturer' => $item->manufacturer_name,
+            'quantity' => $item->quantity,
+            'unit' => $item->unit,
+            'unit_price' => (float) $item->unit_price,
+            'cashier_name' => $sale?->user?->name,
+            'related_sale_id' => $sale?->id,
+            'barcode' => $item->barcode,
+            'sort_time' => optional($dateTime)->getTimestamp() ?? 0,
+        ];
+    }
+
+    protected function collectFinancialLedgerEntries(): Collection
+    {
+        $tradeEntries = Trade::query()
+            ->latest('end_time')
+            ->get()
+            ->map(fn (Trade $trade) => $this->formatTradeLedgerEntry($trade));
+
+        $checkoutEntries = CheckoutSaleItem::query()
+            ->with(['checkoutSale.user'])
+            ->latest('created_at')
+            ->get()
+            ->map(fn (CheckoutSaleItem $item) => $this->formatCheckoutSaleLedgerEntry($item));
+
+        return $this->sortAndNormalizeRecords($tradeEntries->concat($checkoutEntries));
+    }
+
+    protected function collectDashboardSales(): Collection
+    {
+        $tradeSales = Trade::query()
+            ->latest('end_time')
+            ->get()
+            ->map(fn (Trade $trade) => $this->formatDashboardSale($trade));
+
+        $checkoutSales = CheckoutSaleItem::query()
+            ->with(['checkoutSale.user'])
+            ->latest('created_at')
+            ->get()
+            ->map(fn (CheckoutSaleItem $item) => $this->formatDashboardCheckoutSale($item));
+
+        return $this->sortAndNormalizeRecords($tradeSales->concat($checkoutSales));
     }
 
     protected function collectDebtRecords(): Collection
@@ -242,6 +388,41 @@ trait FormatsSessionPayloads
         return $roomLabels->isNotEmpty()
             ? $roomLabels->implode(', ')
             : 'Xona N/A';
+    }
+
+    protected function paymentBreakdown(float $amount, string $paymentMethod): array
+    {
+        return [
+            'cash' => $paymentMethod === 'cash' ? $amount : 0,
+            'terminal' => $paymentMethod === 'terminal' ? $amount : 0,
+            'click' => $paymentMethod === 'click' ? $amount : 0,
+            'payme' => $paymentMethod === 'payme' ? $amount : 0,
+            'debt' => $paymentMethod === 'debt' ? $amount : 0,
+            'paid' => $paymentMethod === 'debt' ? 0 : $amount,
+        ];
+    }
+
+    protected function paymentMethodLabel(string $paymentMethod): string
+    {
+        return match ($paymentMethod) {
+            'terminal' => 'Terminal',
+            'click' => 'Click',
+            'payme' => 'Payme',
+            'debt' => 'Qarz',
+            default => 'Naqd',
+        };
+    }
+
+    protected function sortAndNormalizeRecords(Collection $records): Collection
+    {
+        return $records
+            ->sortByDesc(fn (array $record) => $record['sort_time'] ?? 0)
+            ->values()
+            ->map(function (array $record) {
+                unset($record['sort_time']);
+
+                return $record;
+            });
     }
 
     protected function snapshotAssets(?array $snapshot, Collection $fallbackAssets): array

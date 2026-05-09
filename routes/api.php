@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\AssetController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BookingController;
+use App\Http\Controllers\Api\CheckoutSaleController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\ManufacturerController;
 use App\Http\Controllers\Api\RoomController;
@@ -38,6 +39,8 @@ Route::middleware('api.token')->group(function () {
         ->defaults('openapiOperation', 'markDebtPaid');
     Route::delete('/debts/{id}', [TradeController::class, 'destroyDebt'])
         ->defaults('openapiOperation', 'deleteDebt');
+    Route::post('/checkout-sales', [CheckoutSaleController::class, 'store'])
+        ->defaults('openapiOperation', 'createCheckoutSale');
 
     Route::get('/rooms', [RoomController::class, 'index'])
         ->defaults('openapiOperation', 'listRooms');

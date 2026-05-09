@@ -48,13 +48,7 @@ import {
   TableRow
 } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
-
-const unitLabels: Record<Product['unit'], string> = {
-  bottle: 'BOTTLE',
-  box: 'BOX',
-  container: 'CONTAINER',
-  bag: 'BAG',
-};
+import { getWarehouseUnitLabel, WAREHOUSE_UNIT_OPTIONS } from '@/lib/warehouse-units';
 
 type ProductFormState = {
   manufacturer: string;
@@ -71,7 +65,7 @@ const emptyProductForm: ProductFormState = {
   name: '',
   barcode: '',
   quantity: '',
-  unit: 'bottle',
+  unit: 'piece',
   purchasePrice: '',
   sellingPrice: '',
 };
@@ -107,7 +101,7 @@ export default function OmborPage() {
           [
             product.name,
             product.manufacturer,
-            unitLabels[product.unit],
+            getWarehouseUnitLabel(product.unit),
             product.barcode,
           ].some((value) => value.toLowerCase().includes(inventoryQuery)),
         );
@@ -131,7 +125,7 @@ export default function OmborPage() {
       [
         product.name,
         product.manufacturer,
-        unitLabels[product.unit],
+        getWarehouseUnitLabel(product.unit),
         product.barcode,
       ].some((value) => value.toLowerCase().includes(query)),
     );
@@ -448,7 +442,7 @@ export default function OmborPage() {
                           {product.quantity}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-center text-[10px] font-black text-white/40 uppercase">{unitLabels[product.unit]}</TableCell>
+                      <TableCell className="text-center text-[10px] font-black text-white/40">{getWarehouseUnitLabel(product.unit)}</TableCell>
                       <TableCell className="text-right text-[11px] font-black text-white/60">{product.purchasePrice.toLocaleString()} <span className="text-[8px] opacity-30">UZS</span></TableCell>
                       <TableCell className="text-right text-[11px] font-black text-primary">{product.sellingPrice.toLocaleString()} <span className="text-[8px] opacity-30">UZS</span></TableCell>
                       <TableCell className="text-center">
@@ -589,10 +583,11 @@ function ProductModal({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="bg-[#0a1a1a] border-white/10 text-white rounded-xl">
-                  <SelectItem value="bottle" className="text-[10px] font-black uppercase">BOTTLE</SelectItem>
-                  <SelectItem value="box" className="text-[10px] font-black uppercase">BOX</SelectItem>
-                  <SelectItem value="container" className="text-[10px] font-black uppercase">CONTAINER</SelectItem>
-                  <SelectItem value="bag" className="text-[10px] font-black uppercase">BAG</SelectItem>
+                  {WAREHOUSE_UNIT_OPTIONS.map((unitOption) => (
+                    <SelectItem key={unitOption.value} value={unitOption.value} className="text-[10px] font-black">
+                      {unitOption.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

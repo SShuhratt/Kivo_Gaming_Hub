@@ -22,6 +22,36 @@ import {
   TableRow 
 } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
+import { getWarehouseUnitLabel } from '@/lib/warehouse-units';
+
+function formatDateTime(value: string | null) {
+  if (!value) {
+    return "Noma'lum";
+  }
+
+  return new Date(value).toLocaleString('uz-UZ', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function paymentMethodLabel(value: 'cash' | 'terminal' | 'click' | 'payme' | 'debt') {
+  switch (value) {
+    case 'terminal':
+      return 'Terminal';
+    case 'click':
+      return 'Click';
+    case 'payme':
+      return 'Payme';
+    case 'debt':
+      return 'Qarz';
+    default:
+      return 'Naqd';
+  }
+}
 
 export default function SavdoPage() {
   const { sales, isCheckingAuth } = useDashboard();
@@ -29,7 +59,14 @@ export default function SavdoPage() {
 
   const filteredSales = useMemo(() => {
     return sales.filter(sale => 
-      sale.room.toLowerCase().includes(searchTerm.toLowerCase())
+      [
+        sale.room,
+        sale.transactionLabel,
+        sale.referenceLabel,
+        sale.productName ?? '',
+        sale.manufacturer ?? '',
+        sale.cashierName ?? '',
+      ].some((value) => value.toLowerCase().includes(searchTerm.toLowerCase()))
     );
   }, [sales, searchTerm]);
 
@@ -78,47 +115,59 @@ export default function SavdoPage() {
             <Table>
               <TableHeader className="bg-[#0d1f1f]/50">
                 <TableRow className="hover:bg-transparent border-white/5">
-                  <TableHead className="text-[8px] font-black text-primary/60 uppercase tracking-widest h-8 px-4">Xona nomi</TableHead>
-                  <TableHead className="text-[8px] font-black text-primary/60 uppercase tracking-widest h-8">Soatlik jami</TableHead>
-                  <TableHead className="text-[8px] font-black text-primary/60 uppercase tracking-widest h-8">Boshlanish</TableHead>
-                  <TableHead className="text-[8px] font-black text-primary/60 uppercase tracking-widest h-8">Tugash</TableHead>
+                  <TableHead className="text-[8px] font-black text-primary/60 uppercase tracking-widest h-8 px-4">Tranzaksiya</TableHead>
+                  <TableHead className="text-[8px] font-black text-primary/60 uppercase tracking-widest h-8">Manba</TableHead>
+                  <TableHead className="text-[8px] font-black text-primary/60 uppercase tracking-widest h-8">Sana</TableHead>
                   <TableHead className="text-[8px] font-black text-primary/60 uppercase tracking-widest h-8">Xizmat</TableHead>
                   <TableHead className="text-[8px] font-black text-primary/60 uppercase tracking-widest h-8">Mahsulot</TableHead>
+                  <TableHead className="text-[8px] font-black text-primary/60 uppercase tracking-widest h-8">Miqdor</TableHead>
+                  <TableHead className="text-[8px] font-black text-primary/60 uppercase tracking-widest h-8">Birlik narxi</TableHead>
                   <TableHead className="text-[8px] font-black text-primary/60 uppercase tracking-widest h-8">Jami</TableHead>
-                  <TableHead className="text-[8px] font-black text-primary/60 uppercase tracking-widest h-8">Naqd</TableHead>
-                  <TableHead className="text-[8px] font-black text-primary/60 uppercase tracking-widest h-8 text-center">Terminal</TableHead>
-                  <TableHead className="text-[8px] font-black text-primary/60 uppercase tracking-widest h-8 text-center">Click</TableHead>
-                  <TableHead className="text-[8px] font-black text-primary/60 uppercase tracking-widest h-8 text-center">Payme</TableHead>
-                  <TableHead className="text-[8px] font-black text-primary/60 uppercase tracking-widest h-8 text-center">Qarz</TableHead>
-                  <TableHead className="text-[8px] font-black text-primary/60 uppercase tracking-widest h-8 text-right pr-4">To'langan</TableHead>
+                  <TableHead className="text-[8px] font-black text-primary/60 uppercase tracking-widest h-8">To'lov</TableHead>
+                  <TableHead className="text-[8px] font-black text-primary/60 uppercase tracking-widest h-8 text-right pr-4">Kassir</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredSales.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={13} className="text-center py-10 text-[10px] font-bold text-white/20 uppercase tracking-widest">
+                    <TableCell colSpan={10} className="text-center py-10 text-[10px] font-bold text-white/20 uppercase tracking-widest">
                       SAVDO MA'LUMOTLARI MAVJUD EMAS
                     </TableCell>
                   </TableRow>
                 ) : (
                   filteredSales.map((row) => (
                     <TableRow key={row.id} className="border-white/5 hover:bg-white/5 transition-colors group">
-                      <TableCell className="text-[10px] font-bold text-white py-2 px-4 uppercase tracking-tight">{row.room}</TableCell>
-                      <TableCell className="text-[10px] font-medium text-white/60">{formatCurrency(row.basePrice)}</TableCell>
-                      <TableCell className="text-[9px] font-medium text-white/40">{row.start}</TableCell>
-                      <TableCell className="text-[9px] font-medium text-white/40">{row.end}</TableCell>
+                      <TableCell className="py-2 px-4">
+                        <p className="text-[10px] font-black text-white uppercase tracking-tight">{row.transactionLabel}</p>
+                        <p className="text-[8px] font-bold text-white/30 uppercase tracking-widest">{row.referenceLabel}</p>
+                      </TableCell>
+                      <TableCell className="text-[10px] font-medium text-white/60 uppercase tracking-tight">{row.room}</TableCell>
+                      <TableCell className="text-[9px] font-medium text-white/40">{formatDateTime(row.dateTime)}</TableCell>
                       <TableCell className="text-[10px] font-bold text-white/80">{formatCurrency(row.serviceCost)}</TableCell>
-                      <TableCell className="text-[10px] font-bold text-white/80">{formatCurrency(row.products)}</TableCell>
+                      <TableCell className="py-2">
+                        {row.productName ? (
+                          <>
+                            <p className="text-[10px] font-black text-white">{row.productName}</p>
+                            <p className="text-[8px] font-bold text-white/30">{row.manufacturer ?? '-'}</p>
+                          </>
+                        ) : (
+                          <span className="text-[10px] font-bold text-white/20">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-[10px] font-bold text-white/80">
+                        {row.quantity ? `${row.quantity} ${getWarehouseUnitLabel(row.unit)}` : '-'}
+                      </TableCell>
+                      <TableCell className="text-[10px] font-bold text-white/80">
+                        {row.unitPrice ? `${formatCurrency(row.unitPrice)} UZS` : '-'}
+                      </TableCell>
                       <TableCell className="text-[10px] font-black text-primary">{formatCurrency(row.total)}</TableCell>
-                      <TableCell className="text-[10px] font-medium text-white/60">{formatCurrency(row.cash)}</TableCell>
-                      <TableCell className="text-[10px] font-medium text-white/40 text-center">{formatCurrency(row.terminal)}</TableCell>
-                      <TableCell className="text-[10px] font-medium text-white/40 text-center">{formatCurrency(row.click)}</TableCell>
-                      <TableCell className="text-[10px] font-medium text-white/40 text-center">{formatCurrency(row.payme)}</TableCell>
                       <TableCell className={cn(
-                        "text-[10px] font-bold text-center",
-                        row.debt > 0 ? "text-destructive" : "text-white/20"
-                      )}>{formatCurrency(row.debt)}</TableCell>
-                      <TableCell className="text-[10px] font-black text-white text-right pr-4">{formatCurrency(row.paid)}</TableCell>
+                        'text-[10px] font-bold',
+                        row.paymentMethod === 'debt' ? 'text-destructive' : 'text-white/60',
+                      )}>
+                        {paymentMethodLabel(row.paymentMethod)}
+                      </TableCell>
+                      <TableCell className="text-[10px] font-black text-white text-right pr-4">{row.cashierName ?? '-'}</TableCell>
                     </TableRow>
                   ))
                 )}

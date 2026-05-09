@@ -1,3 +1,5 @@
+import type { WarehouseUnit } from '@/lib/warehouse-units';
+
 function normalizeApiBaseUrl(value?: string | null): string | null {
   if (!value) {
     return null;
@@ -87,23 +89,7 @@ export type DashboardBootstrapResponse = {
       total_earned_money: number;
     }>;
   }>;
-  sales: Array<{
-    id: string;
-    room: string;
-    base_price: number;
-    start: string;
-    end: string;
-    service_cost: number;
-    products: number;
-    total: number;
-    cash: number;
-    terminal: number;
-    click: number;
-    payme: number;
-    debt: number;
-    paid: number;
-    timestamp: number;
-  }>;
+  sales: ApiSaleRecord[];
   debts: ApiDebtRecord[];
   sessions: ApiSession[];
   companies: Array<{
@@ -117,7 +103,7 @@ export type DashboardBootstrapResponse = {
       name: string;
       barcode: string;
       quantity: number;
-      unit: 'bottle' | 'box' | 'container' | 'bag';
+      unit: WarehouseUnit;
       purchase_price: number;
       selling_price: number;
     }>;
@@ -137,6 +123,38 @@ export type DashboardBootstrapResponse = {
     total_usage_duration_minutes: number;
     total_earned_money: number;
   }>;
+};
+
+export type ApiSaleRecord = {
+  id: string;
+  source: 'trade' | 'checkout_sale_item';
+  transaction_type: 'session_trade' | 'debt_trade' | 'product_sale';
+  transaction_label: string;
+  reference_label: string;
+  room: string;
+  base_price: number;
+  start: string | null;
+  end: string | null;
+  service_cost: number;
+  products: number;
+  total: number;
+  cash: number;
+  terminal: number;
+  click: number;
+  payme: number;
+  debt: number;
+  paid: number;
+  timestamp: number | null;
+  date_time: string | null;
+  payment_method: 'cash' | 'terminal' | 'click' | 'payme' | 'debt';
+  product_name: string | null;
+  manufacturer: string | null;
+  quantity: number | null;
+  unit: WarehouseUnit | null;
+  unit_price: number | null;
+  cashier_name: string | null;
+  related_sale_id: number | null;
+  barcode: string | null;
 };
 
 export type ApiDebtRecord = {
@@ -295,6 +313,15 @@ function extractApiErrorMessage(payload: unknown, status: number): string {
 
   if (validationMessage) {
     return validationMessage;
+  }
+
+  if (
+    typeof payload === 'object' &&
+    payload !== null &&
+    'message_uz' in payload &&
+    typeof payload.message_uz === 'string'
+  ) {
+    return payload.message_uz;
   }
 
   if (
@@ -514,7 +541,7 @@ export function createWarehouseItemRequest(
     manufacturer: string;
     product_name: string;
     shtrix_code: string;
-    unit: 'bottle' | 'box' | 'container' | 'bag';
+    unit: WarehouseUnit;
     count: number;
     purchase_price: number;
     sell_price: number;
@@ -534,7 +561,7 @@ export function updateWarehouseItemRequest(
     manufacturer: string;
     product_name: string;
     shtrix_code: string;
-    unit: 'bottle' | 'box' | 'container' | 'bag';
+    unit: WarehouseUnit;
     count: number;
     purchase_price: number;
     sell_price: number;
@@ -558,6 +585,40 @@ export function deleteManufacturerRequest(token: string, manufacturerId: number)
   return apiRequest(`/manufacturers/${manufacturerId}`, {
     method: 'DELETE',
     token,
+  });
+}
+
+export function createCheckoutSaleRequest(
+  token: string,
+  payload: {
+    items: Array<{
+      warehouse_id: number;
+      quantity: number;
+    }>;
+    payment_method: 'cash' | 'terminal' | 'click' | 'payme';
+  }
+) {
+  return apiRequest<{
+    id: number;
+    payment_method: 'cash' | 'terminal' | 'click' | 'payme';
+    total_amount: number;
+    cashier_name: string | null;
+    created_at: string | null;
+    items: Array<{
+      id: number;
+      warehouse_id: number | null;
+      manufacturer_name: string;
+      product_name: string;
+      barcode: string;
+      unit: WarehouseUnit;
+      quantity: number;
+      unit_price: number;
+      total_price: number;
+    }>;
+  }>('/checkout-sales', {
+    method: 'POST',
+    token,
+    body: payload,
   });
 }
 

@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\Concerns\FormatsSessionPayloads;
 use App\Http\Controllers\Controller;
 use App\Models\Asset;
 use App\Models\Booking;
+use App\Models\CheckoutSale;
 use App\Models\Manufacturer;
 use App\Models\Room;
 use App\Models\Service;
@@ -114,11 +115,7 @@ class DashboardController extends Controller
             ->latest('start_time')
             ->get();
 
-        $sales = Trade::query()
-            ->latest('end_time')
-            ->get()
-            ->map(fn (Trade $trade) => $this->formatDashboardSale($trade))
-            ->values();
+        $sales = $this->collectDashboardSales();
         $debts = $this->collectDebtRecords();
 
         $today = Carbon::now()->startOfDay();
@@ -131,9 +128,14 @@ class DashboardController extends Controller
                 'services_count' => $services->count(),
                 'services_ready' => $services->contains(fn (array $service) => ! $service['is_bundle'] && $service['rate'] !== null),
                 'rooms_count' => $rooms->count(),
-                'sales_total_today' => (float) Trade::query()
-                    ->where('end_time', '>=', $today)
-                    ->sum('total_cost'),
+                'sales_total_today' => (float) (
+                    Trade::query()
+                        ->where('end_time', '>=', $today)
+                        ->sum('total_cost')
+                    + CheckoutSale::query()
+                        ->where('created_at', '>=', $today)
+                        ->sum('total_amount')
+                ),
             ],
             'services' => $services,
             'rooms' => $rooms,

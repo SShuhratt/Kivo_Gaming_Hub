@@ -4,10 +4,23 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Warehouse extends Model
 {
     protected $table = 'warehouse';
+
+    public const UNIT_PIECE = 'piece';
+    public const UNIT_KG = 'kg';
+    public const UNIT_GRAM = 'gram';
+    public const UNIT_LITER = 'liter';
+    public const UNIT_ML = 'ml';
+    public const UNIT_BOX = 'box';
+    public const UNIT_PACK = 'pack';
+    public const UNIT_BOTTLE = 'bottle';
+    public const UNIT_METER = 'meter';
+    public const UNIT_CONTAINER = 'container';
+    public const UNIT_BAG = 'bag';
     
     protected $fillable = [
         'manufacturer',
@@ -21,6 +34,23 @@ class Warehouse extends Model
     ];
 
     protected $appends = ['profit_percentage'];
+
+    public static function allowedUnits(): array
+    {
+        return [
+            self::UNIT_PIECE,
+            self::UNIT_KG,
+            self::UNIT_GRAM,
+            self::UNIT_LITER,
+            self::UNIT_ML,
+            self::UNIT_BOX,
+            self::UNIT_PACK,
+            self::UNIT_BOTTLE,
+            self::UNIT_METER,
+            self::UNIT_CONTAINER,
+            self::UNIT_BAG,
+        ];
+    }
 
     protected static function booted(): void
     {
@@ -56,5 +86,10 @@ class Warehouse extends Model
     public function manufacturerRecord(): BelongsTo
     {
         return $this->belongsTo(Manufacturer::class, 'manufacturer_id');
+    }
+
+    public function checkoutSaleItems(): HasMany
+    {
+        return $this->hasMany(CheckoutSaleItem::class, 'warehouse_id');
     }
 }
