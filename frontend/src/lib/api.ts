@@ -19,21 +19,22 @@ function normalizeApiBaseUrl(value?: string | null): string | null {
 }
 
 function resolveApiBaseUrls(): string[] {
-  // Try Vite env var first, then Next.js env var
-  const envApiUrl = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_URL) 
-    || process.env.NEXT_PUBLIC_API_URL 
-    || process.env.VITE_API_URL;
+  const envApiUrl = process.env.NEXT_PUBLIC_API_URL || process.env.VITE_API_URL;
+  const isProductionRuntime = typeof window !== 'undefined'
+    ? window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1'
+    : process.env.NODE_ENV === 'production';
+
+  const browserOrigin =
+    typeof window !== 'undefined' ? normalizeApiBaseUrl(window.location.origin) : null;
 
   const candidates = [
     normalizeApiBaseUrl(envApiUrl),
-    typeof window !== 'undefined' ? normalizeApiBaseUrl(window.location.origin) : null,
-    normalizeApiBaseUrl('http://localhost:8000'),
+    browserOrigin,
+    isProductionRuntime ? null : normalizeApiBaseUrl('http://localhost:8000'),
   ].filter((value): value is string => Boolean(value));
 
-  // In production, if we have an env API URL, use ONLY that to prevent incorrect fallbacks
-  if (envApiUrl && process.env.NODE_ENV === 'production') {
-    const primary = normalizeApiBaseUrl(envApiUrl);
-    if (primary) return [primary];
+  if (isProductionRuntime) {
+    return Array.from(new Set(candidates.filter((value) => value !== 'http://localhost:8000/api')));
   }
 
   if (process.env.NODE_ENV !== 'production') {
