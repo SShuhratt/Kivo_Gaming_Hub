@@ -970,7 +970,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
             description: "Iltimos, qaytadan tizimga kiring.",
             variant: "destructive",
           });
-          logout();
+          // Do not logout automatically for export failures to prevent annoying redirects
           return null;
         }
 
@@ -1042,7 +1042,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
             description: "Iltimos, qaytadan tizimga kiring.",
             variant: "destructive",
           });
-          logout();
+          // Do not logout automatically for export failures to prevent annoying redirects
           return null;
         }
 
