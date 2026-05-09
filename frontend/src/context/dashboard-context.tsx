@@ -1,6 +1,7 @@
 'use client';
 
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { useToast } from '@/hooks/use-toast';
 import {
   ApiError,
   type ApiDebtRecord,
@@ -582,6 +583,7 @@ function triggerBrowserDownload(filename: string, blob: Blob) {
 }
 
 export function DashboardProvider({ children }: { children: React.ReactNode }) {
+  const { toast } = useToast();
   const [currentUser, setCurrentUser] = useState<SessionUser | null>(null);
   const [summary, setSummary] = useState<DashboardSummary>(emptySummary);
   const [services, setServices] = useState<ServiceItem[]>([]);
@@ -952,16 +954,35 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
 
   const exportManufacturerProducts = useCallback(
     async ({ manufacturerId, search }: { manufacturerId: number; search?: string }) => {
-      const activeToken = requireToken();
-      const file = await exportManufacturerProductsRequest(activeToken, manufacturerId, {
-        search,
-      });
+      try {
+        const activeToken = requireToken();
+        const file = await exportManufacturerProductsRequest(activeToken, manufacturerId, {
+          search,
+        });
 
-      triggerBrowserDownload(file.filename, file.blob);
+        triggerBrowserDownload(file.filename, file.blob);
 
-      return file.filename;
+        return file.filename;
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 401) {
+          toast({
+            title: "Sessiya muddati tugadi",
+            description: "Iltimos, qaytadan tizimga kiring.",
+            variant: "destructive",
+          });
+          logout();
+          return null;
+        }
+
+        toast({
+          title: "Eksportda xatolik yuz berdi",
+          description: error instanceof Error ? error.message : "Noma'lum xatolik",
+          variant: "destructive",
+        });
+        return null;
+      }
     },
-    [requireToken]
+    [requireToken, toast, logout]
   );
 
   const completeCheckoutSale = useCallback(
@@ -1000,21 +1021,40 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       dateFrom?: string;
       dateTo?: string;
     }) => {
-      const activeToken = requireToken();
-      const file = await exportTradesRequest(activeToken, {
-        status,
-        type,
-        search,
-        payment_method: paymentMethod,
-        date_from: dateFrom,
-        date_to: dateTo,
-      });
+      try {
+        const activeToken = requireToken();
+        const file = await exportTradesRequest(activeToken, {
+          status,
+          type,
+          search,
+          payment_method: paymentMethod,
+          date_from: dateFrom,
+          date_to: dateTo,
+        });
 
-      triggerBrowserDownload(file.filename, file.blob);
+        triggerBrowserDownload(file.filename, file.blob);
 
-      return file.filename;
+        return file.filename;
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 401) {
+          toast({
+            title: "Sessiya muddati tugadi",
+            description: "Iltimos, qaytadan tizimga kiring.",
+            variant: "destructive",
+          });
+          logout();
+          return null;
+        }
+
+        toast({
+          title: "Eksportda xatolik yuz berdi",
+          description: error instanceof Error ? error.message : "Noma'lum xatolik",
+          variant: "destructive",
+        });
+        return null;
+      }
     },
-    [requireToken]
+    [requireToken, toast, logout]
   );
 
   const calculateBooking = useCallback(

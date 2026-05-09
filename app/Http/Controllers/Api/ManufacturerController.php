@@ -61,13 +61,18 @@ class ManufacturerController extends Controller
                 'search' => 'nullable|string',
             ]);
 
-            if ($request->boolean('debug_probe')) {
-                return $this->downloadXlsx(
-                    'manufacturer-products-probe-'.now()->format('Y-m-d').'.xlsx',
-                    'ManufacturerProbe',
-                    ['Test', 'Value'],
-                    [['OK', 1]],
-                );
+            if ($request->has('debug_probe')) {
+                return response()->json([
+                    'route' => 'manufacturers.products.export',
+                    'manufacturer_id' => $manufacturer->id,
+                    'user_id' => auth()->id(),
+                    'authenticated' => auth()->check(),
+                    'headers' => $request->headers->all(),
+                ]);
+            }
+
+            if (!auth()->check()) {
+                return response()->json(['message' => 'Unauthenticated.'], 401);
             }
 
             $products = $manufacturer->warehouseItems()
@@ -134,7 +139,7 @@ class ManufacturerController extends Controller
             Log::error('Export failed', [
                 'endpoint' => request()->path(),
                 'user_id' => auth()->id(),
-                'manufacturer_id' => $manufacturerId ?: null,
+                'manufacturer_id' => $manufacturerId ?? null,
                 'message' => $e->getMessage(),
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),

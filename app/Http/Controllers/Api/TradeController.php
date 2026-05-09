@@ -53,13 +53,17 @@ class TradeController extends Controller
                 'date_to' => 'nullable|date',
             ]);
 
-            if ($request->boolean('debug_probe')) {
-                return $this->downloadXlsx(
-                    'savdo-export-probe-'.now()->format('Y-m-d').'.xlsx',
-                    'SavdoProbe',
-                    ['Test', 'Value'],
-                    [['OK', 1]],
-                );
+            if ($request->has('debug_probe')) {
+                return response()->json([
+                    'route' => 'trades.export',
+                    'user_id' => auth()->id(),
+                    'authenticated' => auth()->check(),
+                    'headers' => $request->headers->all(),
+                ]);
+            }
+
+            if (!auth()->check()) {
+                return response()->json(['message' => 'Unauthenticated.'], 401);
             }
 
             $sessionLifecycle->syncElapsedSessions();
@@ -76,7 +80,7 @@ class TradeController extends Controller
             $rows = $ledger->map(fn (array $entry) => $this->mapTradeExportRow($entry))->all();
 
             Log::info('Trade export requested', [
-                'user_id' => $request->user()?->id,
+                'user_id' => auth()->id(),
                 'count' => count($rows),
                 'filters' => $validated,
             ]);

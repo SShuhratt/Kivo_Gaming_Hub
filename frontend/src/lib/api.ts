@@ -348,7 +348,7 @@ async function requestAgainstBase<T>(baseUrl: string, path: string, options: Req
 
 async function downloadFileAgainstBase(baseUrl: string, path: string, options: RequestOptions = {}): Promise<DownloadedApiFile> {
   const headers = new Headers({
-    Accept: XLSX_MIME_TYPE,
+    Accept: `${XLSX_MIME_TYPE}, application/json`,
   });
 
   if (options.token) {
