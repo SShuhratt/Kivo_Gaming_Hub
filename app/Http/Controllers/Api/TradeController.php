@@ -5,9 +5,12 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Api\Concerns\FormatsSessionPayloads;
 use App\Http\Controllers\Api\Concerns\ValidatesApiRequests;
 use App\Http\Controllers\Controller;
+use App\Models\Booking;
 use App\Models\Trade;
 use App\Services\SessionLifecycleService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class TradeController extends Controller
 {
@@ -60,6 +63,7 @@ class TradeController extends Controller
 
         return response()->json($debts);
     }
+
     public function markPaid(string $id)
     {
         if (str_starts_with($id, 'trade-')) {
@@ -73,7 +77,7 @@ class TradeController extends Controller
             return response()->json(['message' => 'Debt marked as paid']);
         } elseif (str_starts_with($id, 'booking-')) {
             $bookingId = substr($id, 8);
-            $booking = \App\Models\Booking::findOrFail($bookingId);
+            $booking = Booking::findOrFail($bookingId);
 
             $updates = ['status' => 'submitted'];
             if ($booking->session_status === 'active') {
@@ -89,32 +93,51 @@ class TradeController extends Controller
         abort(404);
     }
 
-    public function destroyDebt(string $id)
+    public function destroyDebt(string $id): JsonResponse
+    {
+        [$model, $record] = $this->resolveDebtDeletionTarget($id);
+
+        $logContext = [
+            'debt_id' => $record['id'],
+            'source' => $record['source'],
+            'payment_status' => $record['payment_status'],
+            'remaining_amount' => (float) $record['remaining_amount'],
+        ];
+
+        if (! $this->isDebtFullyPaid($record)) {
+            Log::info('Debt removal rejected', $logContext + ['deleted_or_hidden' => false]);
+
+            return response()->json(['message' => 'Faqat to\'liq to\'langan qarzlarni o\'chirish mumkin.'], 409);
+        }
+
+        $model->is_deleted_from_debts = true;
+        $model->save();
+
+        Log::info('Debt removal completed', $logContext + ['deleted_or_hidden' => true]);
+
+        return response()->json(['message' => 'Debt removed from list']);
+    }
+
+    protected function resolveDebtDeletionTarget(string $id): array
     {
         if (str_starts_with($id, 'trade-')) {
-            $tradeId = substr($id, 6);
-            $trade = Trade::findOrFail($tradeId);
-            
-            if ($trade->payment_status !== 'submitted') {
-                return response()->json(['message' => 'Faqat to\'liq to\'langan qarzlarni o\'chirish mumkin.'], 400);
-            }
-            
-            $trade->update(['is_deleted_from_debts' => true]);
+            $trade = Trade::findOrFail((int) substr($id, 6));
 
-            return response()->json(['message' => 'Debt removed from list']);
-        } elseif (str_starts_with($id, 'booking-')) {
-            $bookingId = substr($id, 8);
-            $booking = \App\Models\Booking::findOrFail($bookingId);
-            
-            if ($booking->status !== 'submitted') {
-                return response()->json(['message' => 'Faqat to\'liq to\'langan qarzlarni o\'chirish mumkin.'], 400);
-            }
-            
-            $booking->update(['is_deleted_from_debts' => true]);
+            return [$trade, $this->formatDebtRecordFromTrade($trade)];
+        }
 
-            return response()->json(['message' => 'Debt removed from list']);
+        if (str_starts_with($id, 'booking-')) {
+            $booking = Booking::findOrFail((int) substr($id, 8));
+
+            return [$booking, $this->formatDebtRecordFromBooking($booking)];
         }
 
         abort(404);
+    }
+
+    protected function isDebtFullyPaid(array $record): bool
+    {
+        return ($record['payment_state'] ?? null) === 'paid'
+            && abs((float) ($record['remaining_amount'] ?? 0)) < 0.00001;
     }
 }

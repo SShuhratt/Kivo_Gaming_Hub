@@ -207,6 +207,7 @@ class OpenApiSpec
                     'payment_state' => ['type' => 'string', 'enum' => ['paid', 'unpaid'], 'example' => 'unpaid'],
                     'session_status' => ['type' => 'string', 'example' => 'completed'],
                     'payment_status' => ['type' => 'string', 'enum' => ['submitted', 'debt_closed'], 'example' => 'debt_closed'],
+                    'can_delete' => ['type' => 'boolean', 'example' => false],
                     'created_at' => ['type' => 'string', 'format' => 'date-time', 'nullable' => true],
                     'session_date' => ['type' => 'string', 'format' => 'date-time', 'nullable' => true],
                     'start_time' => ['type' => 'string', 'format' => 'date-time', 'nullable' => true],

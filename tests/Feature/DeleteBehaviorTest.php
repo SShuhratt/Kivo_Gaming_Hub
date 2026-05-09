@@ -191,6 +191,99 @@ class DeleteBehaviorTest extends TestCase
         $this->assertDatabaseHas('trades', ['id' => $trade->id]);
     }
 
+    public function test_paid_debt_deletion_hides_the_record_from_all_debt_list_sources(): void
+    {
+        $trade = Trade::create([
+            'booking_id' => null,
+            'tariff_id' => null,
+            'tariff_name' => 'Service pricing',
+            'hourly_rate' => 50000,
+            'payment_status' => 'submitted',
+            'session_status' => 'completed',
+            'start_time' => '2026-05-01T10:00:00+05:00',
+            'end_time' => '2026-05-01T11:00:00+05:00',
+            'duration_minutes' => 60,
+            'total_cost' => 50000,
+            'debt_name' => 'Ali',
+            'debt_phone_number' => '+998901234567',
+            'asset_snapshot' => [['id' => 1, 'category' => 'Computer', 'room_id' => 1, 'room_number' => 'VIP 1']],
+            'assets_count' => 1,
+        ]);
+
+        $debtId = "trade-{$trade->id}";
+
+        $this->getJson('/api/debts', $this->authHeaders())
+            ->assertOk()
+            ->assertJsonCount(1)
+            ->assertJsonPath('0.id', $debtId)
+            ->assertJsonPath('0.payment_state', 'paid')
+            ->assertJsonPath('0.remaining_amount', 0)
+            ->assertJsonPath('0.can_delete', true);
+
+        $this->deleteJson("/api/debts/{$debtId}", [], $this->authHeaders())
+            ->assertOk()
+            ->assertJson([
+                'message' => 'Debt removed from list',
+            ]);
+
+        $this->assertDatabaseHas('trades', [
+            'id' => $trade->id,
+            'is_deleted_from_debts' => true,
+        ]);
+
+        $this->getJson('/api/debts', $this->authHeaders())
+            ->assertOk()
+            ->assertJsonCount(0);
+
+        $this->getJson('/api/dashboard/bootstrap', $this->authHeaders())
+            ->assertOk()
+            ->assertJsonCount(0, 'debts');
+
+        $this->assertDatabaseHas('trades', ['id' => $trade->id]);
+    }
+
+    public function test_unpaid_debts_cannot_be_deleted_from_the_debtors_list(): void
+    {
+        $booking = Booking::create([
+            'tariff_id' => null,
+            'tariff_name_snapshot' => 'Service pricing',
+            'hourly_rate_snapshot' => 50000,
+            'asset_snapshot' => [['id' => 2, 'category' => 'Computer', 'room_id' => 2, 'room_number' => 'VIP 2']],
+            'asset_stats_recorded' => true,
+            'start_time' => '2026-05-02T12:00:00+05:00',
+            'end_time' => '2026-05-02T13:00:00+05:00',
+            'ended_at' => '2026-05-02T13:00:00+05:00',
+            'duration_minutes' => 60,
+            'requested_duration_hours' => 1,
+            'total_cost' => 50000,
+            'status' => 'debt_closed',
+            'session_status' => 'completed',
+            'is_vip' => false,
+            'debt_name' => 'Vali',
+            'debt_phone_number' => '+998909876543',
+        ]);
+
+        $debtId = "booking-{$booking->id}";
+
+        $this->deleteJson("/api/debts/{$debtId}", [], $this->authHeaders())
+            ->assertStatus(409)
+            ->assertJson([
+                'message' => 'Faqat to\'liq to\'langan qarzlarni o\'chirish mumkin.',
+            ]);
+
+        $this->assertDatabaseHas('bookings', [
+            'id' => $booking->id,
+            'is_deleted_from_debts' => false,
+        ]);
+
+        $this->getJson('/api/debts', $this->authHeaders())
+            ->assertOk()
+            ->assertJsonCount(1)
+            ->assertJsonPath('0.id', $debtId)
+            ->assertJsonPath('0.payment_state', 'unpaid')
+            ->assertJsonPath('0.can_delete', false);
+    }
+
     protected function authHeaders(): array
     {
         return ['Authorization' => 'Bearer '.$this->loginToken()];

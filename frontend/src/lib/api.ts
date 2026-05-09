@@ -156,6 +156,7 @@ export type ApiDebtRecord = {
   payment_state: 'paid' | 'unpaid';
   session_status: string;
   payment_status: 'submitted' | 'debt_closed';
+  can_delete: boolean;
   created_at: string | null;
   session_date: string | null;
   start_time: string | null;

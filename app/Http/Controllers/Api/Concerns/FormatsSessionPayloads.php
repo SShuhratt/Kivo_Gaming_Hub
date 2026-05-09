@@ -144,6 +144,7 @@ trait FormatsSessionPayloads
         $sessionDate = $trade->end_time ?? $trade->start_time ?? $trade->created_at;
         $isPaid = $trade->payment_status === 'submitted';
         $originalAmount = (float) $trade->total_cost;
+        $remainingAmount = $isPaid ? 0 : $originalAmount;
 
         return [
             'id' => "trade-{$trade->id}",
@@ -157,11 +158,12 @@ trait FormatsSessionPayloads
             'final_cost' => $originalAmount,
             'original_amount' => $originalAmount,
             'paid_amount' => $isPaid ? $originalAmount : 0,
-            'remaining_amount' => $isPaid ? 0 : $originalAmount,
+            'remaining_amount' => $remainingAmount,
             'session_state' => 'ended',
             'payment_state' => $isPaid ? 'paid' : 'unpaid',
             'session_status' => $trade->session_status,
             'payment_status' => $trade->payment_status,
+            'can_delete' => $isPaid && abs($remainingAmount) < 0.00001,
             'created_at' => $trade->created_at,
             'session_date' => $sessionDate,
             'start_time' => $trade->start_time,
@@ -183,6 +185,7 @@ trait FormatsSessionPayloads
         $sessionDate = $booking->ended_at ?? $booking->start_time ?? $booking->created_at;
         $isPaid = $booking->status === 'submitted';
         $originalAmount = (float) $booking->total_cost;
+        $remainingAmount = $isPaid ? 0 : $originalAmount;
 
         return [
             'id' => "booking-{$booking->id}",
@@ -196,11 +199,12 @@ trait FormatsSessionPayloads
             'final_cost' => $originalAmount,
             'original_amount' => $originalAmount,
             'paid_amount' => $isPaid ? $originalAmount : 0,
-            'remaining_amount' => $isPaid ? 0 : $originalAmount,
+            'remaining_amount' => $remainingAmount,
             'session_state' => $booking->session_status === 'active' ? 'active' : 'ended',
             'payment_state' => $isPaid ? 'paid' : 'unpaid',
             'session_status' => $booking->session_status,
             'payment_status' => $booking->status,
+            'can_delete' => $isPaid && abs($remainingAmount) < 0.00001,
             'created_at' => $booking->created_at,
             'session_date' => $sessionDate,
             'start_time' => $booking->start_time,

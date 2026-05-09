@@ -138,6 +138,7 @@ export interface DebtRecord {
   paymentState: 'paid' | 'unpaid';
   sessionStatus: 'active' | 'completed' | 'cancelled';
   paymentStatus: 'submitted' | 'debt_closed';
+  canDelete: boolean;
   createdAt: string | null;
   sessionDate: string | null;
   startTime: string | null;
@@ -387,6 +388,7 @@ function mapDebtRecord(record: ApiDebtRecord): DebtRecord {
     paymentState: record.payment_state,
     sessionStatus: record.session_status as DebtRecord['sessionStatus'],
     paymentStatus: record.payment_status,
+    canDelete: record.can_delete,
     createdAt: record.created_at,
     sessionDate: record.session_date,
     startTime: record.start_time,
@@ -1057,9 +1059,9 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     async (debtId: string) => {
       const activeToken = requireToken();
       await deleteDebtRequest(activeToken, debtId);
-      await refreshDashboard();
+      setDebts((current) => current.filter((record) => record.id !== debtId));
     },
-    [refreshDashboard, requireToken]
+    [requireToken]
   );
 
   const servicesReady = services.length > 0;

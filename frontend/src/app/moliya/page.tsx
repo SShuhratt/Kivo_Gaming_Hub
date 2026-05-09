@@ -627,6 +627,7 @@ export default function MoliyaPage() {
                   ) : (
                     filteredDebts.map((record) => {
                       const statusLabel = getDebtStatusLabel(record);
+                      const canDeleteDebt = record.canDelete && record.paymentState === 'paid' && record.remainingAmount === 0;
 
                       return (
                         <TableRow key={record.id} className="border-white/5 transition-colors hover:bg-white/5">
@@ -687,7 +688,7 @@ export default function MoliyaPage() {
                                 </Button>
                               ) : null}
 
-                              {record.paymentState === 'paid' ? (
+                              {canDeleteDebt ? (
                                 <Button
                                   onClick={() => setDebtToDelete(record.id)}
                                   size="sm"
@@ -767,7 +768,7 @@ export default function MoliyaPage() {
                 <AlertDialogHeader>
                   <AlertDialogTitle className="text-white">To'langan qarzni ro'yxatdan o'chirishni xohlaysizmi?</AlertDialogTitle>
                   <AlertDialogDescription className="text-white/60">
-                    Bu qarz ro'yxatdan o'chiriladi, lekin tarixda saqlanib qoladi. (Do you want to remove this paid debt from the list?)
+                    Bu to'langan qarz Debtors/Qarzlar ro'yxatidan butunlay olib tashlanadi. (Do you want to permanently remove this paid debt from the debtors list?)
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>

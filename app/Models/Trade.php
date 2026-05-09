@@ -32,6 +32,7 @@ class Trade extends Model
         'asset_snapshot' => 'array',
         'cart_snapshot' => 'array',
         'pricing_breakdown_snapshot' => 'array',
+        'is_deleted_from_debts' => 'boolean',
         'hourly_rate' => 'float',
         'total_cost' => 'float',
     ];

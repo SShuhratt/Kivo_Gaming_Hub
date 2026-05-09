@@ -41,6 +41,7 @@ class Booking extends Model
         'pricing_breakdown_snapshot' => 'array',
         'selected_bundle_service_ids' => 'array',
         'asset_stats_recorded' => 'boolean',
+        'is_deleted_from_debts' => 'boolean',
         'is_vip' => 'boolean',
     ];
 
