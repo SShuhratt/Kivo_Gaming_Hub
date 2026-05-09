@@ -76,6 +76,7 @@ export default function OmborPage() {
     saveWarehouseProduct,
     deleteWarehouseProduct,
     deleteManufacturer,
+    exportManufacturerProducts,
     isCheckingAuth,
   } = useDashboard();
   const { toast } = useToast();
@@ -85,6 +86,7 @@ export default function OmborPage() {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [productForm, setProductForm] = useState<ProductFormState>(emptyProductForm);
   const [isSaving, setIsSaving] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const [manufacturerSearch, setManufacturerSearch] = useState('');
   const [productSearch, setProductSearch] = useState('');
 
@@ -230,6 +232,38 @@ export default function OmborPage() {
     }
   };
 
+  const handleExportProducts = async () => {
+    if (!selectedCompany || filteredProducts.length === 0) {
+      toast({
+        variant: 'destructive',
+        title: 'Eksport mavjud emas',
+        description: "Eksport qilish uchun ma'lumot yo'q",
+      });
+      return;
+    }
+
+    try {
+      setIsExporting(true);
+      const filename = await exportManufacturerProducts({
+        manufacturerId: selectedCompany.backendId,
+        search: productSearch.trim(),
+      });
+
+      toast({
+        title: 'Eksport tayyor',
+        description: `${filename} yuklab olindi.`,
+      });
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Eksport amalga oshmadi',
+        description: error instanceof Error ? error.message : "So'rov bajarilmadi.",
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   if (!selectedCompanyId || !selectedCompany) {
     return (
       <DashboardLayout>
@@ -353,8 +387,13 @@ export default function OmborPage() {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <Button className="h-12 bg-white/5 border border-white/10 text-white/40 font-black uppercase tracking-widest text-[9px] rounded-2xl px-6 hover:text-white transition-all">
-              <FileSpreadsheet className="mr-2 h-4 w-4" /> EKSPORT EXCEL
+            <Button
+              type="button"
+              disabled={isExporting}
+              onClick={handleExportProducts}
+              className="h-12 bg-white/5 border border-white/10 text-white/40 font-black uppercase tracking-widest text-[9px] rounded-2xl px-6 hover:text-white transition-all disabled:opacity-60"
+            >
+              <FileSpreadsheet className="mr-2 h-4 w-4" /> {isExporting ? 'EKSPORT...' : 'EKSPORT CSV'}
             </Button>
             <DeleteConfirmButton
               itemName={selectedCompany.name}

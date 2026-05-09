@@ -33,6 +33,8 @@ Route::middleware('api.token')->group(function () {
 
     Route::get('/trades', [TradeController::class, 'index'])
         ->defaults('openapiOperation', 'listTrades');
+    Route::get('/trades/export', [TradeController::class, 'export'])
+        ->defaults('openapiOperation', 'exportTrades');
     Route::get('/debts', [TradeController::class, 'debts'])
         ->defaults('openapiOperation', 'listDebts');
     Route::patch('/debts/{id}/mark-paid', [TradeController::class, 'markPaid'])
@@ -84,6 +86,8 @@ Route::middleware('api.token')->group(function () {
         ->defaults('openapiOperation', 'deleteWarehouseItem');
     Route::delete('/manufacturers/{manufacturer}', [ManufacturerController::class, 'destroy'])
         ->defaults('openapiOperation', 'deleteManufacturer');
+    Route::get('/manufacturers/{manufacturer}/products/export', [ManufacturerController::class, 'exportProducts'])
+        ->defaults('openapiOperation', 'exportManufacturerProducts');
 
     Route::get('/services', [ServiceController::class, 'index'])
         ->defaults('openapiOperation', 'listServices');

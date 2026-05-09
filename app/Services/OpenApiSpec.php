@@ -427,6 +427,16 @@ class OpenApiSpec
             ],
         ];
 
+        $tradeExportOperation = $this->csvDownloadOperation('Finance', 'Export financial ledger entries', 'exportTrades');
+        $tradeExportOperation['parameters'] = [
+            ['name' => 'status', 'in' => 'query', 'required' => false, 'schema' => ['type' => 'string', 'enum' => ['submitted', 'debt_closed']]],
+            ['name' => 'type', 'in' => 'query', 'required' => false, 'schema' => ['type' => 'string', 'enum' => ['Income', 'Debt', 'Product Sale']]],
+            ['name' => 'search', 'in' => 'query', 'required' => false, 'schema' => ['type' => 'string']],
+            ['name' => 'payment_method', 'in' => 'query', 'required' => false, 'schema' => ['type' => 'string', 'enum' => ['cash', 'terminal', 'click', 'payme', 'debt']]],
+            ['name' => 'date_from', 'in' => 'query', 'required' => false, 'schema' => ['type' => 'string', 'format' => 'date']],
+            ['name' => 'date_to', 'in' => 'query', 'required' => false, 'schema' => ['type' => 'string', 'format' => 'date']],
+        ];
+
         $debtOperation = $this->operation('Finance', 'List debtors and debt records', 'listDebts', null, null);
         $debtOperation['parameters'] = [
             ['name' => 'status', 'in' => 'query', 'required' => false, 'schema' => ['type' => 'string', 'enum' => ['active', 'ended', 'paid', 'unpaid']]],
@@ -442,6 +452,7 @@ class OpenApiSpec
 
         return [
             '/trades' => ['get' => $operation],
+            '/trades/export' => ['get' => $tradeExportOperation],
             '/debts' => ['get' => $debtOperation],
             '/checkout-sales' => [
                 'post' => $this->operation('Finance', 'Create checkout sale', 'createCheckoutSale', 'CheckoutSaleCreateRequest', 'CheckoutSaleResponse', 201),
@@ -455,6 +466,13 @@ class OpenApiSpec
             '/manufacturers/{manufacturer}' => [
                 'parameters' => [['$ref' => '#/components/parameters/manufacturer']],
                 'delete' => $this->deleteOperation('Manufacturers', 'Delete Manufacturer', 'deleteManufacturer'),
+            ],
+            '/manufacturers/{manufacturer}/products/export' => [
+                'parameters' => [
+                    ['$ref' => '#/components/parameters/manufacturer'],
+                    ['name' => 'search', 'in' => 'query', 'required' => false, 'schema' => ['type' => 'string']],
+                ],
+                'get' => $this->csvDownloadOperation('Manufacturers', 'Export manufacturer products', 'exportManufacturerProducts'),
             ],
         ];
     }
@@ -531,6 +549,24 @@ class OpenApiSpec
         if ($notFound) {
             $operation['responses']['404'] = ['$ref' => '#/components/responses/NotFound'];
         }
+
+        return $operation;
+    }
+
+    protected function csvDownloadOperation(string $tag, string $summary, string $operationId): array
+    {
+        $operation = $this->operation($tag, $summary, $operationId, null, null);
+        $operation['responses']['200'] = [
+            'description' => 'CSV file download',
+            'content' => [
+                'text/csv' => [
+                    'schema' => [
+                        'type' => 'string',
+                        'format' => 'binary',
+                    ],
+                ],
+            ],
+        ];
 
         return $operation;
     }

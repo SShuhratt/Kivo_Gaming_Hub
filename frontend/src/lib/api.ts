@@ -39,6 +39,11 @@ type ApiMessageResponse = {
   message: string;
 };
 
+export type DownloadedApiFile = {
+  filename: string;
+  blob: Blob;
+};
+
 export type ApiUser = {
   id: number;
   name: string;
@@ -266,6 +271,29 @@ async function apiRequest<T>(path: string, options: RequestOptions = {}): Promis
     : new Error('API base URL is not configured.');
 }
 
+async function downloadApiFile(path: string, options: RequestOptions = {}): Promise<DownloadedApiFile> {
+  const apiBaseUrls = resolveApiBaseUrls();
+  let lastError: unknown;
+
+  for (const [index, baseUrl] of apiBaseUrls.entries()) {
+    try {
+      return await downloadFileAgainstBase(baseUrl, path, options);
+    } catch (error) {
+      const isLastCandidate = index === apiBaseUrls.length - 1;
+
+      if (isLastCandidate || !shouldTryNextApiBase(error)) {
+        throw error;
+      }
+
+      lastError = error;
+    }
+  }
+
+  throw lastError instanceof Error
+    ? lastError
+    : new Error('API base URL is not configured.');
+}
+
 async function requestAgainstBase<T>(baseUrl: string, path: string, options: RequestOptions = {}): Promise<T> {
   const headers = new Headers({
     Accept: 'application/json',
@@ -298,6 +326,39 @@ async function requestAgainstBase<T>(baseUrl: string, path: string, options: Req
   }
 
   return payload as T;
+}
+
+async function downloadFileAgainstBase(baseUrl: string, path: string, options: RequestOptions = {}): Promise<DownloadedApiFile> {
+  const headers = new Headers({
+    Accept: 'text/csv,application/octet-stream,application/vnd.ms-excel',
+  });
+
+  if (options.token) {
+    headers.set('Authorization', `Bearer ${options.token}`);
+  }
+
+  const response = await fetch(`${baseUrl}${path}`, {
+    method: options.method ?? 'GET',
+    headers,
+    signal: options.signal,
+  });
+
+  if (!response.ok) {
+    const contentType = response.headers.get('content-type') ?? '';
+    const payload = contentType.includes('application/json')
+      ? await response.json()
+      : await response.text();
+    const message = extractApiErrorMessage(payload, response.status);
+
+    throw new ApiError(message, response.status, payload);
+  }
+
+  const filename = extractDownloadFilename(response.headers.get('content-disposition'));
+
+  return {
+    filename: filename || 'export.csv',
+    blob: await response.blob(),
+  };
 }
 
 function shouldTryNextApiBase(error: unknown): boolean {
@@ -360,6 +421,35 @@ function extractFirstValidationError(payload: unknown): string | null {
   }
 
   return null;
+}
+
+function extractDownloadFilename(contentDisposition: string | null): string | null {
+  if (!contentDisposition) {
+    return null;
+  }
+
+  const utf8Match = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i);
+  if (utf8Match?.[1]) {
+    return decodeURIComponent(utf8Match[1]);
+  }
+
+  const plainMatch = contentDisposition.match(/filename=\"?([^\";]+)\"?/i);
+  return plainMatch?.[1] ?? null;
+}
+
+function buildQueryString(params: Record<string, string | null | undefined>): string {
+  const searchParams = new URLSearchParams();
+
+  for (const [key, value] of Object.entries(params)) {
+    if (!value || value.trim() === '') {
+      continue;
+    }
+
+    searchParams.set(key, value);
+  }
+
+  const query = searchParams.toString();
+  return query ? `?${query}` : '';
 }
 
 export function loginRequest(phoneNumber: string, password: string) {
@@ -588,6 +678,23 @@ export function deleteManufacturerRequest(token: string, manufacturerId: number)
   });
 }
 
+export function exportManufacturerProductsRequest(
+  token: string,
+  manufacturerId: number,
+  params: {
+    search?: string;
+  } = {}
+) {
+  return downloadApiFile(
+    `/manufacturers/${manufacturerId}/products/export${buildQueryString({
+      search: params.search ?? null,
+    })}`,
+    {
+      token,
+    }
+  );
+}
+
 export function createCheckoutSaleRequest(
   token: string,
   payload: {
@@ -731,6 +838,32 @@ export function markDebtPaidRequest(token: string, debtId: string) {
     method: 'PATCH',
     token,
   });
+}
+
+export function exportTradesRequest(
+  token: string,
+  params: {
+    status?: 'submitted' | 'debt_closed';
+    type?: 'Income' | 'Debt' | 'Product Sale';
+    search?: string;
+    payment_method?: 'cash' | 'terminal' | 'click' | 'payme' | 'debt';
+    date_from?: string;
+    date_to?: string;
+  } = {}
+) {
+  return downloadApiFile(
+    `/trades/export${buildQueryString({
+      status: params.status ?? null,
+      type: params.type ?? null,
+      search: params.search ?? null,
+      payment_method: params.payment_method ?? null,
+      date_from: params.date_from ?? null,
+      date_to: params.date_to ?? null,
+    })}`,
+    {
+      token,
+    }
+  );
 }
 
 export function deleteDebtRequest(token: string, debtId: string) {

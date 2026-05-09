@@ -52,6 +52,32 @@ class Warehouse extends Model
         ];
     }
 
+    public static function unitLabelsUz(): array
+    {
+        return [
+            self::UNIT_PIECE => 'dona',
+            self::UNIT_KG => 'kg / kilogramm',
+            self::UNIT_GRAM => 'g / gramm',
+            self::UNIT_LITER => 'l / litr',
+            self::UNIT_ML => 'ml / millilitr',
+            self::UNIT_BOX => 'quti',
+            self::UNIT_PACK => 'qadoq',
+            self::UNIT_BOTTLE => 'shisha',
+            self::UNIT_METER => 'm / metr',
+            self::UNIT_CONTAINER => 'idish',
+            self::UNIT_BAG => 'xalta',
+        ];
+    }
+
+    public static function unitLabel(?string $unit): string
+    {
+        if ($unit === null || $unit === '') {
+            return '';
+        }
+
+        return self::unitLabelsUz()[$unit] ?? $unit;
+    }
+
     protected static function booted(): void
     {
         static::saving(function (Warehouse $warehouse) {

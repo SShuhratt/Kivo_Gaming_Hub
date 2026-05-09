@@ -23,6 +23,7 @@ import {
 } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
 import { getWarehouseUnitLabel } from '@/lib/warehouse-units';
+import { useToast } from '@/hooks/use-toast';
 
 function formatDateTime(value: string | null) {
   if (!value) {
@@ -54,8 +55,10 @@ function paymentMethodLabel(value: 'cash' | 'terminal' | 'click' | 'payme' | 'de
 }
 
 export default function SavdoPage() {
-  const { sales, isCheckingAuth } = useDashboard();
+  const { sales, exportSales, isCheckingAuth } = useDashboard();
+  const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
+  const [isExporting, setIsExporting] = useState(false);
 
   const filteredSales = useMemo(() => {
     return sales.filter(sale => 
@@ -80,6 +83,37 @@ export default function SavdoPage() {
     return val > 0 ? val.toLocaleString() : '0';
   };
 
+  const handleExport = async () => {
+    if (filteredSales.length === 0) {
+      toast({
+        variant: 'destructive',
+        title: "Eksport mavjud emas",
+        description: "Eksport qilish uchun ma'lumot yo'q",
+      });
+      return;
+    }
+
+    try {
+      setIsExporting(true);
+      const filename = await exportSales({
+        search: searchTerm.trim(),
+      });
+
+      toast({
+        title: 'Eksport tayyor',
+        description: `${filename} yuklab olindi.`,
+      });
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Eksport amalga oshmadi',
+        description: error instanceof Error ? error.message : "So'rov bajarilmadi.",
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   return (
     <DashboardLayout>
       <div className="animate-in fade-in duration-500 space-y-4">
@@ -100,8 +134,14 @@ export default function SavdoPage() {
           </div>
           
           <div className="flex items-center gap-2">
-            <Button variant="outline" className="h-8 border-white/10 bg-white/5 text-[9px] font-black uppercase tracking-widest text-primary/70 hover:text-primary rounded-lg">
-              <Download className="mr-2 h-3 w-3" /> Eksport
+            <Button
+              type="button"
+              variant="outline"
+              disabled={isExporting}
+              onClick={handleExport}
+              className="h-8 border-white/10 bg-white/5 text-[9px] font-black uppercase tracking-widest text-primary/70 hover:text-primary rounded-lg disabled:opacity-60"
+            >
+              <Download className="mr-2 h-3 w-3" /> {isExporting ? 'Eksport...' : 'Eksport'}
             </Button>
             <Button className="h-8 bg-primary/10 border border-primary/20 text-primary text-[9px] font-black uppercase tracking-widest hover:bg-primary hover:text-black rounded-lg px-3 transition-all">
               <Filter className="mr-2 h-3 w-3" /> Filtrlash

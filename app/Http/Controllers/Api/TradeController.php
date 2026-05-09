@@ -3,18 +3,23 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Api\Concerns\FormatsSessionPayloads;
+use App\Http\Controllers\Api\Concerns\StreamsCsvExports;
 use App\Http\Controllers\Api\Concerns\ValidatesApiRequests;
 use App\Http\Controllers\Controller;
 use App\Models\Booking;
 use App\Models\Trade;
+use App\Models\Warehouse;
 use App\Services\SessionLifecycleService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 
 class TradeController extends Controller
 {
     use FormatsSessionPayloads;
+    use StreamsCsvExports;
     use ValidatesApiRequests;
 
     public function index(Request $request, SessionLifecycleService $sessionLifecycle)
@@ -22,25 +27,62 @@ class TradeController extends Controller
         $validated = $this->validateApi($request, [
             'status' => 'nullable|in:submitted,debt_closed',
             'type' => 'nullable|in:Income,Debt,Product Sale',
+            'search' => 'nullable|string',
+            'payment_method' => 'nullable|in:cash,terminal,click,payme,debt',
+            'date_from' => 'nullable|date',
+            'date_to' => 'nullable|date',
         ]);
 
         $sessionLifecycle->syncElapsedSessions();
 
-        $ledger = $this->collectFinancialLedgerEntries();
-
-        if ($validated['status'] ?? null) {
-            $ledger = $ledger
-                ->filter(fn (array $entry) => $entry['status'] === $validated['status'])
-                ->values();
-        }
-
-        if ($validated['type'] ?? null) {
-            $ledger = $ledger
-                ->filter(fn (array $entry) => $entry['type'] === $validated['type'])
-                ->values();
-        }
+        $ledger = $this->filterFinancialLedgerEntries($this->collectFinancialLedgerEntries(), $validated);
 
         return response()->json($ledger);
+    }
+
+    public function export(Request $request, SessionLifecycleService $sessionLifecycle)
+    {
+        $validated = $this->validateApi($request, [
+            'status' => 'nullable|in:submitted,debt_closed',
+            'type' => 'nullable|in:Income,Debt,Product Sale',
+            'search' => 'nullable|string',
+            'payment_method' => 'nullable|in:cash,terminal,click,payme,debt',
+            'date_from' => 'nullable|date',
+            'date_to' => 'nullable|date',
+        ]);
+
+        $sessionLifecycle->syncElapsedSessions();
+
+        $ledger = $this->filterFinancialLedgerEntries($this->collectFinancialLedgerEntries(), $validated);
+
+        if ($ledger->isEmpty()) {
+            return response()->json([
+                'message' => 'No data available to export',
+                'message_uz' => "Eksport qilish uchun ma'lumot yo'q",
+            ], 422);
+        }
+
+        $rows = $ledger->map(fn (array $entry) => $this->mapTradeExportRow($entry))->all();
+
+        return $this->streamCsvDownload(
+            'savdo-export-'.now()->format('Y-m-d').'.csv',
+            [
+                'Tranzaksiya ID',
+                'Turi',
+                'Nomi / Tavsif',
+                'Mahsulot / Xizmat / Seans',
+                'Miqdor',
+                'Birlik',
+                'Birlik narxi',
+                'Jami summa',
+                "To'lov usuli",
+                'Qarzdor ismi',
+                'Qarzdor telefoni',
+                'Holat',
+                'Yaratilgan sana',
+            ],
+            $rows,
+        );
     }
 
     public function debts(Request $request, SessionLifecycleService $sessionLifecycle)
@@ -138,5 +180,150 @@ class TradeController extends Controller
     {
         return ($record['payment_state'] ?? null) === 'paid'
             && abs((float) ($record['remaining_amount'] ?? 0)) < 0.00001;
+    }
+
+    protected function filterFinancialLedgerEntries(Collection $ledger, array $filters): Collection
+    {
+        if ($filters['status'] ?? null) {
+            $ledger = $ledger
+                ->filter(fn (array $entry) => $entry['status'] === $filters['status'])
+                ->values();
+        }
+
+        if ($filters['type'] ?? null) {
+            $ledger = $ledger
+                ->filter(fn (array $entry) => $entry['type'] === $filters['type'])
+                ->values();
+        }
+
+        if ($filters['payment_method'] ?? null) {
+            $ledger = $ledger
+                ->filter(fn (array $entry) => $entry['payment_method'] === $filters['payment_method'])
+                ->values();
+        }
+
+        if ($filters['search'] ?? null) {
+            $search = mb_strtolower(trim((string) $filters['search']));
+
+            if ($search !== '') {
+                $ledger = $ledger
+                    ->filter(function (array $entry) use ($search) {
+                        return collect($this->tradeSearchableFields($entry))
+                            ->filter(fn ($value) => $value !== null && $value !== '')
+                            ->contains(fn ($value) => str_contains(mb_strtolower((string) $value), $search));
+                    })
+                    ->values();
+            }
+        }
+
+        $dateFrom = $this->parseExportFilterDate($filters['date_from'] ?? null);
+        $dateTo = $this->parseExportFilterDate($filters['date_to'] ?? null, true);
+
+        if ($dateFrom || $dateTo) {
+            $ledger = $ledger
+                ->filter(function (array $entry) use ($dateFrom, $dateTo) {
+                    $createdAt = $this->parseExportDateTime($entry['created_at'] ?? null);
+
+                    if (! $createdAt) {
+                        return false;
+                    }
+
+                    if ($dateFrom && $createdAt->lt($dateFrom)) {
+                        return false;
+                    }
+
+                    if ($dateTo && $createdAt->gt($dateTo)) {
+                        return false;
+                    }
+
+                    return true;
+                })
+                ->values();
+        }
+
+        return $ledger->values();
+    }
+
+    protected function tradeSearchableFields(array $entry): array
+    {
+        return [
+            $entry['type_label'] ?? null,
+            data_get($entry, 'details.reference_label'),
+            data_get($entry, 'details.room_label'),
+            data_get($entry, 'details.product.name'),
+            data_get($entry, 'details.product.manufacturer'),
+            $entry['cashier_name'] ?? null,
+        ];
+    }
+
+    protected function mapTradeExportRow(array $entry): array
+    {
+        $productName = data_get($entry, 'details.product.name');
+        $roomLabel = data_get($entry, 'details.room_label');
+        $pricingLabel = data_get($entry, 'pricing.label');
+        $serviceOrSession = $productName ?: collect([$pricingLabel, $roomLabel])->filter()->implode(' / ');
+        $unit = data_get($entry, 'details.product.unit');
+        $unitPrice = $entry['source'] === 'checkout_sale_item'
+            ? data_get($entry, 'details.product.unit_price')
+            : data_get($entry, 'pricing.hourly_rate');
+
+        return [
+            'transaction_id' => $entry['source'] === 'trade'
+                ? 'trade-'.$entry['id']
+                : 'checkout-sale-item-'.$entry['id'],
+            'type' => $entry['type_label'] ?? $entry['type'],
+            'description' => data_get($entry, 'details.reference_label'),
+            'product_service_session' => $serviceOrSession,
+            'quantity' => data_get($entry, 'details.product.quantity'),
+            'unit' => Warehouse::unitLabel($unit),
+            'unit_price' => $unitPrice,
+            'total_amount' => $entry['amount'],
+            'payment_method' => data_get($entry, 'details.payment_method_label', $this->paymentMethodLabel($entry['payment_method'] ?? 'cash')),
+            'debtor_name' => data_get($entry, 'details.debt_info.name'),
+            'debtor_phone' => data_get($entry, 'details.debt_info.phone'),
+            'status' => $entry['status'] ?? null,
+            'created_at' => $this->formatExportDate($entry['created_at'] ?? null),
+        ];
+    }
+
+    protected function parseExportFilterDate(mixed $value, bool $endOfDay = false): ?Carbon
+    {
+        if ($value instanceof Carbon) {
+            return $endOfDay ? $value->copy()->endOfDay() : $value->copy()->startOfDay();
+        }
+
+        if (! is_string($value) || trim($value) === '') {
+            return null;
+        }
+
+        $date = Carbon::parse($value);
+
+        return $endOfDay ? $date->endOfDay() : $date->startOfDay();
+    }
+
+    protected function parseExportDateTime(mixed $value): ?Carbon
+    {
+        if ($value instanceof Carbon) {
+            return $value;
+        }
+
+        if (! is_string($value) || trim($value) === '') {
+            return null;
+        }
+
+        return Carbon::parse($value);
+    }
+
+    protected function formatExportDate(mixed $value): string
+    {
+        if ($value instanceof Carbon) {
+            return $value->format('Y-m-d H:i:s');
+        }
+
+        if (is_string($value) && trim($value) !== '') {
+            return Carbon::parse($value)->format('Y-m-d H:i:s');
+        }
+
+        return '';
     }
 }

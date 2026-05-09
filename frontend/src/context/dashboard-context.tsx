@@ -22,6 +22,8 @@ import {
   deleteSessionRequest,
   deleteWarehouseItemRequest,
   endSessionRequest,
+  exportManufacturerProductsRequest,
+  exportTradesRequest,
   getDashboardBootstrap,
   loginRequest,
   markDebtPaidRequest,
@@ -312,6 +314,10 @@ interface DashboardContextType {
   }) => Promise<void>;
   deleteWarehouseProduct: (backendId: number) => Promise<void>;
   deleteManufacturer: (company: WarehouseCompany) => Promise<void>;
+  exportManufacturerProducts: (payload: {
+    manufacturerId: number;
+    search?: string;
+  }) => Promise<string>;
   completeCheckoutSale: (payload: {
     items: Array<{ warehouseId: number; quantity: number }>;
     paymentMethod: 'cash' | 'terminal' | 'click' | 'payme';
@@ -345,6 +351,14 @@ interface DashboardContextType {
     bundle?: { name: string; rate: number };
   }) => Promise<void>;
   markDebtPaid: (debtId: string) => Promise<void>;
+  exportSales: (payload: {
+    status?: 'submitted' | 'debt_closed';
+    type?: 'Income' | 'Debt' | 'Product Sale';
+    search?: string;
+    paymentMethod?: 'cash' | 'terminal' | 'click' | 'payme' | 'debt';
+    dateFrom?: string;
+    dateTo?: string;
+  }) => Promise<string>;
   deleteDebt: (debtId: string) => Promise<void>;
 }
 
@@ -550,6 +564,21 @@ function mapBootstrapPayload(payload: DashboardBootstrapResponse) {
     })),
     assets: payload.assets.map(mapAssetDevice),
   };
+}
+
+function triggerBrowserDownload(filename: string, blob: Blob) {
+  const blobUrl = window.URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+
+  anchor.href = blobUrl;
+  anchor.download = filename;
+  anchor.style.display = 'none';
+
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+
+  window.URL.revokeObjectURL(blobUrl);
 }
 
 export function DashboardProvider({ children }: { children: React.ReactNode }) {
@@ -921,6 +950,20 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     [refreshDashboard, requireToken]
   );
 
+  const exportManufacturerProducts = useCallback(
+    async ({ manufacturerId, search }: { manufacturerId: number; search?: string }) => {
+      const activeToken = requireToken();
+      const file = await exportManufacturerProductsRequest(activeToken, manufacturerId, {
+        search,
+      });
+
+      triggerBrowserDownload(file.filename, file.blob);
+
+      return file.filename;
+    },
+    [requireToken]
+  );
+
   const completeCheckoutSale = useCallback(
     async (payload: {
       items: Array<{ warehouseId: number; quantity: number }>;
@@ -939,6 +982,39 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       await refreshDashboard();
     },
     [refreshDashboard, requireToken]
+  );
+
+  const exportSales = useCallback(
+    async ({
+      status,
+      type,
+      search,
+      paymentMethod,
+      dateFrom,
+      dateTo,
+    }: {
+      status?: 'submitted' | 'debt_closed';
+      type?: 'Income' | 'Debt' | 'Product Sale';
+      search?: string;
+      paymentMethod?: 'cash' | 'terminal' | 'click' | 'payme' | 'debt';
+      dateFrom?: string;
+      dateTo?: string;
+    }) => {
+      const activeToken = requireToken();
+      const file = await exportTradesRequest(activeToken, {
+        status,
+        type,
+        search,
+        payment_method: paymentMethod,
+        date_from: dateFrom,
+        date_to: dateTo,
+      });
+
+      triggerBrowserDownload(file.filename, file.blob);
+
+      return file.filename;
+    },
+    [requireToken]
   );
 
   const calculateBooking = useCallback(
@@ -1149,12 +1225,14 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       saveWarehouseProduct,
       deleteWarehouseProduct,
       deleteManufacturer,
+      exportManufacturerProducts,
       completeCheckoutSale,
       calculateBooking,
       createBooking,
       endSession,
       deleteSession,
       markDebtPaid,
+      exportSales,
       deleteDebt,
     }),
     [
@@ -1175,7 +1253,9 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       deleteService,
       deleteSession,
       deleteWarehouseProduct,
+      exportManufacturerProducts,
       endSession,
+      exportSales,
       isCheckingAuth,
       login,
       logout,
