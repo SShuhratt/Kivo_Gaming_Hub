@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Http\Controllers\Api\Concerns\StreamsCsvExports;
+use App\Exports\ManufacturerProductsExport;
 use App\Http\Controllers\Api\Concerns\ValidatesApiRequests;
 use App\Http\Controllers\Controller;
 use App\Models\Manufacturer;
@@ -11,10 +11,14 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Maatwebsite\Excel\Facades\Excel;
+use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class ManufacturerController extends Controller
 {
-    use StreamsCsvExports;
     use ValidatesApiRequests;
 
     public function destroy(Manufacturer $manufacturer)
@@ -79,36 +83,25 @@ class ManufacturerController extends Controller
             ], 422);
         }
 
-        return $this->streamCsvDownload(
-            'manufacturer-products-'.($this->manufacturerSlug($manufacturer) ?: 'manufacturer').'-'.now()->format('Y-m-d').'.csv',
-            [
-                'Mahsulot ID',
-                'Mahsulot nomi',
-                'Ishlab chiqaruvchi',
-                'Turi / Kategoriya',
-                'Shtrix kod',
-                'Qoldiq',
-                'Birlik',
-                'Olish narxi',
-                'Sotish narxi',
-                'Jami zaxira qiymati',
-                'Yaratilgan sana',
-                'Yangilangan sana',
-            ],
-            $products->map(fn (Warehouse $product) => [
-                'product_id' => $product->id,
-                'product_name' => $product->product_name,
-                'manufacturer' => $product->manufacturer,
-                'category' => '',
-                'barcode' => $product->shtrix_code,
-                'stock' => $product->count,
-                'unit' => Warehouse::unitLabel($product->unit),
-                'purchase_price' => (float) $product->purchase_price,
-                'sell_price' => (float) $product->sell_price,
-                'total_stock_value' => round((float) $product->count * (float) $product->sell_price, 2),
-                'created_at' => $this->formatExportDate($product->created_at),
-                'updated_at' => $this->formatExportDate($product->updated_at),
-            ])->all(),
+        return Excel::download(
+            new ManufacturerProductsExport(
+                $products->map(fn (Warehouse $product) => [
+                    'product_id' => $product->id,
+                    'product_name' => $product->product_name,
+                    'manufacturer' => $product->manufacturer,
+                    'category' => '',
+                    'barcode' => $product->shtrix_code,
+                    'stock' => $product->count,
+                    'unit' => Warehouse::unitLabel($product->unit),
+                    'purchase_price' => (float) $product->purchase_price,
+                    'sell_price' => (float) $product->sell_price,
+                    'total_stock_value' => round((float) $product->count * (float) $product->sell_price, 2),
+                    'created_at' => $this->formatExportDate($product->created_at),
+                    'updated_at' => $this->formatExportDate($product->updated_at),
+                ])->all()
+            ),
+            'manufacturer-products-'.($this->manufacturerSlug($manufacturer) ?: 'manufacturer').'-'.now()->format('Y-m-d').'.xlsx',
+            \Maatwebsite\Excel\Excel::XLSX
         );
     }
 

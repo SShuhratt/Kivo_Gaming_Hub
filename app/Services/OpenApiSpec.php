@@ -427,7 +427,7 @@ class OpenApiSpec
             ],
         ];
 
-        $tradeExportOperation = $this->csvDownloadOperation('Finance', 'Export financial ledger entries', 'exportTrades');
+        $tradeExportOperation = $this->xlsxDownloadOperation('Finance', 'Export financial ledger entries', 'exportTrades');
         $tradeExportOperation['parameters'] = [
             ['name' => 'status', 'in' => 'query', 'required' => false, 'schema' => ['type' => 'string', 'enum' => ['submitted', 'debt_closed']]],
             ['name' => 'type', 'in' => 'query', 'required' => false, 'schema' => ['type' => 'string', 'enum' => ['Income', 'Debt', 'Product Sale']]],
@@ -472,7 +472,7 @@ class OpenApiSpec
                     ['$ref' => '#/components/parameters/manufacturer'],
                     ['name' => 'search', 'in' => 'query', 'required' => false, 'schema' => ['type' => 'string']],
                 ],
-                'get' => $this->csvDownloadOperation('Manufacturers', 'Export manufacturer products', 'exportManufacturerProducts'),
+                'get' => $this->xlsxDownloadOperation('Manufacturers', 'Export manufacturer products', 'exportManufacturerProducts'),
             ],
         ];
     }
@@ -553,13 +553,13 @@ class OpenApiSpec
         return $operation;
     }
 
-    protected function csvDownloadOperation(string $tag, string $summary, string $operationId): array
+    protected function xlsxDownloadOperation(string $tag, string $summary, string $operationId): array
     {
         $operation = $this->operation($tag, $summary, $operationId, null, null);
         $operation['responses']['200'] = [
-            'description' => 'CSV file download',
+            'description' => 'XLSX file download',
             'content' => [
-                'text/csv' => [
+                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' => [
                     'schema' => [
                         'type' => 'string',
                         'format' => 'binary',

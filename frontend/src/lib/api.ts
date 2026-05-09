@@ -330,7 +330,7 @@ async function requestAgainstBase<T>(baseUrl: string, path: string, options: Req
 
 async function downloadFileAgainstBase(baseUrl: string, path: string, options: RequestOptions = {}): Promise<DownloadedApiFile> {
   const headers = new Headers({
-    Accept: 'text/csv,application/octet-stream,application/vnd.ms-excel',
+    Accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/octet-stream,application/vnd.ms-excel,text/csv',
   });
 
   if (options.token) {
@@ -356,7 +356,7 @@ async function downloadFileAgainstBase(baseUrl: string, path: string, options: R
   const filename = extractDownloadFilename(response.headers.get('content-disposition'));
 
   return {
-    filename: filename || 'export.csv',
+    filename: filename || 'export.xlsx',
     blob: await response.blob(),
   };
 }

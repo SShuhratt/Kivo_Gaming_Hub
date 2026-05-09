@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Exports\TradesExport;
 use App\Http\Controllers\Api\Concerns\FormatsSessionPayloads;
-use App\Http\Controllers\Api\Concerns\StreamsCsvExports;
 use App\Http\Controllers\Api\Concerns\ValidatesApiRequests;
 use App\Http\Controllers\Controller;
 use App\Models\Booking;
@@ -15,11 +15,18 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
+use Maatwebsite\Excel\Facades\Excel;
+use App\Models\Warehouse;
+use App\Services\SessionLifecycleService;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Log;
 
 class TradeController extends Controller
 {
     use FormatsSessionPayloads;
-    use StreamsCsvExports;
     use ValidatesApiRequests;
 
     public function index(Request $request, SessionLifecycleService $sessionLifecycle)
@@ -64,24 +71,10 @@ class TradeController extends Controller
 
         $rows = $ledger->map(fn (array $entry) => $this->mapTradeExportRow($entry))->all();
 
-        return $this->streamCsvDownload(
-            'savdo-export-'.now()->format('Y-m-d').'.csv',
-            [
-                'Tranzaksiya ID',
-                'Turi',
-                'Nomi / Tavsif',
-                'Mahsulot / Xizmat / Seans',
-                'Miqdor',
-                'Birlik',
-                'Birlik narxi',
-                'Jami summa',
-                "To'lov usuli",
-                'Qarzdor ismi',
-                'Qarzdor telefoni',
-                'Holat',
-                'Yaratilgan sana',
-            ],
-            $rows,
+        return Excel::download(
+            new TradesExport($rows),
+            'savdo-export-'.now()->format('Y-m-d').'.xlsx',
+            \Maatwebsite\Excel\Excel::XLSX
         );
     }
 

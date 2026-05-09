@@ -393,7 +393,7 @@ export default function OmborPage() {
               onClick={handleExportProducts}
               className="h-12 bg-white/5 border border-white/10 text-white/40 font-black uppercase tracking-widest text-[9px] rounded-2xl px-6 hover:text-white transition-all disabled:opacity-60"
             >
-              <FileSpreadsheet className="mr-2 h-4 w-4" /> {isExporting ? 'EKSPORT...' : 'EKSPORT CSV'}
+              <FileSpreadsheet className="mr-2 h-4 w-4" /> {isExporting ? 'EKSPORT...' : 'EKSPORT XLSX'}
             </Button>
             <DeleteConfirmButton
               itemName={selectedCompany.name}
