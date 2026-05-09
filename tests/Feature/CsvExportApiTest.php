@@ -170,6 +170,38 @@ class CsvExportApiTest extends TestCase
             ]);
     }
 
+    public function test_export_probe_returns_a_hardcoded_xlsx_for_both_endpoints(): void
+    {
+        $manufacturerProduct = Warehouse::create([
+            'manufacturer' => 'Probe Co',
+            'product_name' => 'Probe Item',
+            'shtrix_code' => 'PROBE-0001',
+            'unit' => 'piece',
+            'count' => 1,
+            'purchase_price' => 1000,
+            'sell_price' => 1500,
+        ])->refresh();
+
+        $tradeProbeResponse = $this->get('/api/trades/export?debug_probe=1', $this->authHeaders());
+        $tradeProbeResponse
+            ->assertOk()
+            ->assertHeader('content-type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+
+        $tradeProbeRows = $this->xlsxRows($tradeProbeResponse);
+        $this->assertSame([['Test', 'Value'], ['OK', 1]], $tradeProbeRows);
+
+        $manufacturerProbeResponse = $this->get(
+            "/api/manufacturers/{$manufacturerProduct->manufacturer_id}/products/export?debug_probe=1",
+            $this->authHeaders(),
+        );
+        $manufacturerProbeResponse
+            ->assertOk()
+            ->assertHeader('content-type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+
+        $manufacturerProbeRows = $this->xlsxRows($manufacturerProbeResponse);
+        $this->assertSame([['Test', 'Value'], ['OK', 1]], $manufacturerProbeRows);
+    }
+
     protected function xlsxRows(TestResponse $response): array
     {
         $content = $response->streamedContent();

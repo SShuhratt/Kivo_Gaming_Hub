@@ -408,6 +408,20 @@ function extractApiErrorMessage(payload: unknown, status: number): string {
   if (
     typeof payload === 'object' &&
     payload !== null &&
+    'error' in payload &&
+    typeof payload.error === 'string' &&
+    payload.error.trim() !== ''
+  ) {
+    if ('message' in payload && typeof payload.message === 'string' && payload.message.trim() !== '' && payload.message !== payload.error) {
+      return `${payload.message}: ${payload.error}`;
+    }
+
+    return payload.error;
+  }
+
+  if (
+    typeof payload === 'object' &&
+    payload !== null &&
     'message_uz' in payload &&
     typeof payload.message_uz === 'string'
   ) {

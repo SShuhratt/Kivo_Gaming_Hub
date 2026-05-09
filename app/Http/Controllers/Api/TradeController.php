@@ -43,35 +43,44 @@ class TradeController extends Controller
 
     public function export(Request $request, SessionLifecycleService $sessionLifecycle)
     {
-        $validated = $this->validateApi($request, [
-            'status' => 'nullable|in:submitted,debt_closed',
-            'type' => 'nullable|in:Income,Debt,Product Sale',
-            'search' => 'nullable|string',
-            'payment_method' => 'nullable|in:cash,terminal,click,payme,debt',
-            'date_from' => 'nullable|date',
-            'date_to' => 'nullable|date',
-        ]);
-
-        $sessionLifecycle->syncElapsedSessions();
-
-        $ledger = $this->filterFinancialLedgerEntries($this->collectFinancialLedgerEntries(), $validated);
-
-        if ($ledger->isEmpty()) {
-            return response()->json([
-                'message' => 'No data available to export',
-                'message_uz' => "Eksport qilish uchun ma'lumot yo'q",
-            ], 422);
-        }
-
-        $rows = $ledger->map(fn (array $entry) => $this->mapTradeExportRow($entry))->all();
-
-        Log::info('Trade export requested', [
-            'user_id' => $request->user()?->id,
-            'count' => count($rows),
-            'filters' => $validated,
-        ]);
-
         try {
+            $validated = $this->validateApi($request, [
+                'status' => 'nullable|in:submitted,debt_closed',
+                'type' => 'nullable|in:Income,Debt,Product Sale',
+                'search' => 'nullable|string',
+                'payment_method' => 'nullable|in:cash,terminal,click,payme,debt',
+                'date_from' => 'nullable|date',
+                'date_to' => 'nullable|date',
+            ]);
+
+            if ($request->boolean('debug_probe')) {
+                return $this->downloadXlsx(
+                    'savdo-export-probe-'.now()->format('Y-m-d').'.xlsx',
+                    'SavdoProbe',
+                    ['Test', 'Value'],
+                    [['OK', 1]],
+                );
+            }
+
+            $sessionLifecycle->syncElapsedSessions();
+
+            $ledger = $this->filterFinancialLedgerEntries($this->collectFinancialLedgerEntries(), $validated);
+
+            if ($ledger->isEmpty()) {
+                return response()->json([
+                    'message' => 'No data available to export',
+                    'message_uz' => "Eksport qilish uchun ma'lumot yo'q",
+                ], 422);
+            }
+
+            $rows = $ledger->map(fn (array $entry) => $this->mapTradeExportRow($entry))->all();
+
+            Log::info('Trade export requested', [
+                'user_id' => $request->user()?->id,
+                'count' => count($rows),
+                'filters' => $validated,
+            ]);
+
             $export = new TradesExport($rows);
 
             return $this->downloadXlsx(
@@ -81,16 +90,20 @@ class TradeController extends Controller
                 $export->rows(),
             );
         } catch (\Throwable $e) {
-            Log::error('Trade export failed', [
-                'endpoint' => 'GET /api/trades/export',
-                'user_id' => $request->user()?->id,
-                'error' => $e->getMessage(),
+            Log::error('Export failed', [
+                'endpoint' => request()->path(),
+                'user_id' => auth()->id(),
+                'manufacturer_id' => null,
+                'message' => $e->getMessage(),
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
             ]);
 
             return response()->json([
                 'message' => 'Export failed',
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
             ], 500);
         }
     }

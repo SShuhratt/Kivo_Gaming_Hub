@@ -8,7 +8,7 @@ trait DownloadsXlsxExports
 {
     protected function downloadXlsx(string $filename, string $sheetName, array $headings, array $rows)
     {
-        $tempDir = storage_path('app/tmp/xlsx-'.uniqid('', true));
+        $tempDir = rtrim(sys_get_temp_dir(), DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR.'khivo-xlsx-'.uniqid('', true);
         $xlsxPath = $tempDir.'.xlsx';
 
         if (! is_dir($tempDir) && ! mkdir($tempDir, 0777, true) && ! is_dir($tempDir)) {

@@ -47,56 +47,66 @@ class ManufacturerController extends Controller
     public function exportProducts(Request $request, string $manufacturer)
     {
         $manufacturerId = (int) $manufacturer;
-        $manufacturer = Manufacturer::find($manufacturerId);
-
-        if (! $manufacturer) {
-            return response()->json([
-                'message' => 'Manufacturer not found',
-            ], 404);
-        }
-
-        $validated = $this->validateApi($request, [
-            'search' => 'nullable|string',
-        ]);
-
-        $products = $manufacturer->warehouseItems()
-            ->orderBy('product_name')
-            ->get();
-
-        if ($validated['search'] ?? null) {
-            $search = mb_strtolower(trim((string) $validated['search']));
-
-            if ($search !== '') {
-                $products = $products
-                    ->filter(function (Warehouse $product) use ($search) {
-                        return collect([
-                            $product->product_name,
-                            $product->manufacturer,
-                            $product->shtrix_code,
-                            Warehouse::unitLabel($product->unit),
-                        ])->contains(
-                            fn ($value) => is_string($value) && str_contains(mb_strtolower($value), $search),
-                        );
-                    })
-                    ->values();
-            }
-        }
-
-        if ($products->isEmpty()) {
-            return response()->json([
-                'message' => 'No data available to export',
-                'message_uz' => "Eksport qilish uchun ma'lumot yo'q",
-            ], 422);
-        }
-
-        Log::info('Manufacturer products export requested', [
-            'user_id' => $request->user()?->id,
-            'manufacturer_id' => $manufacturer->id,
-            'count' => $products->count(),
-            'filters' => $validated,
-        ]);
 
         try {
+            $manufacturer = Manufacturer::find($manufacturerId);
+
+            if (! $manufacturer) {
+                return response()->json([
+                    'message' => 'Manufacturer not found',
+                ], 404);
+            }
+
+            $validated = $this->validateApi($request, [
+                'search' => 'nullable|string',
+            ]);
+
+            if ($request->boolean('debug_probe')) {
+                return $this->downloadXlsx(
+                    'manufacturer-products-probe-'.now()->format('Y-m-d').'.xlsx',
+                    'ManufacturerProbe',
+                    ['Test', 'Value'],
+                    [['OK', 1]],
+                );
+            }
+
+            $products = $manufacturer->warehouseItems()
+                ->orderBy('product_name')
+                ->get();
+
+            if ($validated['search'] ?? null) {
+                $search = mb_strtolower(trim((string) $validated['search']));
+
+                if ($search !== '') {
+                    $products = $products
+                        ->filter(function (Warehouse $product) use ($search) {
+                            return collect([
+                                $product->product_name,
+                                $product->manufacturer,
+                                $product->shtrix_code,
+                                Warehouse::unitLabel($product->unit),
+                            ])->contains(
+                                fn ($value) => is_string($value) && str_contains(mb_strtolower($value), $search),
+                            );
+                        })
+                        ->values();
+                }
+            }
+
+            if ($products->isEmpty()) {
+                return response()->json([
+                    'message' => 'No data available to export',
+                    'message_uz' => "Eksport qilish uchun ma'lumot yo'q",
+                ], 422);
+            }
+
+            Log::info('Manufacturer products export requested', [
+                'user_id' => $request->user()?->id,
+                'manufacturer_id' => $manufacturer->id,
+                'count' => $products->count(),
+                'filters' => $validated,
+            ]);
+
             $export = new ManufacturerProductsExport(
                 $products->map(fn (Warehouse $product) => [
                     'product_id' => $product->id ?? '',
@@ -121,17 +131,20 @@ class ManufacturerController extends Controller
                 $export->rows(),
             );
         } catch (\Throwable $e) {
-            Log::error('Manufacturer products export failed', [
-                'endpoint' => 'GET /api/manufacturers/{id}/products/export',
-                'user_id' => $request->user()?->id,
-                'manufacturer_id' => $manufacturer->id,
-                'error' => $e->getMessage(),
+            Log::error('Export failed', [
+                'endpoint' => request()->path(),
+                'user_id' => auth()->id(),
+                'manufacturer_id' => $manufacturerId ?: null,
+                'message' => $e->getMessage(),
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
             ]);
 
             return response()->json([
                 'message' => 'Export failed',
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
             ], 500);
         }
     }
