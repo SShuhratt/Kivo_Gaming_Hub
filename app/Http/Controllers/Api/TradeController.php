@@ -76,7 +76,7 @@ class TradeController extends Controller
                 'savdo-export-'.now()->format('Y-m-d').'.xlsx',
                 \Maatwebsite\Excel\Excel::XLSX
             );
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             Log::error('Trade export failed', [
                 'endpoint' => 'GET /api/trades/export',
                 'user_id' => $request->user()?->id,

@@ -40,8 +40,16 @@ class ManufacturerController extends Controller
         }
     }
 
-    public function exportProducts(Request $request, Manufacturer $manufacturer)
+    public function exportProducts(Request $request, $id)
     {
+        $manufacturer = Manufacturer::find($id);
+
+        if (! $manufacturer) {
+            return response()->json([
+                'message' => 'Manufacturer not found',
+            ], 404);
+        }
+
         $validated = $this->validateApi($request, [
             'search' => 'nullable|string',
         ]);
@@ -104,7 +112,7 @@ class ManufacturerController extends Controller
                 'manufacturer-products-'.($this->manufacturerSlug($manufacturer) ?: 'manufacturer').'-'.now()->format('Y-m-d').'.xlsx',
                 \Maatwebsite\Excel\Excel::XLSX
             );
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             Log::error('Manufacturer products export failed', [
                 'endpoint' => 'GET /api/manufacturers/{id}/products/export',
                 'user_id' => $request->user()?->id,
