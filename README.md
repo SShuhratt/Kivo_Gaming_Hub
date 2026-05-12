@@ -12,15 +12,6 @@ This Laravel app now includes a starter backend for the Kivo Gaming Hub frontend
 - OpenAPI JSON spec at `/docs/openapi.json`
 - Seeded demo users that match the current frontend login screen
 
-## Demo Accounts
-
-- Admin
-  - Phone: `+998 90 123 45 67`
-  - Password: `admin`
-- User
-  - Phone: `+998 91 765 43 21`
-  - Password: `user123`
-
 ## Local Setup
 
 ```bash
