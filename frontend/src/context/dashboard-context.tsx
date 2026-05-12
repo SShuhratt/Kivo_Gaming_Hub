@@ -5,6 +5,8 @@ import { useToast } from '@/hooks/use-toast';
 import {
   ApiError,
   type ApiDebtRecord,
+  type ApiServiceFinanceDetail,
+  type ApiServiceFinanceSummary,
   type ApiSession,
   type ApiUser,
   type DashboardBootstrapResponse,
@@ -25,6 +27,8 @@ import {
   endSessionRequest,
   exportManufacturerProductsRequest,
   exportTradesRequest,
+  getServiceFinanceDetailsRequest,
+  getServiceFinanceSummaryRequest,
   getDashboardBootstrap,
   loginRequest,
   markDebtPaidRequest,
@@ -217,6 +221,48 @@ export interface SessionRecord {
   trade: SessionTradeRecord | null;
 }
 
+export interface ServiceFinanceSummary {
+  totalDurationSeconds: number;
+  totalDurationFormatted: string;
+  totalEarnedAmount: number;
+  totalRecords: number;
+}
+
+export interface ServiceFinanceDetailAsset {
+  id: number | null;
+  name: string | null;
+  serviceId: number | null;
+  serviceName: string | null;
+  roomId: number | null;
+  roomName: string | null;
+  roomNumber: string | null;
+  assetOrder: number | null;
+  hourlyPrice: number | null;
+}
+
+export interface ServiceFinanceDetailRecord {
+  id: number;
+  bookingId: number | null;
+  referenceLabel: string;
+  sessionLabel: string | null;
+  roomName: string;
+  assets: ServiceFinanceDetailAsset[];
+  services: string[];
+  startTime: string | null;
+  endTime: string | null;
+  durationSeconds: number;
+  durationFormatted: string;
+  amount: number;
+  paymentStatus: 'submitted' | 'debt_closed';
+  paymentStatusLabel: string;
+  paymentMethod: 'cash' | 'debt';
+  paymentMethodLabel: string;
+  debtorName: string | null;
+  debtorPhone: string | null;
+  completedAt: string | null;
+  createdAt: string | null;
+}
+
 export interface BookingCalculation {
   durationMinutes: number;
   durationHours: number | null;
@@ -318,7 +364,7 @@ interface DashboardContextType {
   exportManufacturerProducts: (payload: {
     manufacturerId: number;
     search?: string;
-  }) => Promise<string>;
+  }) => Promise<string | null>;
   completeCheckoutSale: (payload: {
     items: Array<{ warehouseId: number; quantity: number }>;
     paymentMethod: 'cash' | 'terminal' | 'click' | 'payme';
@@ -359,8 +405,10 @@ interface DashboardContextType {
     paymentMethod?: 'cash' | 'terminal' | 'click' | 'payme' | 'debt';
     dateFrom?: string;
     dateTo?: string;
-  }) => Promise<string>;
+  }) => Promise<string | null>;
   deleteDebt: (debtId: string) => Promise<void>;
+  getServiceFinanceSummary: () => Promise<ServiceFinanceSummary>;
+  getServiceFinanceDetails: () => Promise<ServiceFinanceDetailRecord[]>;
 }
 
 const DashboardContext = createContext<DashboardContextType | undefined>(undefined);
@@ -481,6 +529,50 @@ function mapSessionRecord(session: ApiSession): SessionRecord {
           endTime: session.trade.end_time,
         }
       : null,
+  };
+}
+
+function mapServiceFinanceSummary(summary: ApiServiceFinanceSummary): ServiceFinanceSummary {
+  return {
+    totalDurationSeconds: summary.total_duration_seconds,
+    totalDurationFormatted: summary.total_duration_formatted,
+    totalEarnedAmount: summary.total_earned_amount,
+    totalRecords: summary.total_records,
+  };
+}
+
+function mapServiceFinanceDetailRecord(record: ApiServiceFinanceDetail): ServiceFinanceDetailRecord {
+  return {
+    id: record.id,
+    bookingId: record.booking_id,
+    referenceLabel: record.reference_label,
+    sessionLabel: record.session_label,
+    roomName: record.room_name,
+    assets: record.assets.map((asset) => ({
+      id: asset.id,
+      name: asset.name,
+      serviceId: asset.service_id ?? null,
+      serviceName: asset.service_name ?? null,
+      roomId: asset.room_id,
+      roomName: asset.room_name,
+      roomNumber: asset.room_number,
+      assetOrder: asset.asset_order ?? null,
+      hourlyPrice: asset.hourly_price,
+    })),
+    services: record.services,
+    startTime: record.start_time,
+    endTime: record.end_time,
+    durationSeconds: record.duration_seconds,
+    durationFormatted: record.duration_formatted,
+    amount: record.amount,
+    paymentStatus: record.payment_status,
+    paymentStatusLabel: record.payment_status_label,
+    paymentMethod: record.payment_method,
+    paymentMethodLabel: record.payment_method_label,
+    debtorName: record.debtor_name,
+    debtorPhone: record.debtor_phone,
+    completedAt: record.completed_at,
+    createdAt: record.created_at,
   };
 }
 
@@ -1234,6 +1326,18 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     [requireToken]
   );
 
+  const getServiceFinanceSummary = useCallback(async () => {
+    const activeToken = requireToken();
+    return mapServiceFinanceSummary(await getServiceFinanceSummaryRequest(activeToken));
+  }, [requireToken]);
+
+  const getServiceFinanceDetails = useCallback(async () => {
+    const activeToken = requireToken();
+    const response = await getServiceFinanceDetailsRequest(activeToken);
+
+    return response.map(mapServiceFinanceDetailRecord);
+  }, [requireToken]);
+
   const servicesReady = services.length > 0;
 
   const value = useMemo(
@@ -1274,6 +1378,8 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       markDebtPaid,
       exportSales,
       deleteDebt,
+      getServiceFinanceSummary,
+      getServiceFinanceDetails,
     }),
     [
       assets,
@@ -1296,6 +1402,8 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       exportManufacturerProducts,
       endSession,
       exportSales,
+      getServiceFinanceDetails,
+      getServiceFinanceSummary,
       isCheckingAuth,
       login,
       logout,

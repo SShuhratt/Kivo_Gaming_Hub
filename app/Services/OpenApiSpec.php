@@ -201,6 +201,34 @@ class OpenApiSpec
                     'pricing' => ['$ref' => '#/components/schemas/PricingSummary'],
                     'assets' => ['type' => 'array', 'items' => ['$ref' => '#/components/schemas/Asset']],
                 ]),
+                'ServiceFinanceSummary' => $this->object([
+                    'total_duration_seconds' => ['type' => 'integer', 'example' => 45030],
+                    'total_duration_formatted' => ['type' => 'string', 'example' => '12:30:30'],
+                    'total_earned_amount' => ['type' => 'number', 'example' => 250000],
+                    'total_records' => ['type' => 'integer', 'example' => 8],
+                ]),
+                'ServiceFinanceDetail' => $this->object([
+                    'id' => ['type' => 'integer', 'example' => 5],
+                    'booking_id' => ['type' => 'integer', 'nullable' => true, 'example' => 7],
+                    'reference_label' => ['type' => 'string', 'example' => 'Trade #5'],
+                    'session_label' => ['type' => 'string', 'nullable' => true, 'example' => 'Session #7'],
+                    'room_name' => ['type' => 'string', 'example' => 'Opshiy zal'],
+                    'assets' => ['type' => 'array', 'items' => ['$ref' => '#/components/schemas/SessionAsset']],
+                    'services' => ['type' => 'array', 'items' => ['type' => 'string', 'example' => 'Computer']],
+                    'start_time' => ['type' => 'string', 'format' => 'date-time', 'nullable' => true],
+                    'end_time' => ['type' => 'string', 'format' => 'date-time', 'nullable' => true],
+                    'duration_seconds' => ['type' => 'integer', 'example' => 5400],
+                    'duration_formatted' => ['type' => 'string', 'example' => '01:30:00'],
+                    'amount' => ['type' => 'number', 'example' => 82500],
+                    'payment_status' => ['type' => 'string', 'enum' => ['submitted', 'debt_closed'], 'example' => 'debt_closed'],
+                    'payment_status_label' => ['type' => 'string', 'example' => 'Qarz'],
+                    'payment_method' => ['type' => 'string', 'enum' => ['cash', 'debt'], 'example' => 'cash'],
+                    'payment_method_label' => ['type' => 'string', 'example' => 'Naqd'],
+                    'debtor_name' => ['type' => 'string', 'nullable' => true, 'example' => 'Ali'],
+                    'debtor_phone' => ['type' => 'string', 'nullable' => true, 'example' => '+998901234567'],
+                    'completed_at' => ['type' => 'string', 'format' => 'date-time', 'nullable' => true],
+                    'created_at' => ['type' => 'string', 'format' => 'date-time', 'nullable' => true],
+                ]),
                 'DebtRecord' => $this->object([
                     'id' => ['type' => 'string', 'example' => 'trade-5'],
                     'source' => ['type' => 'string', 'enum' => ['booking', 'trade'], 'example' => 'trade'],
@@ -450,8 +478,34 @@ class OpenApiSpec
             ],
         ];
 
+        $serviceSummaryOperation = $this->operation(
+            'Finance',
+            'Get completed service duration and earned amount summary',
+            'getServiceFinanceSummary',
+            null,
+            'ServiceFinanceSummary',
+        );
+
+        $serviceDetailsOperation = $this->operation(
+            'Finance',
+            'List completed service income details',
+            'listServiceFinanceDetails',
+            null,
+            null,
+        );
+        $serviceDetailsOperation['responses']['200'] = [
+            'description' => 'Completed service records',
+            'content' => [
+                'application/json' => [
+                    'schema' => ['type' => 'array', 'items' => ['$ref' => '#/components/schemas/ServiceFinanceDetail']],
+                ],
+            ],
+        ];
+
         return [
             '/trades' => ['get' => $operation],
+            '/finance/service-summary' => ['get' => $serviceSummaryOperation],
+            '/finance/service-details' => ['get' => $serviceDetailsOperation],
             '/trades/export' => ['get' => $tradeExportOperation],
             '/debts' => ['get' => $debtOperation],
             '/checkout-sales' => [

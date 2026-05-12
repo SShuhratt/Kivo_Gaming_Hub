@@ -40,6 +40,8 @@ class OpenApiDocsTest extends TestCase
             ['post', '/sessions/{booking}/end'],
             ['delete', '/sessions/{booking}'],
             ['get', '/trades'],
+            ['get', '/finance/service-summary'],
+            ['get', '/finance/service-details'],
             ['get', '/trades/export'],
             ['post', '/checkout-sales'],
             ['get', '/rooms'],

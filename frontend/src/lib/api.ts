@@ -208,6 +208,46 @@ export type ApiDebtRecord = {
   reference_label: string;
 };
 
+export type ApiServiceFinanceSummary = {
+  total_duration_seconds: number;
+  total_duration_formatted: string;
+  total_earned_amount: number;
+  total_records: number;
+};
+
+export type ApiServiceFinanceDetail = {
+  id: number;
+  booking_id: number | null;
+  reference_label: string;
+  session_label: string | null;
+  room_name: string;
+  assets: Array<{
+    id: number | null;
+    name: string | null;
+    service_id?: number | null;
+    service_name?: string | null;
+    room_id: number | null;
+    room_name: string | null;
+    room_number: string | null;
+    asset_order?: number | null;
+    hourly_price: number | null;
+  }>;
+  services: string[];
+  start_time: string | null;
+  end_time: string | null;
+  duration_seconds: number;
+  duration_formatted: string;
+  amount: number;
+  payment_status: 'submitted' | 'debt_closed';
+  payment_status_label: string;
+  payment_method: 'cash' | 'debt';
+  payment_method_label: string;
+  debtor_name: string | null;
+  debtor_phone: string | null;
+  completed_at: string | null;
+  created_at: string | null;
+};
+
 export type ApiSessionTrade = {
   id: number;
   status: 'submitted' | 'debt_closed';
@@ -879,6 +919,18 @@ export function deleteSessionRequest(token: string, sessionId: number) {
 export function markDebtPaidRequest(token: string, debtId: string) {
   return apiRequest(`/debts/${debtId}/mark-paid`, {
     method: 'PATCH',
+    token,
+  });
+}
+
+export function getServiceFinanceSummaryRequest(token: string) {
+  return apiRequest<ApiServiceFinanceSummary>('/finance/service-summary', {
+    token,
+  });
+}
+
+export function getServiceFinanceDetailsRequest(token: string) {
+  return apiRequest<ApiServiceFinanceDetail[]>('/finance/service-details', {
     token,
   });
 }

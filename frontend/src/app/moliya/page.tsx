@@ -1,8 +1,13 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { DashboardLayout } from '@/components/dashboard-layout';
-import { type DebtRecord, useDashboard } from '@/context/dashboard-context';
+import {
+  type DebtRecord,
+  type ServiceFinanceDetailRecord,
+  type ServiceFinanceSummary,
+  useDashboard,
+} from '@/context/dashboard-context';
 import {
   Calendar as CalendarIcon,
   Search,
@@ -61,6 +66,8 @@ const FinanceCard = ({
   value,
   icon: Icon,
   subValue,
+  secondaryLabel,
+  secondaryValue,
   onClick,
   isActive = false,
 }: {
@@ -68,6 +75,8 @@ const FinanceCard = ({
   value: string;
   icon: any;
   subValue?: string;
+  secondaryLabel?: string;
+  secondaryValue?: string;
   onClick?: () => void;
   isActive?: boolean;
 }) => {
@@ -104,6 +113,12 @@ const FinanceCard = ({
       </CardHeader>
       <CardContent className="p-6 pt-0">
         <div className="text-2xl font-black tracking-tighter text-white">{value}</div>
+        {secondaryLabel && secondaryValue ? (
+          <div className="mt-3 rounded-2xl border border-white/5 bg-[#051111] px-4 py-3">
+            <p className="text-[8px] font-black uppercase tracking-[0.2em] text-white/30">{secondaryLabel}</p>
+            <p className="mt-1 text-sm font-black text-primary">{secondaryValue}</p>
+          </div>
+        ) : null}
         {subValue ? (
           <div className="mt-2 flex items-center gap-2">
             <div className="h-1 w-1 rounded-full bg-primary animate-pulse" />
@@ -158,6 +173,15 @@ function formatDateTime(value: string | null) {
 
 function formatCurrency(value: number) {
   return value > 0 ? value.toLocaleString() : '0';
+}
+
+function formatDurationFromSeconds(totalSeconds: number) {
+  const normalizedSeconds = Math.max(0, Math.floor(totalSeconds));
+  const hours = Math.floor(normalizedSeconds / 3600);
+  const minutes = Math.floor((normalizedSeconds % 3600) / 60);
+  const seconds = normalizedSeconds % 60;
+
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 }
 
 function matchesDateRange(value: string | null, startDate: string, endDate: string) {
@@ -234,8 +258,16 @@ function resolveDebtDisplayDate(record: DebtRecord) {
 }
 
 export default function MoliyaPage() {
-  const { sales, debts, isCheckingAuth, markDebtPaid, deleteDebt } = useDashboard();
-  const [activePanel, setActivePanel] = useState<'overview' | 'traded' | 'debts'>('overview');
+  const {
+    sales,
+    debts,
+    isCheckingAuth,
+    markDebtPaid,
+    deleteDebt,
+    getServiceFinanceSummary,
+    getServiceFinanceDetails,
+  } = useDashboard();
+  const [activePanel, setActivePanel] = useState<'overview' | 'traded' | 'debts' | 'services'>('overview');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [selectedRoom, setSelectedRoom] = useState('BARCHA XONALAR');
@@ -251,9 +283,87 @@ export default function MoliyaPage() {
   const [tradedSearch, setTradedSearch] = useState('');
   const [tradedManufacturer, setTradedManufacturer] = useState('BARCHASI');
   const [tradedPaymentMethod, setTradedPaymentMethod] = useState('BARCHASI');
+  const [serviceSummary, setServiceSummary] = useState<ServiceFinanceSummary | null>(null);
+  const [serviceSummaryError, setServiceSummaryError] = useState<string | null>(null);
+  const [isServiceSummaryLoading, setIsServiceSummaryLoading] = useState(true);
+  const [serviceDetails, setServiceDetails] = useState<ServiceFinanceDetailRecord[]>([]);
+  const [serviceDetailsError, setServiceDetailsError] = useState<string | null>(null);
+  const [isServiceDetailsLoading, setIsServiceDetailsLoading] = useState(false);
+  const [hasRequestedServiceDetails, setHasRequestedServiceDetails] = useState(false);
+  const [serviceStartDate, setServiceStartDate] = useState('');
+  const [serviceEndDate, setServiceEndDate] = useState('');
+  const [serviceRoomFilter, setServiceRoomFilter] = useState('BARCHASI');
+  const [serviceAssetFilter, setServiceAssetFilter] = useState('BARCHASI');
+  const [serviceNameFilter, setServiceNameFilter] = useState('BARCHASI');
+  const [servicePaymentFilter, setServicePaymentFilter] = useState<'all' | 'submitted' | 'debt_closed'>('all');
 
   const [debtToPay, setDebtToPay] = useState<string | null>(null);
   const [debtToDelete, setDebtToDelete] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isCheckingAuth) {
+      return;
+    }
+
+    let isMounted = true;
+
+    setIsServiceSummaryLoading(true);
+    setServiceSummaryError(null);
+
+    getServiceFinanceSummary()
+      .then((summary) => {
+        if (isMounted) {
+          setServiceSummary(summary);
+        }
+      })
+      .catch((error: any) => {
+        if (isMounted) {
+          setServiceSummaryError(error?.message || "Xizmatlar hisobotini yuklab bo'lmadi");
+        }
+      })
+      .finally(() => {
+        if (isMounted) {
+          setIsServiceSummaryLoading(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [getServiceFinanceSummary, isCheckingAuth]);
+
+  useEffect(() => {
+    if (isCheckingAuth || activePanel !== 'services' || hasRequestedServiceDetails || isServiceDetailsLoading) {
+      return;
+    }
+
+    let isMounted = true;
+
+    setHasRequestedServiceDetails(true);
+    setIsServiceDetailsLoading(true);
+    setServiceDetailsError(null);
+
+    getServiceFinanceDetails()
+      .then((details) => {
+        if (isMounted) {
+          setServiceDetails(details);
+        }
+      })
+      .catch((error: any) => {
+        if (isMounted) {
+          setServiceDetailsError(error?.message || "Xizmat tafsilotlarini yuklab bo'lmadi");
+        }
+      })
+      .finally(() => {
+        if (isMounted) {
+          setIsServiceDetailsLoading(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [activePanel, getServiceFinanceDetails, hasRequestedServiceDetails, isCheckingAuth, isServiceDetailsLoading]);
 
   const filteredSales = useMemo(() => {
     return sales.filter((sale) => {
@@ -309,6 +419,64 @@ export default function MoliyaPage() {
       return matchesSearch && matchesManufacturer && matchesPaymentMethod && matchesDate;
     });
   }, [soldItems, tradedSearch, tradedManufacturer, tradedPaymentMethod, startDate, endDate]);
+
+  const serviceRoomOptions = useMemo(
+    () => ['BARCHASI', ...new Set(serviceDetails.map((record) => record.roomName).filter(Boolean))],
+    [serviceDetails],
+  );
+
+  const serviceAssetOptions = useMemo(
+    () => [
+      'BARCHASI',
+      ...new Set(
+        serviceDetails
+          .flatMap((record) => record.assets.map((asset) => asset.name).filter((value): value is string => Boolean(value))),
+      ),
+    ],
+    [serviceDetails],
+  );
+
+  const serviceNameOptions = useMemo(
+    () => ['BARCHASI', ...new Set(serviceDetails.flatMap((record) => record.services).filter(Boolean))],
+    [serviceDetails],
+  );
+
+  const filteredServiceDetails = useMemo(() => {
+    return serviceDetails.filter((record) => {
+      const matchesRoom = serviceRoomFilter === 'BARCHASI' || record.roomName === serviceRoomFilter;
+      const matchesAsset =
+        serviceAssetFilter === 'BARCHASI'
+        || record.assets.some((asset) => asset.name === serviceAssetFilter);
+      const matchesService =
+        serviceNameFilter === 'BARCHASI'
+        || record.services.includes(serviceNameFilter);
+      const matchesPayment =
+        servicePaymentFilter === 'all'
+        || record.paymentStatus === servicePaymentFilter;
+      const matchesDate = matchesDateRange(record.completedAt, serviceStartDate, serviceEndDate);
+
+      return matchesRoom && matchesAsset && matchesService && matchesPayment && matchesDate;
+    });
+  }, [
+    serviceAssetFilter,
+    serviceDetails,
+    serviceEndDate,
+    serviceNameFilter,
+    servicePaymentFilter,
+    serviceRoomFilter,
+    serviceStartDate,
+  ]);
+
+  const filteredServiceSummary = useMemo(() => {
+    const totalDurationSeconds = filteredServiceDetails.reduce((acc, record) => acc + record.durationSeconds, 0);
+
+    return {
+      totalDurationSeconds,
+      totalDurationFormatted: formatDurationFromSeconds(totalDurationSeconds),
+      totalEarnedAmount: filteredServiceDetails.reduce((acc, record) => acc + record.amount, 0),
+      totalRecords: filteredServiceDetails.length,
+    };
+  }, [filteredServiceDetails]);
 
   const stats = useMemo(() => {
     const totalRevenue = filteredSales.reduce((acc, curr) => acc + curr.total, 0);
@@ -405,6 +573,11 @@ export default function MoliyaPage() {
     { value: 'click', label: 'CLICK' },
     { value: 'payme', label: 'PAYME' },
   ];
+  const servicePaymentOptions = [
+    { value: 'all', label: 'BARCHASI' },
+    { value: 'submitted', label: "TO'LANGAN" },
+    { value: 'debt_closed', label: 'QARZ' },
+  ];
 
   return (
     <DashboardLayout>
@@ -422,10 +595,20 @@ export default function MoliyaPage() {
           <FinanceCard title="Marjanalniy foyda" value={`${(stats.totalRevenue * 0.1).toLocaleString()} UZS`} icon={DollarSign} />
           <FinanceCard title="Sarflangan pul" value="0 UZS" icon={Wallet} />
           <FinanceCard
-            title="Ko'rsatilgan xizmat soati va olingan summasi"
-            value={`${stats.totalService.toLocaleString()} UZS`}
+            title="Ko'rsatilgan xizmatlar"
+            value={isServiceSummaryLoading ? '--:--:--' : serviceSummary?.totalDurationFormatted ?? '00:00:00'}
             icon={Clock}
-            subValue="HISOBOT"
+            secondaryLabel="Olingan summa"
+            secondaryValue={isServiceSummaryLoading
+              ? 'Yuklanmoqda...'
+              : `${formatCurrency(serviceSummary?.totalEarnedAmount ?? 0)} so'm`}
+            subValue={serviceSummaryError
+              ? serviceSummaryError
+              : serviceSummary?.totalRecords
+                ? `${serviceSummary.totalRecords} ta yakunlangan xizmat`
+                : "Ko'rsatilgan xizmatlar mavjud emas"}
+            onClick={() => setActivePanel('services')}
+            isActive={activePanel === 'services'}
           />
           <FinanceCard title="Qaytarilgan mahsulotlar" value="0 UZS" icon={ArrowRightLeft} />
           <FinanceCard
@@ -451,6 +634,18 @@ export default function MoliyaPage() {
             )}
           >
             Umumiy tahlil
+          </Button>
+          <Button
+            type="button"
+            onClick={() => setActivePanel('services')}
+            className={cn(
+              'h-11 rounded-2xl px-6 text-[10px] font-black uppercase tracking-[0.25em]',
+              activePanel === 'services'
+                ? 'bg-primary text-black hover:bg-primary/90'
+                : 'border border-white/10 bg-white/5 text-white/70 hover:bg-white/10 hover:text-white',
+            )}
+          >
+            Xizmatlar
           </Button>
           <Button
             type="button"
@@ -830,6 +1025,281 @@ export default function MoliyaPage() {
                 <div className="flex items-center gap-3">
                   <Badge className="border-primary/20 bg-primary/10 text-primary">
                     Qatorlar: {filteredSoldItems.length}
+                  </Badge>
+                </div>
+              </div>
+            </div>
+          </>
+        ) : activePanel === 'services' ? (
+          <>
+            <div className="space-y-6 rounded-[32px] border border-white/5 bg-[#0a1a1a]/40 p-8 backdrop-blur-md">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                <div>
+                  <h2 className="text-sm font-black uppercase tracking-widest text-white">Ko'rsatilgan xizmatlar</h2>
+                  <p className="mt-1 text-[10px] font-bold uppercase tracking-widest text-white/40">
+                    Yakunlangan seanslar bo'yicha xizmat davomiyligi va olingan summa
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-3">
+                  <div className="rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3">
+                    <p className="text-[8px] font-black uppercase tracking-widest text-primary/60">Davomiylik</p>
+                    <p className="mt-1 text-lg font-black text-white">{filteredServiceSummary.totalDurationFormatted}</p>
+                  </div>
+                  <div className="rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3">
+                    <p className="text-[8px] font-black uppercase tracking-widest text-primary/60">Jami summa</p>
+                    <p className="mt-1 text-lg font-black text-white">{formatCurrency(filteredServiceSummary.totalEarnedAmount)} so'm</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-6 lg:grid-cols-6">
+                <div className="space-y-2.5">
+                  <Label className="ml-1 text-[10px] font-black uppercase tracking-[0.2em] text-white/20">Xona</Label>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className="h-14 w-full justify-between rounded-2xl border-white/5 bg-[#051111] px-5 text-[11px] font-black uppercase text-white/60 transition-all hover:bg-[#081818] hover:text-white"
+                      >
+                        {serviceRoomFilter}
+                        <ChevronDown className="h-5 w-5 text-white/20" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent className="min-w-[220px] rounded-2xl border-white/10 bg-[#0a1a1a] p-1 text-white shadow-2xl backdrop-blur-xl">
+                      {serviceRoomOptions.map((room) => (
+                        <DropdownMenuItem
+                          key={room}
+                          onClick={() => setServiceRoomFilter(room)}
+                          className="cursor-pointer rounded-xl px-5 py-3.5 text-[10px] font-black uppercase tracking-widest focus:bg-primary/10 focus:text-primary"
+                        >
+                          {room}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+                <div className="space-y-2.5">
+                  <Label className="ml-1 text-[10px] font-black uppercase tracking-[0.2em] text-white/20">Asset</Label>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className="h-14 w-full justify-between rounded-2xl border-white/5 bg-[#051111] px-5 text-[11px] font-black uppercase text-white/60 transition-all hover:bg-[#081818] hover:text-white"
+                      >
+                        {serviceAssetFilter}
+                        <ChevronDown className="h-5 w-5 text-white/20" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent className="min-w-[220px] rounded-2xl border-white/10 bg-[#0a1a1a] p-1 text-white shadow-2xl backdrop-blur-xl">
+                      {serviceAssetOptions.map((asset) => (
+                        <DropdownMenuItem
+                          key={asset}
+                          onClick={() => setServiceAssetFilter(asset)}
+                          className="cursor-pointer rounded-xl px-5 py-3.5 text-[10px] font-black uppercase tracking-widest focus:bg-primary/10 focus:text-primary"
+                        >
+                          {asset}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+                <div className="space-y-2.5">
+                  <Label className="ml-1 text-[10px] font-black uppercase tracking-[0.2em] text-white/20">Xizmat</Label>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className="h-14 w-full justify-between rounded-2xl border-white/5 bg-[#051111] px-5 text-[11px] font-black uppercase text-white/60 transition-all hover:bg-[#081818] hover:text-white"
+                      >
+                        {serviceNameFilter}
+                        <ChevronDown className="h-5 w-5 text-white/20" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent className="min-w-[220px] rounded-2xl border-white/10 bg-[#0a1a1a] p-1 text-white shadow-2xl backdrop-blur-xl">
+                      {serviceNameOptions.map((serviceName) => (
+                        <DropdownMenuItem
+                          key={serviceName}
+                          onClick={() => setServiceNameFilter(serviceName)}
+                          className="cursor-pointer rounded-xl px-5 py-3.5 text-[10px] font-black uppercase tracking-widest focus:bg-primary/10 focus:text-primary"
+                        >
+                          {serviceName}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+                <div className="space-y-2.5">
+                  <Label className="ml-1 text-[10px] font-black uppercase tracking-[0.2em] text-white/20">Holati</Label>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className="h-14 w-full justify-between rounded-2xl border-white/5 bg-[#051111] px-5 text-[11px] font-black uppercase text-white/60 transition-all hover:bg-[#081818] hover:text-white"
+                      >
+                        {servicePaymentOptions.find((option) => option.value === servicePaymentFilter)?.label ?? 'BARCHASI'}
+                        <ChevronDown className="h-5 w-5 text-white/20" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent className="min-w-[220px] rounded-2xl border-white/10 bg-[#0a1a1a] p-1 text-white shadow-2xl backdrop-blur-xl">
+                      {servicePaymentOptions.map((option) => (
+                        <DropdownMenuItem
+                          key={option.value}
+                          onClick={() => setServicePaymentFilter(option.value as 'all' | 'submitted' | 'debt_closed')}
+                          className="cursor-pointer rounded-xl px-5 py-3.5 text-[10px] font-black uppercase tracking-widest focus:bg-primary/10 focus:text-primary"
+                        >
+                          {option.label}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+                <div className="space-y-2.5">
+                  <Label className="ml-1 text-[10px] font-black uppercase tracking-[0.2em] text-white/20">Boshlanish sanasi</Label>
+                  <div className="flex h-14 items-center gap-3 rounded-2xl border border-white/5 bg-[#051111] px-4">
+                    <CalendarIcon className="h-5 w-5 text-primary/40" />
+                    <input
+                      type="date"
+                      value={serviceStartDate}
+                      onChange={(event) => setServiceStartDate(event.target.value)}
+                      className="w-full appearance-none border-none bg-transparent text-[12px] font-bold text-white focus:ring-0"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2.5">
+                  <Label className="ml-1 text-[10px] font-black uppercase tracking-[0.2em] text-white/20">Tugash sanasi</Label>
+                  <div className="flex h-14 items-center gap-3 rounded-2xl border border-white/5 bg-[#051111] px-4">
+                    <CalendarIcon className="h-5 w-5 text-primary/40" />
+                    <input
+                      type="date"
+                      value={serviceEndDate}
+                      onChange={(event) => setServiceEndDate(event.target.value)}
+                      className="w-full appearance-none border-none bg-transparent text-[12px] font-bold text-white focus:ring-0"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="overflow-hidden rounded-[32px] border border-white/5 bg-[#0a1f1f]/60 shadow-2xl backdrop-blur-md">
+              <Table>
+                <TableHeader className="bg-[#0d1f1f]/50">
+                  <TableRow className="border-white/5 hover:bg-transparent">
+                    <TableHead className="h-10 px-5 text-[8px] font-black uppercase tracking-widest text-primary/60">Trade</TableHead>
+                    <TableHead className="h-10 text-[8px] font-black uppercase tracking-widest text-primary/60">Xona / Asset</TableHead>
+                    <TableHead className="h-10 text-[8px] font-black uppercase tracking-widest text-primary/60">Xizmat</TableHead>
+                    <TableHead className="h-10 text-[8px] font-black uppercase tracking-widest text-primary/60">Boshlanish</TableHead>
+                    <TableHead className="h-10 text-[8px] font-black uppercase tracking-widest text-primary/60">Tugash</TableHead>
+                    <TableHead className="h-10 text-[8px] font-black uppercase tracking-widest text-primary/60">Davomiylik</TableHead>
+                    <TableHead className="h-10 text-[8px] font-black uppercase tracking-widest text-primary/60">Summa</TableHead>
+                    <TableHead className="h-10 text-[8px] font-black uppercase tracking-widest text-primary/60">To'lov</TableHead>
+                    <TableHead className="h-10 text-[8px] font-black uppercase tracking-widest text-primary/60">Qarzdor</TableHead>
+                    <TableHead className="h-10 pr-5 text-right text-[8px] font-black uppercase tracking-widest text-primary/60">Yakunlangan</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {isServiceDetailsLoading ? (
+                    <TableRow>
+                      <TableCell colSpan={10} className="py-12 text-center text-[10px] font-bold uppercase tracking-widest text-white/30">
+                        Xizmat tafsilotlari yuklanmoqda...
+                      </TableCell>
+                    </TableRow>
+                  ) : serviceDetailsError ? (
+                    <TableRow>
+                      <TableCell colSpan={10} className="py-12 text-center text-[10px] font-bold uppercase tracking-widest text-red-300/70">
+                        {serviceDetailsError}
+                      </TableCell>
+                    </TableRow>
+                  ) : filteredServiceDetails.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={10} className="py-12 text-center text-[10px] font-bold uppercase tracking-widest text-white/30">
+                        {serviceDetails.length === 0 ? "Ko'rsatilgan xizmatlar mavjud emas" : "Filtr bo'yicha xizmat topilmadi"}
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredServiceDetails.map((record) => (
+                      <TableRow key={record.id} className="border-white/5 transition-colors hover:bg-white/5">
+                        <TableCell className="px-5 py-4">
+                          <p className="text-[11px] font-black uppercase tracking-tight text-white">{record.referenceLabel}</p>
+                          <p className="mt-1 text-[9px] font-bold uppercase tracking-widest text-white/35">
+                            {record.sessionLabel ?? "Session ma'lum emas"}
+                          </p>
+                        </TableCell>
+                        <TableCell className="py-4">
+                          <p className="text-[10px] font-black text-white">{record.roomName}</p>
+                          <p className="mt-1 text-[9px] font-bold text-white/45">
+                            {record.assets.length > 0
+                              ? record.assets
+                                  .map((asset) => asset.name
+                                    ? `${asset.name}${asset.assetOrder ? ` #${asset.assetOrder}` : ''}`
+                                    : `Asset #${asset.id ?? '-'}`)
+                                  .join(', ')
+                              : 'Asset ma\'lum emas'}
+                          </p>
+                        </TableCell>
+                        <TableCell className="py-4 text-[10px] font-bold text-white/70">
+                          {record.services.length > 0 ? record.services.join(', ') : '-'}
+                        </TableCell>
+                        <TableCell className="py-4 text-[10px] font-bold text-white/70">
+                          {formatDateTime(record.startTime)}
+                        </TableCell>
+                        <TableCell className="py-4 text-[10px] font-bold text-white/70">
+                          {formatDateTime(record.endTime)}
+                        </TableCell>
+                        <TableCell className="py-4 text-[10px] font-black text-primary">
+                          {record.durationFormatted}
+                        </TableCell>
+                        <TableCell className="py-4 text-[10px] font-black text-primary">
+                          {formatCurrency(record.amount)} so'm
+                        </TableCell>
+                        <TableCell className="py-4">
+                          <Badge className={cn(
+                            'border uppercase tracking-widest',
+                            record.paymentStatus === 'submitted'
+                              ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
+                              : 'border-amber-500/30 bg-amber-500/10 text-amber-200',
+                          )}>
+                            {record.paymentStatusLabel}
+                          </Badge>
+                          <p className="mt-2 text-[9px] font-bold uppercase tracking-widest text-white/35">
+                            {record.paymentMethodLabel}
+                          </p>
+                        </TableCell>
+                        <TableCell className="py-4 text-[10px] font-bold text-white/70">
+                          {record.debtorName ? (
+                            <>
+                              <p>{record.debtorName}</p>
+                              <p className="mt-1 text-[9px] uppercase tracking-widest text-white/35">
+                                {record.debtorPhone ?? '-'}
+                              </p>
+                            </>
+                          ) : '-'}
+                        </TableCell>
+                        <TableCell className="py-4 pr-5 text-right text-[10px] font-bold text-white/70">
+                          <p>{formatDateTime(record.completedAt)}</p>
+                          <p className="mt-1 text-[9px] uppercase tracking-widest text-white/35">
+                            {record.createdAt ? `Yaratilgan: ${formatDateTime(record.createdAt)}` : '-'}
+                          </p>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+
+              <div className="flex flex-col gap-4 border-t border-white/5 bg-[#051111] p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-wrap items-center gap-4">
+                  <span className="text-[9px] font-bold uppercase tracking-widest text-white/30">Jami xizmat:</span>
+                  <span className="text-xs font-black uppercase tracking-tight text-primary">
+                    {filteredServiceSummary.totalDurationFormatted}
+                  </span>
+                  <span className="text-[9px] font-bold uppercase tracking-widest text-white/30">Jami summa:</span>
+                  <span className="text-xs font-black uppercase tracking-tight text-primary">
+                    {formatCurrency(filteredServiceSummary.totalEarnedAmount)} so'm
+                  </span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Badge className="border-primary/20 bg-primary/10 text-primary">
+                    Qatorlar: {filteredServiceSummary.totalRecords}
                   </Badge>
                 </div>
               </div>

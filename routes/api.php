@@ -33,6 +33,10 @@ Route::middleware('api.token')->group(function () {
 
     Route::get('/trades', [TradeController::class, 'index'])
         ->defaults('openapiOperation', 'listTrades');
+    Route::get('/finance/service-summary', [TradeController::class, 'serviceSummary'])
+        ->defaults('openapiOperation', 'getServiceFinanceSummary');
+    Route::get('/finance/service-details', [TradeController::class, 'serviceDetails'])
+        ->defaults('openapiOperation', 'listServiceFinanceDetails');
     Route::get('/trades/export', [TradeController::class, 'export'])
         ->defaults('openapiOperation', 'exportTrades');
     Route::get('/debts', [TradeController::class, 'debts'])

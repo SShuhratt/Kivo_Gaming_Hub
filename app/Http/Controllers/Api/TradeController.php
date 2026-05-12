@@ -10,6 +10,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Booking;
 use App\Models\Trade;
 use App\Models\Warehouse;
+use App\Services\ServiceFinanceReportService;
 use App\Services\SessionLifecycleService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -39,6 +40,24 @@ class TradeController extends Controller
         $ledger = $this->filterFinancialLedgerEntries($this->collectFinancialLedgerEntries(), $validated);
 
         return response()->json($ledger);
+    }
+
+    public function serviceSummary(
+        SessionLifecycleService $sessionLifecycle,
+        ServiceFinanceReportService $serviceFinanceReport,
+    ): JsonResponse {
+        $sessionLifecycle->syncElapsedSessions();
+
+        return response()->json($serviceFinanceReport->summary());
+    }
+
+    public function serviceDetails(
+        SessionLifecycleService $sessionLifecycle,
+        ServiceFinanceReportService $serviceFinanceReport,
+    ): JsonResponse {
+        $sessionLifecycle->syncElapsedSessions();
+
+        return response()->json($serviceFinanceReport->details());
     }
 
     public function export(Request $request, SessionLifecycleService $sessionLifecycle)

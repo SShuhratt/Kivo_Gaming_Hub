@@ -4,6 +4,8 @@ namespace Tests\Feature;
 
 use App\Models\Asset;
 use App\Models\Booking;
+use App\Models\CheckoutSale;
+use App\Models\CheckoutSaleItem;
 use App\Models\Room;
 use App\Models\Service;
 use App\Models\Trade;
@@ -437,6 +439,183 @@ class BookingAndFinanceApiTest extends TestCase
             ->assertJsonCount(1)
             ->assertJsonPath('0.type', 'Debt')
             ->assertJsonPath('0.status', 'debt_closed');
+    }
+
+    public function test_service_finance_summary_and_details_only_include_completed_service_trades(): void
+    {
+        $headers = $this->authHeaders();
+        $cashier = User::where('phone_number', '+998901234567')->firstOrFail();
+        $room = Room::create(['name' => 'Opshiy zal']);
+
+        Booking::create([
+            'tariff_name_snapshot' => 'Service pricing',
+            'hourly_rate_snapshot' => 20000,
+            'asset_snapshot' => [[
+                'id' => 99,
+                'name' => 'computer-active',
+                'service_name' => 'Computer',
+                'room_id' => $room->id,
+                'room_name' => $room->name,
+                'room_number' => $room->name,
+                'asset_order' => 1,
+                'hourly_price' => 20000,
+            ]],
+            'asset_stats_recorded' => true,
+            'start_time' => '2026-04-25T09:00:00+05:00',
+            'end_time' => '2030-04-25T10:00:00+05:00',
+            'duration_minutes' => 60,
+            'requested_duration_hours' => 1,
+            'total_cost' => 20000,
+            'status' => 'submitted',
+            'session_status' => 'active',
+        ]);
+
+        $paidTrade = Trade::create([
+            'booking_id' => null,
+            'tariff_name' => 'Service pricing',
+            'hourly_rate' => 20000,
+            'payment_status' => 'submitted',
+            'session_status' => 'completed',
+            'start_time' => '2026-04-25T10:00:00+05:00',
+            'end_time' => '2026-04-25T11:15:30+05:00',
+            'duration_minutes' => 75,
+            'total_cost' => 25000,
+            'asset_snapshot' => [[
+                'id' => 2,
+                'name' => 'computer2',
+                'service_name' => 'Computer',
+                'room_id' => $room->id,
+                'room_name' => $room->name,
+                'room_number' => $room->name,
+                'asset_order' => 1,
+                'hourly_price' => 20000,
+            ]],
+            'assets_count' => 1,
+        ]);
+
+        $completedDebtBooking = Booking::create([
+            'tariff_name_snapshot' => 'Service pricing',
+            'hourly_rate_snapshot' => 35000,
+            'asset_snapshot' => [[
+                'id' => 3,
+                'name' => 'ps5(1)',
+                'service_name' => 'PS5',
+                'room_id' => $room->id,
+                'room_name' => $room->name,
+                'room_number' => $room->name,
+                'asset_order' => 1,
+                'hourly_price' => 35000,
+            ]],
+            'asset_stats_recorded' => true,
+            'start_time' => '2026-04-24T08:00:00+05:00',
+            'end_time' => '2026-04-25T10:00:00+05:00',
+            'ended_at' => '2026-04-25T10:00:00+05:00',
+            'duration_minutes' => 1560,
+            'requested_duration_hours' => 26,
+            'total_cost' => 50000,
+            'status' => 'debt_closed',
+            'session_status' => 'completed',
+            'debt_name' => 'Vali',
+            'debt_phone_number' => '+998909876543',
+        ]);
+
+        $debtTrade = Trade::create([
+            'booking_id' => $completedDebtBooking->id,
+            'tariff_name' => 'Service pricing',
+            'hourly_rate' => 35000,
+            'payment_status' => 'debt_closed',
+            'session_status' => 'completed',
+            'start_time' => '2026-04-24T08:00:00+05:00',
+            'end_time' => '2026-04-25T10:00:00+05:00',
+            'duration_minutes' => 1560,
+            'total_cost' => 50000,
+            'debt_name' => 'Vali',
+            'debt_phone_number' => '+998909876543',
+            'asset_snapshot' => [[
+                'id' => 3,
+                'name' => 'ps5(1)',
+                'service_name' => 'PS5',
+                'room_id' => $room->id,
+                'room_name' => $room->name,
+                'room_number' => $room->name,
+                'asset_order' => 1,
+                'hourly_price' => 35000,
+            ]],
+            'assets_count' => 1,
+        ]);
+
+        Trade::create([
+            'booking_id' => null,
+            'tariff_name' => 'Service pricing',
+            'hourly_rate' => 15000,
+            'payment_status' => 'submitted',
+            'session_status' => 'cancelled',
+            'start_time' => '2026-04-25T12:00:00+05:00',
+            'end_time' => '2026-04-25T13:00:00+05:00',
+            'duration_minutes' => 60,
+            'total_cost' => 15000,
+            'asset_snapshot' => [[
+                'id' => 4,
+                'name' => 'cancelled-device',
+                'service_name' => 'Simulator',
+                'room_id' => $room->id,
+                'room_name' => $room->name,
+                'room_number' => $room->name,
+                'asset_order' => 1,
+                'hourly_price' => 15000,
+            ]],
+            'assets_count' => 1,
+        ]);
+
+        $sale = CheckoutSale::create([
+            'user_id' => $cashier->id,
+            'payment_method' => 'cash',
+            'total_amount' => 15000,
+        ]);
+
+        CheckoutSaleItem::create([
+            'checkout_sale_id' => $sale->id,
+            'manufacturer_name' => 'Pepsi',
+            'product_name' => 'Pepsi 0.5L',
+            'barcode' => '4780099999999',
+            'unit' => 'bottle',
+            'quantity' => 1,
+            'unit_price' => 15000,
+            'total_price' => 15000,
+        ]);
+
+        $this->getJson('/api/finance/service-summary', $headers)
+            ->assertOk()
+            ->assertJsonPath('total_duration_seconds', 98130)
+            ->assertJsonPath('total_duration_formatted', '27:15:30')
+            ->assertJsonPath('total_earned_amount', 75000)
+            ->assertJsonPath('total_records', 2);
+
+        $details = $this->getJson('/api/finance/service-details', $headers)
+            ->assertOk()
+            ->assertJsonCount(2)
+            ->json();
+
+        $paidRecord = collect($details)->firstWhere('id', $paidTrade->id);
+        $debtRecord = collect($details)->firstWhere('id', $debtTrade->id);
+
+        $this->assertNotNull($paidRecord);
+        $this->assertSame('Trade #'.$paidTrade->id, $paidRecord['reference_label']);
+        $this->assertSame('Opshiy zal', $paidRecord['room_name']);
+        $this->assertSame('01:15:30', $paidRecord['duration_formatted']);
+        $this->assertEquals(25000.0, $paidRecord['amount']);
+        $this->assertSame('submitted', $paidRecord['payment_status']);
+        $this->assertSame("To'langan", $paidRecord['payment_status_label']);
+        $this->assertSame(['Computer'], $paidRecord['services']);
+
+        $this->assertNotNull($debtRecord);
+        $this->assertSame('Session #'.$completedDebtBooking->id, $debtRecord['session_label']);
+        $this->assertSame('26:00:00', $debtRecord['duration_formatted']);
+        $this->assertSame('debt_closed', $debtRecord['payment_status']);
+        $this->assertSame('Qarz', $debtRecord['payment_status_label']);
+        $this->assertSame('Vali', $debtRecord['debtor_name']);
+        $this->assertSame('+998909876543', $debtRecord['debtor_phone']);
+        $this->assertSame(['PS5'], $debtRecord['services']);
     }
 
     public function test_debt_list_includes_active_and_saved_records_without_duplicates_and_survives_session_deletion(): void
