@@ -16,77 +16,146 @@ class ServiceFinanceReportService
 
     public function summary(): array
     {
-        return $this->summarize($this->detailsCollection());
+        return $this->buildReport()['summary'];
     }
 
     public function details(): array
     {
-        return $this->detailsCollection()->all();
+        return $this->buildReport();
     }
 
-    public function summarize(Collection $details): array
+    protected function buildReport(): array
     {
-        $totalDurationSeconds = (int) $details->sum('duration_seconds');
+        $assetGroups = $this->assetGroupsCollection();
 
         return [
-            'total_duration_seconds' => $totalDurationSeconds,
-            'total_duration_formatted' => $this->formatDuration($totalDurationSeconds),
-            'total_earned_amount' => round((float) $details->sum('amount'), 2),
-            'total_records' => $details->count(),
+            'summary' => $this->summarizeAssetGroups($assetGroups),
+            'assets' => $assetGroups->all(),
         ];
     }
 
-    protected function detailsCollection(): Collection
+    protected function assetGroupsCollection(): Collection
     {
         return Trade::query()
             ->where('session_status', 'completed')
             ->orderByDesc('end_time')
             ->orderByDesc('created_at')
             ->get()
-            ->map(fn (Trade $trade) => $this->mapTrade($trade))
-            ->values();
+            ->flatMap(fn (Trade $trade) => $this->mapTradeAssetSessions($trade))
+            ->groupBy('asset_key')
+            ->map(fn (Collection $assetSessions) => $this->summarizeAssetSessions($assetSessions))
+            ->sortBy([
+                ['room_sort', 'asc'],
+                ['service_sort', 'asc'],
+                ['asset_order_sort', 'asc'],
+                ['asset_name_sort', 'asc'],
+            ])
+            ->values()
+            ->map(function (array $assetGroup) {
+                unset(
+                    $assetGroup['asset_key'],
+                    $assetGroup['room_sort'],
+                    $assetGroup['service_sort'],
+                    $assetGroup['asset_order_sort'],
+                    $assetGroup['asset_name_sort'],
+                );
+
+                return $assetGroup;
+            });
     }
 
-    protected function mapTrade(Trade $trade): array
+    protected function mapTradeAssetSessions(Trade $trade): Collection
     {
         $assets = $this->normalizeAssets($trade->asset_snapshot);
-        $serviceNames = collect($assets)
-            ->map(fn (array $asset) => $asset['service_name'] ?? null)
-            ->filter(fn ($serviceName) => $serviceName !== null && $serviceName !== '')
-            ->unique()
-            ->values()
-            ->all();
-        $roomNames = collect($assets)
-            ->map(fn (array $asset) => $asset['room_name'] ?? $asset['room_number'] ?? null)
-            ->filter(fn ($roomName) => $roomName !== null && $roomName !== '')
-            ->unique()
-            ->values();
+
+        if ($assets === []) {
+            $assets = [$this->fallbackAsset($trade)];
+        }
+
         $durationSeconds = $this->resolveDurationSeconds($trade);
-        $paymentStatus = $trade->payment_status;
-        $paymentMethod = $paymentStatus === 'debt_closed' ? 'debt' : 'cash';
-        $completedAt = $trade->end_time ?? $trade->created_at;
+        $allocatedAmounts = $this->allocateTradeAmountAcrossAssets($trade, $assets);
+        $paymentStatus = $trade->payment_status === 'debt_closed' ? 'debt' : 'paid';
+
+        return collect($assets)
+            ->values()
+            ->map(function (array $asset, int $index) use ($allocatedAmounts, $durationSeconds, $paymentStatus, $trade) {
+                $assetName = $asset['name'] ?? ($asset['id'] ? "Asset #{$asset['id']}" : "Noma'lum asset");
+                $roomName = $asset['room_name'] ?? $asset['room_number'] ?? 'Xona N/A';
+                $serviceName = $asset['service_name'] ?? 'Xizmat N/A';
+                $completedAt = $trade->end_time ?? $trade->created_at;
+
+                return [
+                    'asset_key' => $this->assetKey($asset),
+                    'asset_id' => $asset['id'],
+                    'asset_name' => $assetName,
+                    'room_name' => $roomName,
+                    'service_name' => $serviceName,
+                    'asset_order' => $asset['asset_order'],
+                    'room_sort' => mb_strtolower($roomName),
+                    'service_sort' => mb_strtolower($serviceName),
+                    'asset_order_sort' => $asset['asset_order'] ?? PHP_INT_MAX,
+                    'asset_name_sort' => mb_strtolower($assetName),
+                    'session' => [
+                        'session_id' => $trade->booking_id,
+                        'trade_id' => $trade->id,
+                        'start_time' => $trade->start_time,
+                        'end_time' => $trade->end_time,
+                        'completed_at' => $completedAt,
+                        'duration_seconds' => $durationSeconds,
+                        'duration_formatted' => $this->formatDuration($durationSeconds),
+                        'amount' => $allocatedAmounts[$index] ?? 0,
+                        'payment_status' => $paymentStatus,
+                        'payment_status_code' => $trade->payment_status,
+                        'payment_status_label' => $paymentStatus === 'debt' ? 'Qarz' : "To'langan",
+                        'payment_method' => $paymentStatus === 'debt' ? 'debt' : 'cash',
+                        'payment_method_label' => $paymentStatus === 'debt' ? 'Qarz' : 'Naqd',
+                        'debtor_name' => $trade->debt_name,
+                        'debtor_phone' => $trade->debt_phone_number,
+                    ],
+                ];
+            });
+    }
+
+    protected function summarizeAssetSessions(Collection $assetSessions): array
+    {
+        $firstRecord = $assetSessions->first();
+        $sessions = $assetSessions
+            ->pluck('session')
+            ->sortByDesc(fn (array $session) => $this->sortTimestamp($session['completed_at'] ?? $session['end_time'] ?? $session['start_time'] ?? null))
+            ->values();
+        $totalDurationSeconds = (int) $sessions->sum('duration_seconds');
+        $totalIncome = round((float) $sessions->sum('amount'), 2);
 
         return [
-            'id' => $trade->id,
-            'booking_id' => $trade->booking_id,
-            'reference_label' => "Trade #{$trade->id}",
-            'session_label' => $trade->booking_id ? "Session #{$trade->booking_id}" : null,
-            'room_name' => $roomNames->isNotEmpty() ? $roomNames->implode(', ') : 'Xona N/A',
-            'assets' => $assets,
-            'services' => $serviceNames,
-            'start_time' => $trade->start_time,
-            'end_time' => $trade->end_time,
-            'duration_seconds' => $durationSeconds,
-            'duration_formatted' => $this->formatDuration($durationSeconds),
-            'amount' => (float) $trade->total_cost,
-            'payment_status' => $paymentStatus,
-            'payment_status_label' => $paymentStatus === 'debt_closed' ? 'Qarz' : "To'langan",
-            'payment_method' => $paymentMethod,
-            'payment_method_label' => $paymentMethod === 'debt' ? 'Qarz' : 'Naqd',
-            'debtor_name' => $trade->debt_name,
-            'debtor_phone' => $trade->debt_phone_number,
-            'completed_at' => $completedAt,
-            'created_at' => $trade->created_at,
+            'asset_key' => $firstRecord['asset_key'],
+            'asset_id' => $firstRecord['asset_id'],
+            'asset_name' => $firstRecord['asset_name'],
+            'room_name' => $firstRecord['room_name'],
+            'service_name' => $firstRecord['service_name'],
+            'asset_order' => $firstRecord['asset_order'],
+            'total_duration_seconds' => $totalDurationSeconds,
+            'total_duration_formatted' => $this->formatDuration($totalDurationSeconds),
+            'total_income' => $totalIncome,
+            'sessions' => $sessions->all(),
+            'room_sort' => $firstRecord['room_sort'],
+            'service_sort' => $firstRecord['service_sort'],
+            'asset_order_sort' => $firstRecord['asset_order_sort'],
+            'asset_name_sort' => $firstRecord['asset_name_sort'],
+        ];
+    }
+
+    protected function summarizeAssetGroups(Collection $assetGroups): array
+    {
+        $totalDurationSeconds = (int) $assetGroups->sum('total_duration_seconds');
+        $totalIncome = round((float) $assetGroups->sum('total_income'), 2);
+
+        return [
+            'total_duration_seconds' => $totalDurationSeconds,
+            'total_duration_formatted' => $this->formatDuration($totalDurationSeconds),
+            'total_income' => $totalIncome,
+            'total_earned_amount' => $totalIncome,
+            'total_records' => $assetGroups->count(),
+            'total_session_records' => $assetGroups->sum(fn (array $assetGroup) => count($assetGroup['sessions'] ?? [])),
         ];
     }
 
@@ -116,6 +185,60 @@ class ServiceFinanceReportService
             ])
             ->values()
             ->all();
+    }
+
+    protected function fallbackAsset(Trade $trade): array
+    {
+        return [
+            'id' => null,
+            'name' => 'Noma\'lum asset',
+            'service_id' => null,
+            'service_name' => $trade->tariff_name ?: 'Xizmat N/A',
+            'room_id' => null,
+            'room_name' => 'Xona N/A',
+            'room_number' => null,
+            'asset_order' => null,
+            'hourly_price' => null,
+        ];
+    }
+
+    protected function allocateTradeAmountAcrossAssets(Trade $trade, array $assets): array
+    {
+        $assetsCount = count($assets);
+
+        if ($assetsCount === 0) {
+            return [];
+        }
+
+        if ($assetsCount === 1) {
+            return [round((float) $trade->total_cost, 2)];
+        }
+
+        $weights = collect($assets)
+            ->map(fn (array $asset) => max(0, (float) ($asset['hourly_price'] ?? 0)))
+            ->values();
+
+        if ($weights->sum() <= 0) {
+            $weights = collect(range(1, $assetsCount))->map(fn () => 1.0);
+        }
+
+        $totalCost = round((float) $trade->total_cost, 2);
+        $allocatedAmounts = [];
+        $remaining = $totalCost;
+        $totalWeight = (float) $weights->sum();
+
+        foreach ($weights as $index => $weight) {
+            if ($index === $weights->count() - 1) {
+                $allocatedAmounts[] = round($remaining, 2);
+                continue;
+            }
+
+            $allocated = round($totalCost * ($weight / $totalWeight), 2);
+            $allocatedAmounts[] = $allocated;
+            $remaining = round($remaining - $allocated, 2);
+        }
+
+        return $allocatedAmounts;
     }
 
     protected function resolveDurationSeconds(Trade $trade): int
@@ -177,5 +300,26 @@ class ServiceFinanceReportService
         }
 
         return $cache[$cacheKey];
+    }
+
+    protected function assetKey(array $asset): string
+    {
+        if (($asset['id'] ?? null) !== null) {
+            return 'asset-id:'.$asset['id'];
+        }
+
+        return implode('|', [
+            'asset-name:'.mb_strtolower((string) ($asset['name'] ?? 'unknown')),
+            'room:'.mb_strtolower((string) ($asset['room_name'] ?? $asset['room_number'] ?? 'n/a')),
+            'service:'.mb_strtolower((string) ($asset['service_name'] ?? 'n/a')),
+            'order:'.($asset['asset_order'] ?? 'n/a'),
+        ]);
+    }
+
+    protected function sortTimestamp(mixed $value): int
+    {
+        $dateTime = $this->toCarbon($value);
+
+        return $dateTime?->getTimestamp() ?? 0;
     }
 }

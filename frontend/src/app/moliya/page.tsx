@@ -4,7 +4,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { DashboardLayout } from '@/components/dashboard-layout';
 import {
   type DebtRecord,
-  type ServiceFinanceDetailRecord,
+  type ServiceFinanceAssetRecord,
+  type ServiceFinanceDetailsResponse,
   type ServiceFinanceSummary,
   useDashboard,
 } from '@/context/dashboard-context';
@@ -184,6 +185,26 @@ function formatDurationFromSeconds(totalSeconds: number) {
   return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 }
 
+function serviceAssetKey(asset: ServiceFinanceAssetRecord) {
+  return String(asset.assetId ?? `${asset.roomName}:${asset.serviceName}:${asset.assetName}:${asset.assetOrder ?? 'n/a'}`);
+}
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string) {
+  return new Promise<T>((resolve, reject) => {
+    const timeoutId = window.setTimeout(() => reject(new Error(message)), timeoutMs);
+
+    promise
+      .then((result) => {
+        window.clearTimeout(timeoutId);
+        resolve(result);
+      })
+      .catch((error) => {
+        window.clearTimeout(timeoutId);
+        reject(error);
+      });
+  });
+}
+
 function matchesDateRange(value: string | null, startDate: string, endDate: string) {
   if (!startDate && !endDate) {
     return true;
@@ -286,7 +307,7 @@ export default function MoliyaPage() {
   const [serviceSummary, setServiceSummary] = useState<ServiceFinanceSummary | null>(null);
   const [serviceSummaryError, setServiceSummaryError] = useState<string | null>(null);
   const [isServiceSummaryLoading, setIsServiceSummaryLoading] = useState(true);
-  const [serviceDetails, setServiceDetails] = useState<ServiceFinanceDetailRecord[]>([]);
+  const [serviceDetailsResponse, setServiceDetailsResponse] = useState<ServiceFinanceDetailsResponse | null>(null);
   const [serviceDetailsError, setServiceDetailsError] = useState<string | null>(null);
   const [isServiceDetailsLoading, setIsServiceDetailsLoading] = useState(false);
   const [hasRequestedServiceDetails, setHasRequestedServiceDetails] = useState(false);
@@ -295,7 +316,8 @@ export default function MoliyaPage() {
   const [serviceRoomFilter, setServiceRoomFilter] = useState('BARCHASI');
   const [serviceAssetFilter, setServiceAssetFilter] = useState('BARCHASI');
   const [serviceNameFilter, setServiceNameFilter] = useState('BARCHASI');
-  const [servicePaymentFilter, setServicePaymentFilter] = useState<'all' | 'submitted' | 'debt_closed'>('all');
+  const [servicePaymentFilter, setServicePaymentFilter] = useState<'all' | 'paid' | 'debt'>('all');
+  const [expandedAssetKeys, setExpandedAssetKeys] = useState<string[]>([]);
 
   const [debtToPay, setDebtToPay] = useState<string | null>(null);
   const [debtToDelete, setDebtToDelete] = useState<string | null>(null);
@@ -310,7 +332,11 @@ export default function MoliyaPage() {
     setIsServiceSummaryLoading(true);
     setServiceSummaryError(null);
 
-    getServiceFinanceSummary()
+    withTimeout(
+      getServiceFinanceSummary(),
+      15000,
+      "Xizmatlar summary so'rovi juda uzoq davom etdi.",
+    )
       .then((summary) => {
         if (isMounted) {
           setServiceSummary(summary);
@@ -343,10 +369,19 @@ export default function MoliyaPage() {
     setIsServiceDetailsLoading(true);
     setServiceDetailsError(null);
 
-    getServiceFinanceDetails()
-      .then((details) => {
+    withTimeout(
+      getServiceFinanceDetails(),
+      15000,
+      "Xizmatlar tafsilotlari so'rovi juda uzoq davom etdi.",
+    )
+      .then((detailsResponse) => {
         if (isMounted) {
-          setServiceDetails(details);
+          setServiceDetailsResponse(detailsResponse);
+          setExpandedAssetKeys(
+            detailsResponse.assets
+              .slice(0, 3)
+              .map(serviceAssetKey),
+          );
         }
       })
       .catch((error: any) => {
@@ -420,46 +455,55 @@ export default function MoliyaPage() {
     });
   }, [soldItems, tradedSearch, tradedManufacturer, tradedPaymentMethod, startDate, endDate]);
 
+  const serviceAssets = serviceDetailsResponse?.assets ?? [];
+
   const serviceRoomOptions = useMemo(
-    () => ['BARCHASI', ...new Set(serviceDetails.map((record) => record.roomName).filter(Boolean))],
-    [serviceDetails],
+    () => ['BARCHASI', ...new Set(serviceAssets.map((asset) => asset.roomName).filter(Boolean))],
+    [serviceAssets],
   );
 
   const serviceAssetOptions = useMemo(
-    () => [
-      'BARCHASI',
-      ...new Set(
-        serviceDetails
-          .flatMap((record) => record.assets.map((asset) => asset.name).filter((value): value is string => Boolean(value))),
-      ),
-    ],
-    [serviceDetails],
+    () => ['BARCHASI', ...new Set(serviceAssets.map((asset) => asset.assetName).filter(Boolean))],
+    [serviceAssets],
   );
 
   const serviceNameOptions = useMemo(
-    () => ['BARCHASI', ...new Set(serviceDetails.flatMap((record) => record.services).filter(Boolean))],
-    [serviceDetails],
+    () => ['BARCHASI', ...new Set(serviceAssets.map((asset) => asset.serviceName).filter(Boolean))],
+    [serviceAssets],
   );
 
-  const filteredServiceDetails = useMemo(() => {
-    return serviceDetails.filter((record) => {
-      const matchesRoom = serviceRoomFilter === 'BARCHASI' || record.roomName === serviceRoomFilter;
-      const matchesAsset =
-        serviceAssetFilter === 'BARCHASI'
-        || record.assets.some((asset) => asset.name === serviceAssetFilter);
-      const matchesService =
-        serviceNameFilter === 'BARCHASI'
-        || record.services.includes(serviceNameFilter);
-      const matchesPayment =
-        servicePaymentFilter === 'all'
-        || record.paymentStatus === servicePaymentFilter;
-      const matchesDate = matchesDateRange(record.completedAt, serviceStartDate, serviceEndDate);
+  const filteredServiceAssets = useMemo(() => {
+    return serviceAssets
+      .filter((asset) => {
+        const matchesRoom = serviceRoomFilter === 'BARCHASI' || asset.roomName === serviceRoomFilter;
+        const matchesAsset = serviceAssetFilter === 'BARCHASI' || asset.assetName === serviceAssetFilter;
+        const matchesService = serviceNameFilter === 'BARCHASI' || asset.serviceName === serviceNameFilter;
 
-      return matchesRoom && matchesAsset && matchesService && matchesPayment && matchesDate;
-    });
+        return matchesRoom && matchesAsset && matchesService;
+      })
+      .map((asset) => {
+        const filteredSessions = asset.sessions.filter((session) => {
+          const matchesPayment =
+            servicePaymentFilter === 'all'
+            || session.paymentStatus === servicePaymentFilter;
+          const matchesDate = matchesDateRange(session.completedAt, serviceStartDate, serviceEndDate);
+
+          return matchesPayment && matchesDate;
+        });
+        const totalDurationSeconds = filteredSessions.reduce((acc, session) => acc + session.durationSeconds, 0);
+
+        return {
+          ...asset,
+          totalDurationSeconds,
+          totalDurationFormatted: formatDurationFromSeconds(totalDurationSeconds),
+          totalIncome: filteredSessions.reduce((acc, session) => acc + session.amount, 0),
+          sessions: filteredSessions,
+        };
+      })
+      .filter((asset) => asset.sessions.length > 0);
   }, [
     serviceAssetFilter,
-    serviceDetails,
+    serviceAssets,
     serviceEndDate,
     serviceNameFilter,
     servicePaymentFilter,
@@ -468,15 +512,16 @@ export default function MoliyaPage() {
   ]);
 
   const filteredServiceSummary = useMemo(() => {
-    const totalDurationSeconds = filteredServiceDetails.reduce((acc, record) => acc + record.durationSeconds, 0);
+    const totalDurationSeconds = filteredServiceAssets.reduce((acc, asset) => acc + asset.totalDurationSeconds, 0);
 
     return {
       totalDurationSeconds,
       totalDurationFormatted: formatDurationFromSeconds(totalDurationSeconds),
-      totalEarnedAmount: filteredServiceDetails.reduce((acc, record) => acc + record.amount, 0),
-      totalRecords: filteredServiceDetails.length,
+      totalIncome: filteredServiceAssets.reduce((acc, asset) => acc + asset.totalIncome, 0),
+      totalRecords: filteredServiceAssets.length,
+      totalSessionRecords: filteredServiceAssets.reduce((acc, asset) => acc + asset.sessions.length, 0),
     };
-  }, [filteredServiceDetails]);
+  }, [filteredServiceAssets]);
 
   const stats = useMemo(() => {
     const totalRevenue = filteredSales.reduce((acc, curr) => acc + curr.total, 0);
@@ -556,6 +601,22 @@ export default function MoliyaPage() {
     });
   };
 
+  const openServicesPanel = () => {
+    setActivePanel('services');
+
+    if (!isServiceDetailsLoading && serviceDetailsResponse === null) {
+      setHasRequestedServiceDetails(false);
+    }
+  };
+
+  const retryServiceDetailsLoad = () => {
+    setServiceDetailsError(null);
+    setServiceDetailsResponse(null);
+    setExpandedAssetKeys([]);
+    setHasRequestedServiceDetails(false);
+    setActivePanel('services');
+  };
+
   if (isCheckingAuth) return null;
 
   const roomOptions = ['BARCHA XONALAR', ...new Set(sales.map((sale) => sale.room))];
@@ -575,8 +636,8 @@ export default function MoliyaPage() {
   ];
   const servicePaymentOptions = [
     { value: 'all', label: 'BARCHASI' },
-    { value: 'submitted', label: "TO'LANGAN" },
-    { value: 'debt_closed', label: 'QARZ' },
+    { value: 'paid', label: "TO'LANGAN" },
+    { value: 'debt', label: 'QARZ' },
   ];
 
   return (
@@ -595,19 +656,19 @@ export default function MoliyaPage() {
           <FinanceCard title="Marjanalniy foyda" value={`${(stats.totalRevenue * 0.1).toLocaleString()} UZS`} icon={DollarSign} />
           <FinanceCard title="Sarflangan pul" value="0 UZS" icon={Wallet} />
           <FinanceCard
-            title="Ko'rsatilgan xizmatlar"
+            title="Jami xizmat ko'rsatilgan vaqt (soat):"
             value={isServiceSummaryLoading ? '--:--:--' : serviceSummary?.totalDurationFormatted ?? '00:00:00'}
             icon={Clock}
-            secondaryLabel="Olingan summa"
+            secondaryLabel="Jami olingan summa:"
             secondaryValue={isServiceSummaryLoading
               ? 'Yuklanmoqda...'
-              : `${formatCurrency(serviceSummary?.totalEarnedAmount ?? 0)} so'm`}
+              : `${formatCurrency(serviceSummary?.totalIncome ?? 0)} so'm`}
             subValue={serviceSummaryError
               ? serviceSummaryError
               : serviceSummary?.totalRecords
-                ? `${serviceSummary.totalRecords} ta yakunlangan xizmat`
+                ? `${serviceSummary.totalRecords} ta asset bo'yicha`
                 : "Ko'rsatilgan xizmatlar mavjud emas"}
-            onClick={() => setActivePanel('services')}
+            onClick={openServicesPanel}
             isActive={activePanel === 'services'}
           />
           <FinanceCard title="Qaytarilgan mahsulotlar" value="0 UZS" icon={ArrowRightLeft} />
@@ -637,7 +698,7 @@ export default function MoliyaPage() {
           </Button>
           <Button
             type="button"
-            onClick={() => setActivePanel('services')}
+            onClick={openServicesPanel}
             className={cn(
               'h-11 rounded-2xl px-6 text-[10px] font-black uppercase tracking-[0.25em]',
               activePanel === 'services'
@@ -1037,17 +1098,17 @@ export default function MoliyaPage() {
                 <div>
                   <h2 className="text-sm font-black uppercase tracking-widest text-white">Ko'rsatilgan xizmatlar</h2>
                   <p className="mt-1 text-[10px] font-bold uppercase tracking-widest text-white/40">
-                    Yakunlangan seanslar bo'yicha xizmat davomiyligi va olingan summa
+                    Assetlar bo'yicha yakunlangan xizmat davomiyligi va olingan summa
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-3">
                   <div className="rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3">
-                    <p className="text-[8px] font-black uppercase tracking-widest text-primary/60">Davomiylik</p>
+                    <p className="text-[8px] font-black uppercase tracking-widest text-primary/60">Jami xizmat ko'rsatilgan vaqt (soat):</p>
                     <p className="mt-1 text-lg font-black text-white">{filteredServiceSummary.totalDurationFormatted}</p>
                   </div>
                   <div className="rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3">
-                    <p className="text-[8px] font-black uppercase tracking-widest text-primary/60">Jami summa</p>
-                    <p className="mt-1 text-lg font-black text-white">{formatCurrency(filteredServiceSummary.totalEarnedAmount)} so'm</p>
+                    <p className="text-[8px] font-black uppercase tracking-widest text-primary/60">Jami olingan summa:</p>
+                    <p className="mt-1 text-lg font-black text-white">{formatCurrency(filteredServiceSummary.totalIncome)} so'm</p>
                   </div>
                 </div>
               </div>
@@ -1144,7 +1205,7 @@ export default function MoliyaPage() {
                       {servicePaymentOptions.map((option) => (
                         <DropdownMenuItem
                           key={option.value}
-                          onClick={() => setServicePaymentFilter(option.value as 'all' | 'submitted' | 'debt_closed')}
+                          onClick={() => setServicePaymentFilter(option.value as 'all' | 'paid' | 'debt')}
                           className="cursor-pointer rounded-xl px-5 py-3.5 text-[10px] font-black uppercase tracking-widest focus:bg-primary/10 focus:text-primary"
                         >
                           {option.label}
@@ -1184,104 +1245,148 @@ export default function MoliyaPage() {
               <Table>
                 <TableHeader className="bg-[#0d1f1f]/50">
                   <TableRow className="border-white/5 hover:bg-transparent">
-                    <TableHead className="h-10 px-5 text-[8px] font-black uppercase tracking-widest text-primary/60">Trade</TableHead>
-                    <TableHead className="h-10 text-[8px] font-black uppercase tracking-widest text-primary/60">Xona / Asset</TableHead>
+                    <TableHead className="h-10 px-5 text-[8px] font-black uppercase tracking-widest text-primary/60">Asset</TableHead>
+                    <TableHead className="h-10 text-[8px] font-black uppercase tracking-widest text-primary/60">Xona</TableHead>
                     <TableHead className="h-10 text-[8px] font-black uppercase tracking-widest text-primary/60">Xizmat</TableHead>
-                    <TableHead className="h-10 text-[8px] font-black uppercase tracking-widest text-primary/60">Boshlanish</TableHead>
-                    <TableHead className="h-10 text-[8px] font-black uppercase tracking-widest text-primary/60">Tugash</TableHead>
-                    <TableHead className="h-10 text-[8px] font-black uppercase tracking-widest text-primary/60">Davomiylik</TableHead>
-                    <TableHead className="h-10 text-[8px] font-black uppercase tracking-widest text-primary/60">Summa</TableHead>
-                    <TableHead className="h-10 text-[8px] font-black uppercase tracking-widest text-primary/60">To'lov</TableHead>
-                    <TableHead className="h-10 text-[8px] font-black uppercase tracking-widest text-primary/60">Qarzdor</TableHead>
-                    <TableHead className="h-10 pr-5 text-right text-[8px] font-black uppercase tracking-widest text-primary/60">Yakunlangan</TableHead>
+                    <TableHead className="h-10 text-[8px] font-black uppercase tracking-widest text-primary/60">Tartib</TableHead>
+                    <TableHead className="h-10 text-[8px] font-black uppercase tracking-widest text-primary/60">Jami vaqt</TableHead>
+                    <TableHead className="h-10 text-[8px] font-black uppercase tracking-widest text-primary/60">Jami daromad</TableHead>
+                    <TableHead className="h-10 text-[8px] font-black uppercase tracking-widest text-primary/60">Sessionlar</TableHead>
+                    <TableHead className="h-10 pr-5 text-right text-[8px] font-black uppercase tracking-widest text-primary/60">Tafsilot</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {isServiceDetailsLoading ? (
                     <TableRow>
-                      <TableCell colSpan={10} className="py-12 text-center text-[10px] font-bold uppercase tracking-widest text-white/30">
+                      <TableCell colSpan={8} className="py-12 text-center text-[10px] font-bold uppercase tracking-widest text-white/30">
                         Xizmat tafsilotlari yuklanmoqda...
                       </TableCell>
                     </TableRow>
                   ) : serviceDetailsError ? (
                     <TableRow>
-                      <TableCell colSpan={10} className="py-12 text-center text-[10px] font-bold uppercase tracking-widest text-red-300/70">
-                        {serviceDetailsError}
+                      <TableCell colSpan={8} className="py-12 text-center">
+                        <div className="space-y-3">
+                          <p className="text-[10px] font-bold uppercase tracking-widest text-red-300/70">
+                            {serviceDetailsError}
+                          </p>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={retryServiceDetailsLoad}
+                            className="h-10 rounded-2xl border-white/10 bg-white/5 px-5 text-[10px] font-black uppercase tracking-widest text-white/70 hover:bg-white/10 hover:text-white"
+                          >
+                            Qayta yuklash
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
-                  ) : filteredServiceDetails.length === 0 ? (
+                  ) : filteredServiceAssets.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={10} className="py-12 text-center text-[10px] font-bold uppercase tracking-widest text-white/30">
-                        {serviceDetails.length === 0 ? "Ko'rsatilgan xizmatlar mavjud emas" : "Filtr bo'yicha xizmat topilmadi"}
+                      <TableCell colSpan={8} className="py-12 text-center text-[10px] font-bold uppercase tracking-widest text-white/30">
+                        {serviceAssets.length === 0 ? "Ko'rsatilgan xizmatlar mavjud emas" : "Filtr bo'yicha xizmat topilmadi"}
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredServiceDetails.map((record) => (
-                      <TableRow key={record.id} className="border-white/5 transition-colors hover:bg-white/5">
-                        <TableCell className="px-5 py-4">
-                          <p className="text-[11px] font-black uppercase tracking-tight text-white">{record.referenceLabel}</p>
-                          <p className="mt-1 text-[9px] font-bold uppercase tracking-widest text-white/35">
-                            {record.sessionLabel ?? "Session ma'lum emas"}
-                          </p>
-                        </TableCell>
-                        <TableCell className="py-4">
-                          <p className="text-[10px] font-black text-white">{record.roomName}</p>
-                          <p className="mt-1 text-[9px] font-bold text-white/45">
-                            {record.assets.length > 0
-                              ? record.assets
-                                  .map((asset) => asset.name
-                                    ? `${asset.name}${asset.assetOrder ? ` #${asset.assetOrder}` : ''}`
-                                    : `Asset #${asset.id ?? '-'}`)
-                                  .join(', ')
-                              : 'Asset ma\'lum emas'}
-                          </p>
-                        </TableCell>
-                        <TableCell className="py-4 text-[10px] font-bold text-white/70">
-                          {record.services.length > 0 ? record.services.join(', ') : '-'}
-                        </TableCell>
-                        <TableCell className="py-4 text-[10px] font-bold text-white/70">
-                          {formatDateTime(record.startTime)}
-                        </TableCell>
-                        <TableCell className="py-4 text-[10px] font-bold text-white/70">
-                          {formatDateTime(record.endTime)}
-                        </TableCell>
-                        <TableCell className="py-4 text-[10px] font-black text-primary">
-                          {record.durationFormatted}
-                        </TableCell>
-                        <TableCell className="py-4 text-[10px] font-black text-primary">
-                          {formatCurrency(record.amount)} so'm
-                        </TableCell>
-                        <TableCell className="py-4">
-                          <Badge className={cn(
-                            'border uppercase tracking-widest',
-                            record.paymentStatus === 'submitted'
-                              ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
-                              : 'border-amber-500/30 bg-amber-500/10 text-amber-200',
-                          )}>
-                            {record.paymentStatusLabel}
-                          </Badge>
-                          <p className="mt-2 text-[9px] font-bold uppercase tracking-widest text-white/35">
-                            {record.paymentMethodLabel}
-                          </p>
-                        </TableCell>
-                        <TableCell className="py-4 text-[10px] font-bold text-white/70">
-                          {record.debtorName ? (
-                            <>
-                              <p>{record.debtorName}</p>
-                              <p className="mt-1 text-[9px] uppercase tracking-widest text-white/35">
-                                {record.debtorPhone ?? '-'}
-                              </p>
-                            </>
-                          ) : '-'}
-                        </TableCell>
-                        <TableCell className="py-4 pr-5 text-right text-[10px] font-bold text-white/70">
-                          <p>{formatDateTime(record.completedAt)}</p>
-                          <p className="mt-1 text-[9px] uppercase tracking-widest text-white/35">
-                            {record.createdAt ? `Yaratilgan: ${formatDateTime(record.createdAt)}` : '-'}
-                          </p>
-                        </TableCell>
-                      </TableRow>
-                    ))
+                    filteredServiceAssets.flatMap((asset) => {
+                      const key = serviceAssetKey(asset);
+                      const isExpanded = expandedAssetKeys.includes(key);
+
+                      return [
+                        <TableRow key={key} className="border-white/5 transition-colors hover:bg-white/5">
+                          <TableCell className="px-5 py-4">
+                            <p className="text-[11px] font-black uppercase tracking-tight text-white">{asset.assetName}</p>
+                            <p className="mt-1 text-[9px] font-bold uppercase tracking-widest text-white/35">
+                              {asset.assetId ? `Asset ID #${asset.assetId}` : "Asset ID yo'q"}
+                            </p>
+                          </TableCell>
+                          <TableCell className="py-4 text-[10px] font-bold text-white/70">{asset.roomName}</TableCell>
+                          <TableCell className="py-4 text-[10px] font-bold text-white/70">{asset.serviceName}</TableCell>
+                          <TableCell className="py-4 text-[10px] font-bold text-white/70">
+                            {asset.assetOrder ? `#${asset.assetOrder}` : '-'}
+                          </TableCell>
+                          <TableCell className="py-4 text-[10px] font-black text-primary">
+                            {asset.totalDurationFormatted}
+                          </TableCell>
+                          <TableCell className="py-4 text-[10px] font-black text-primary">
+                            {formatCurrency(asset.totalIncome)} so'm
+                          </TableCell>
+                          <TableCell className="py-4 text-[10px] font-bold text-white/70">
+                            {asset.sessions.length} ta
+                          </TableCell>
+                          <TableCell className="py-4 pr-5 text-right">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              onClick={() => setExpandedAssetKeys((current) => (
+                                current.includes(key)
+                                  ? current.filter((item) => item !== key)
+                                  : [...current, key]
+                              ))}
+                              className="h-9 rounded-xl border border-white/10 bg-white/5 px-3 text-[10px] font-black uppercase tracking-widest text-white/70 hover:bg-white/10 hover:text-white"
+                            >
+                              <ChevronDown className={cn('mr-2 h-4 w-4 transition-transform', isExpanded && 'rotate-180')} />
+                              {isExpanded ? 'Yopish' : 'Ochish'}
+                            </Button>
+                          </TableCell>
+                        </TableRow>,
+                        ...(isExpanded ? [
+                          <TableRow key={`${key}-sessions`} className="border-white/5 bg-[#051111]">
+                            <TableCell colSpan={8} className="px-5 py-5">
+                              <div className="overflow-hidden rounded-2xl border border-white/5">
+                                <Table>
+                                  <TableHeader className="bg-[#081818]">
+                                    <TableRow className="border-white/5 hover:bg-transparent">
+                                      <TableHead className="h-10 px-4 text-[8px] font-black uppercase tracking-widest text-primary/60">Session</TableHead>
+                                      <TableHead className="h-10 text-[8px] font-black uppercase tracking-widest text-primary/60">Boshlanish</TableHead>
+                                      <TableHead className="h-10 text-[8px] font-black uppercase tracking-widest text-primary/60">Tugash</TableHead>
+                                      <TableHead className="h-10 text-[8px] font-black uppercase tracking-widest text-primary/60">Davomiylik</TableHead>
+                                      <TableHead className="h-10 text-[8px] font-black uppercase tracking-widest text-primary/60">Summa</TableHead>
+                                      <TableHead className="h-10 text-[8px] font-black uppercase tracking-widest text-primary/60">Holat</TableHead>
+                                      <TableHead className="h-10 pr-4 text-right text-[8px] font-black uppercase tracking-widest text-primary/60">Yakunlangan</TableHead>
+                                    </TableRow>
+                                  </TableHeader>
+                                  <TableBody>
+                                    {asset.sessions.map((session) => (
+                                      <TableRow key={`${key}-${session.tradeId}`} className="border-white/5 hover:bg-white/5">
+                                        <TableCell className="px-4 py-4">
+                                          <p className="text-[10px] font-black text-white">{`Trade #${session.tradeId}`}</p>
+                                          <p className="mt-1 text-[9px] font-bold uppercase tracking-widest text-white/35">
+                                            {session.sessionId ? `Session #${session.sessionId}` : "Session yo'q"}
+                                          </p>
+                                          {session.debtorName ? (
+                                            <p className="mt-2 text-[9px] font-bold text-white/45">
+                                              {session.debtorName} {session.debtorPhone ? `• ${session.debtorPhone}` : ''}
+                                            </p>
+                                          ) : null}
+                                        </TableCell>
+                                        <TableCell className="py-4 text-[10px] font-bold text-white/70">{formatDateTime(session.startTime)}</TableCell>
+                                        <TableCell className="py-4 text-[10px] font-bold text-white/70">{formatDateTime(session.endTime)}</TableCell>
+                                        <TableCell className="py-4 text-[10px] font-black text-primary">{session.durationFormatted}</TableCell>
+                                        <TableCell className="py-4 text-[10px] font-black text-primary">{formatCurrency(session.amount)} so'm</TableCell>
+                                        <TableCell className="py-4">
+                                          <Badge className={cn(
+                                            'border uppercase tracking-widest',
+                                            session.paymentStatus === 'paid'
+                                              ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
+                                              : 'border-amber-500/30 bg-amber-500/10 text-amber-200',
+                                          )}>
+                                            {session.paymentStatusLabel}
+                                          </Badge>
+                                          <p className="mt-2 text-[9px] font-bold uppercase tracking-widest text-white/35">
+                                            {session.paymentMethodLabel}
+                                          </p>
+                                        </TableCell>
+                                        <TableCell className="py-4 pr-4 text-right text-[10px] font-bold text-white/70">{formatDateTime(session.completedAt)}</TableCell>
+                                      </TableRow>
+                                    ))}
+                                  </TableBody>
+                                </Table>
+                              </div>
+                            </TableCell>
+                          </TableRow>,
+                        ] : []),
+                      ];
+                    })
                   )}
                 </TableBody>
               </Table>
@@ -1294,12 +1399,15 @@ export default function MoliyaPage() {
                   </span>
                   <span className="text-[9px] font-bold uppercase tracking-widest text-white/30">Jami summa:</span>
                   <span className="text-xs font-black uppercase tracking-tight text-primary">
-                    {formatCurrency(filteredServiceSummary.totalEarnedAmount)} so'm
+                    {formatCurrency(filteredServiceSummary.totalIncome)} so'm
                   </span>
                 </div>
                 <div className="flex items-center gap-3">
                   <Badge className="border-primary/20 bg-primary/10 text-primary">
-                    Qatorlar: {filteredServiceSummary.totalRecords}
+                    Assetlar: {filteredServiceSummary.totalRecords}
+                  </Badge>
+                  <Badge className="border-white/10 bg-white/5 text-white/70">
+                    Sessionlar: {filteredServiceSummary.totalSessionRecords}
                   </Badge>
                 </div>
               </div>

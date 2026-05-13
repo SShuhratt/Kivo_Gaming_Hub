@@ -5,7 +5,7 @@ import { useToast } from '@/hooks/use-toast';
 import {
   ApiError,
   type ApiDebtRecord,
-  type ApiServiceFinanceDetail,
+  type ApiServiceFinanceDetailsResponse,
   type ApiServiceFinanceSummary,
   type ApiSession,
   type ApiUser,
@@ -224,43 +224,44 @@ export interface SessionRecord {
 export interface ServiceFinanceSummary {
   totalDurationSeconds: number;
   totalDurationFormatted: string;
-  totalEarnedAmount: number;
+  totalIncome: number;
   totalRecords: number;
+  totalSessionRecords: number;
 }
 
-export interface ServiceFinanceDetailAsset {
-  id: number | null;
-  name: string | null;
-  serviceId: number | null;
-  serviceName: string | null;
-  roomId: number | null;
-  roomName: string | null;
-  roomNumber: string | null;
-  assetOrder: number | null;
-  hourlyPrice: number | null;
-}
-
-export interface ServiceFinanceDetailRecord {
-  id: number;
-  bookingId: number | null;
-  referenceLabel: string;
-  sessionLabel: string | null;
-  roomName: string;
-  assets: ServiceFinanceDetailAsset[];
-  services: string[];
+export interface ServiceFinanceAssetSession {
+  sessionId: number | null;
+  tradeId: number;
   startTime: string | null;
   endTime: string | null;
+  completedAt: string | null;
   durationSeconds: number;
   durationFormatted: string;
   amount: number;
-  paymentStatus: 'submitted' | 'debt_closed';
+  paymentStatus: 'paid' | 'debt';
+  paymentStatusCode: 'submitted' | 'debt_closed';
   paymentStatusLabel: string;
   paymentMethod: 'cash' | 'debt';
   paymentMethodLabel: string;
   debtorName: string | null;
   debtorPhone: string | null;
-  completedAt: string | null;
-  createdAt: string | null;
+}
+
+export interface ServiceFinanceAssetRecord {
+  assetId: number | null;
+  assetName: string;
+  roomName: string;
+  serviceName: string;
+  assetOrder: number | null;
+  totalDurationSeconds: number;
+  totalDurationFormatted: string;
+  totalIncome: number;
+  sessions: ServiceFinanceAssetSession[];
+}
+
+export interface ServiceFinanceDetailsResponse {
+  summary: ServiceFinanceSummary;
+  assets: ServiceFinanceAssetRecord[];
 }
 
 export interface BookingCalculation {
@@ -408,7 +409,7 @@ interface DashboardContextType {
   }) => Promise<string | null>;
   deleteDebt: (debtId: string) => Promise<void>;
   getServiceFinanceSummary: () => Promise<ServiceFinanceSummary>;
-  getServiceFinanceDetails: () => Promise<ServiceFinanceDetailRecord[]>;
+  getServiceFinanceDetails: () => Promise<ServiceFinanceDetailsResponse>;
 }
 
 const DashboardContext = createContext<DashboardContextType | undefined>(undefined);
@@ -536,43 +537,42 @@ function mapServiceFinanceSummary(summary: ApiServiceFinanceSummary): ServiceFin
   return {
     totalDurationSeconds: summary.total_duration_seconds,
     totalDurationFormatted: summary.total_duration_formatted,
-    totalEarnedAmount: summary.total_earned_amount,
+    totalIncome: summary.total_income ?? summary.total_earned_amount ?? 0,
     totalRecords: summary.total_records,
+    totalSessionRecords: summary.total_session_records ?? 0,
   };
 }
 
-function mapServiceFinanceDetailRecord(record: ApiServiceFinanceDetail): ServiceFinanceDetailRecord {
+function mapServiceFinanceDetailsResponse(response: ApiServiceFinanceDetailsResponse): ServiceFinanceDetailsResponse {
   return {
-    id: record.id,
-    bookingId: record.booking_id,
-    referenceLabel: record.reference_label,
-    sessionLabel: record.session_label,
-    roomName: record.room_name,
-    assets: record.assets.map((asset) => ({
-      id: asset.id,
-      name: asset.name,
-      serviceId: asset.service_id ?? null,
-      serviceName: asset.service_name ?? null,
-      roomId: asset.room_id,
+    summary: mapServiceFinanceSummary(response.summary),
+    assets: response.assets.map((asset) => ({
+      assetId: asset.asset_id,
+      assetName: asset.asset_name,
       roomName: asset.room_name,
-      roomNumber: asset.room_number,
-      assetOrder: asset.asset_order ?? null,
-      hourlyPrice: asset.hourly_price,
+      serviceName: asset.service_name,
+      assetOrder: asset.asset_order,
+      totalDurationSeconds: asset.total_duration_seconds,
+      totalDurationFormatted: asset.total_duration_formatted,
+      totalIncome: asset.total_income,
+      sessions: asset.sessions.map((session) => ({
+        sessionId: session.session_id,
+        tradeId: session.trade_id,
+        startTime: session.start_time,
+        endTime: session.end_time,
+        completedAt: session.completed_at,
+        durationSeconds: session.duration_seconds,
+        durationFormatted: session.duration_formatted,
+        amount: session.amount,
+        paymentStatus: session.payment_status,
+        paymentStatusCode: session.payment_status_code,
+        paymentStatusLabel: session.payment_status_label,
+        paymentMethod: session.payment_method,
+        paymentMethodLabel: session.payment_method_label,
+        debtorName: session.debtor_name,
+        debtorPhone: session.debtor_phone,
+      })),
     })),
-    services: record.services,
-    startTime: record.start_time,
-    endTime: record.end_time,
-    durationSeconds: record.duration_seconds,
-    durationFormatted: record.duration_formatted,
-    amount: record.amount,
-    paymentStatus: record.payment_status,
-    paymentStatusLabel: record.payment_status_label,
-    paymentMethod: record.payment_method,
-    paymentMethodLabel: record.payment_method_label,
-    debtorName: record.debtor_name,
-    debtorPhone: record.debtor_phone,
-    completedAt: record.completed_at,
-    createdAt: record.created_at,
   };
 }
 
@@ -1328,14 +1328,24 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
 
   const getServiceFinanceSummary = useCallback(async () => {
     const activeToken = requireToken();
-    return mapServiceFinanceSummary(await getServiceFinanceSummaryRequest(activeToken));
+    const response = await getServiceFinanceSummaryRequest(activeToken);
+
+    if (typeof response !== 'object' || response === null || !('total_duration_seconds' in response) || !('total_duration_formatted' in response)) {
+      throw new Error("Xizmatlar summary javobi noto'g'ri formatda keldi.");
+    }
+
+    return mapServiceFinanceSummary(response);
   }, [requireToken]);
 
   const getServiceFinanceDetails = useCallback(async () => {
     const activeToken = requireToken();
     const response = await getServiceFinanceDetailsRequest(activeToken);
 
-    return response.map(mapServiceFinanceDetailRecord);
+    if (typeof response !== 'object' || response === null || !Array.isArray(response.assets) || !response.summary) {
+      throw new Error("Xizmatlar tafsilotlari javobi noto'g'ri formatda keldi.");
+    }
+
+    return mapServiceFinanceDetailsResponse(response);
   }, [requireToken]);
 
   const servicesReady = services.length > 0;

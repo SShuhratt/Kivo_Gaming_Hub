@@ -588,34 +588,94 @@ class BookingAndFinanceApiTest extends TestCase
             ->assertOk()
             ->assertJsonPath('total_duration_seconds', 98130)
             ->assertJsonPath('total_duration_formatted', '27:15:30')
-            ->assertJsonPath('total_earned_amount', 75000)
+            ->assertJsonPath('total_income', 75000)
             ->assertJsonPath('total_records', 2);
 
         $details = $this->getJson('/api/finance/service-details', $headers)
             ->assertOk()
-            ->assertJsonCount(2)
+            ->assertJsonPath('summary.total_duration_seconds', 98130)
+            ->assertJsonPath('summary.total_duration_formatted', '27:15:30')
+            ->assertJsonPath('summary.total_income', 75000)
+            ->assertJsonCount(2, 'assets')
             ->json();
 
-        $paidRecord = collect($details)->firstWhere('id', $paidTrade->id);
-        $debtRecord = collect($details)->firstWhere('id', $debtTrade->id);
+        $paidAsset = collect($details['assets'])->firstWhere('asset_name', 'computer2');
+        $debtAsset = collect($details['assets'])->firstWhere('asset_name', 'ps5(1)');
 
-        $this->assertNotNull($paidRecord);
-        $this->assertSame('Trade #'.$paidTrade->id, $paidRecord['reference_label']);
-        $this->assertSame('Opshiy zal', $paidRecord['room_name']);
-        $this->assertSame('01:15:30', $paidRecord['duration_formatted']);
-        $this->assertEquals(25000.0, $paidRecord['amount']);
-        $this->assertSame('submitted', $paidRecord['payment_status']);
-        $this->assertSame("To'langan", $paidRecord['payment_status_label']);
-        $this->assertSame(['Computer'], $paidRecord['services']);
+        $this->assertNotNull($paidAsset);
+        $this->assertSame('Opshiy zal', $paidAsset['room_name']);
+        $this->assertSame('Computer', $paidAsset['service_name']);
+        $this->assertSame(1, $paidAsset['asset_order']);
+        $this->assertSame('01:15:30', $paidAsset['total_duration_formatted']);
+        $this->assertEquals(25000.0, $paidAsset['total_income']);
+        $this->assertCount(1, $paidAsset['sessions']);
+        $this->assertSame($paidTrade->id, $paidAsset['sessions'][0]['trade_id']);
+        $this->assertSame('paid', $paidAsset['sessions'][0]['payment_status']);
+        $this->assertSame("To'langan", $paidAsset['sessions'][0]['payment_status_label']);
 
-        $this->assertNotNull($debtRecord);
-        $this->assertSame('Session #'.$completedDebtBooking->id, $debtRecord['session_label']);
-        $this->assertSame('26:00:00', $debtRecord['duration_formatted']);
-        $this->assertSame('debt_closed', $debtRecord['payment_status']);
-        $this->assertSame('Qarz', $debtRecord['payment_status_label']);
-        $this->assertSame('Vali', $debtRecord['debtor_name']);
-        $this->assertSame('+998909876543', $debtRecord['debtor_phone']);
-        $this->assertSame(['PS5'], $debtRecord['services']);
+        $this->assertNotNull($debtAsset);
+        $this->assertSame($completedDebtBooking->id, $debtAsset['sessions'][0]['session_id']);
+        $this->assertSame('26:00:00', $debtAsset['total_duration_formatted']);
+        $this->assertSame('debt', $debtAsset['sessions'][0]['payment_status']);
+        $this->assertSame('Qarz', $debtAsset['sessions'][0]['payment_status_label']);
+        $this->assertSame('Vali', $debtAsset['sessions'][0]['debtor_name']);
+        $this->assertSame('+998909876543', $debtAsset['sessions'][0]['debtor_phone']);
+    }
+
+    public function test_service_finance_details_allocate_multi_asset_trade_income_by_asset_pricing_weight(): void
+    {
+        $headers = $this->authHeaders();
+        $room = Room::create(['name' => '2-xona']);
+
+        Trade::create([
+            'booking_id' => null,
+            'tariff_name' => 'Service pricing',
+            'hourly_rate' => 55000,
+            'payment_status' => 'submitted',
+            'session_status' => 'completed',
+            'start_time' => '2026-04-25T12:00:00+05:00',
+            'end_time' => '2026-04-25T14:00:00+05:00',
+            'duration_minutes' => 120,
+            'total_cost' => 110000,
+            'asset_snapshot' => [
+                [
+                    'id' => 21,
+                    'name' => 'computer1',
+                    'service_name' => 'Computer',
+                    'room_id' => $room->id,
+                    'room_name' => $room->name,
+                    'room_number' => $room->name,
+                    'asset_order' => 1,
+                    'hourly_price' => 20000,
+                ],
+                [
+                    'id' => 22,
+                    'name' => 'ps5(1)',
+                    'service_name' => 'PS5',
+                    'room_id' => $room->id,
+                    'room_name' => $room->name,
+                    'room_number' => $room->name,
+                    'asset_order' => 1,
+                    'hourly_price' => 35000,
+                ],
+            ],
+            'assets_count' => 2,
+        ]);
+
+        $assets = $this->getJson('/api/finance/service-details', $headers)
+            ->assertOk()
+            ->json('assets');
+
+        $computerAsset = collect($assets)->firstWhere('asset_name', 'computer1');
+        $ps5Asset = collect($assets)->firstWhere('asset_name', 'ps5(1)');
+
+        $this->assertNotNull($computerAsset);
+        $this->assertNotNull($ps5Asset);
+        $this->assertSame('02:00:00', $computerAsset['total_duration_formatted']);
+        $this->assertSame('02:00:00', $ps5Asset['total_duration_formatted']);
+        $this->assertEquals(40000.0, $computerAsset['total_income']);
+        $this->assertEquals(70000.0, $ps5Asset['total_income']);
+        $this->assertEquals(110000.0, (float) $computerAsset['total_income'] + (float) $ps5Asset['total_income']);
     }
 
     public function test_debt_list_includes_active_and_saved_records_without_duplicates_and_survives_session_deletion(): void

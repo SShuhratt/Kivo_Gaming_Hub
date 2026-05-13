@@ -211,41 +211,45 @@ export type ApiDebtRecord = {
 export type ApiServiceFinanceSummary = {
   total_duration_seconds: number;
   total_duration_formatted: string;
-  total_earned_amount: number;
+  total_income: number;
+  total_earned_amount?: number;
   total_records: number;
+  total_session_records?: number;
 };
 
-export type ApiServiceFinanceDetail = {
-  id: number;
-  booking_id: number | null;
-  reference_label: string;
-  session_label: string | null;
-  room_name: string;
-  assets: Array<{
-    id: number | null;
-    name: string | null;
-    service_id?: number | null;
-    service_name?: string | null;
-    room_id: number | null;
-    room_name: string | null;
-    room_number: string | null;
-    asset_order?: number | null;
-    hourly_price: number | null;
-  }>;
-  services: string[];
+export type ApiServiceFinanceAssetSession = {
+  session_id: number | null;
+  trade_id: number;
   start_time: string | null;
   end_time: string | null;
+  completed_at: string | null;
   duration_seconds: number;
   duration_formatted: string;
   amount: number;
-  payment_status: 'submitted' | 'debt_closed';
+  payment_status: 'paid' | 'debt';
+  payment_status_code: 'submitted' | 'debt_closed';
   payment_status_label: string;
   payment_method: 'cash' | 'debt';
   payment_method_label: string;
   debtor_name: string | null;
   debtor_phone: string | null;
-  completed_at: string | null;
-  created_at: string | null;
+};
+
+export type ApiServiceFinanceAsset = {
+  asset_id: number | null;
+  asset_name: string;
+  room_name: string;
+  service_name: string;
+  asset_order: number | null;
+  total_duration_seconds: number;
+  total_duration_formatted: string;
+  total_income: number;
+  sessions: ApiServiceFinanceAssetSession[];
+};
+
+export type ApiServiceFinanceDetailsResponse = {
+  summary: ApiServiceFinanceSummary;
+  assets: ApiServiceFinanceAsset[];
 };
 
 export type ApiSessionTrade = {
@@ -930,7 +934,7 @@ export function getServiceFinanceSummaryRequest(token: string) {
 }
 
 export function getServiceFinanceDetailsRequest(token: string) {
-  return apiRequest<ApiServiceFinanceDetail[]>('/finance/service-details', {
+  return apiRequest<ApiServiceFinanceDetailsResponse>('/finance/service-details', {
     token,
   });
 }
