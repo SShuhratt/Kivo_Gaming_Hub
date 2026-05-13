@@ -213,18 +213,19 @@ function summarizeServiceAssets(assets: ServiceFinanceAssetRecord[]) {
 
   for (const asset of assets) {
     for (const session of asset.sessions) {
-      if (!uniqueSessions.has(session.tradeId)) {
+      if (session && session.tradeId && !uniqueSessions.has(session.tradeId)) {
         uniqueSessions.set(session.tradeId, session);
       }
     }
   }
 
-  const totalDurationSeconds = assets.reduce((acc, asset) => acc + asset.totalDurationSeconds, 0);
+  const totalDurationSeconds = assets.reduce((acc, asset) => acc + (Number(asset.totalDurationSeconds) || 0), 0);
+  const totalIncome = assets.reduce((acc, asset) => acc + (Number(asset.totalIncome) || 0), 0);
 
   return {
     totalDurationSeconds,
     totalDurationFormatted: formatDurationFromSeconds(totalDurationSeconds),
-    totalIncome: assets.reduce((acc, asset) => acc + asset.totalIncome, 0),
+    totalIncome,
     totalRecords: assets.length,
     totalSessionRecords: uniqueSessions.size,
   };
@@ -600,8 +601,30 @@ export default function MoliyaPage() {
   ]);
 
   const filteredServiceSummary = useMemo(() => {
+    // Prefer API summary for consistency when no filters are applied
+    const hasActiveFilters =
+      serviceRoomFilter !== 'BARCHASI' ||
+      serviceAssetFilter !== 'BARCHASI' ||
+      serviceNameFilter !== 'BARCHASI' ||
+      servicePaymentFilter !== 'all' ||
+      serviceStartDate !== '' ||
+      serviceEndDate !== '';
+
+    if (!hasActiveFilters && serviceDetailsResponse?.summary) {
+      return serviceDetailsResponse.summary;
+    }
+
     return summarizeServiceAssets(filteredServiceAssets);
-  }, [filteredServiceAssets]);
+  }, [
+    filteredServiceAssets,
+    serviceDetailsResponse,
+    serviceRoomFilter,
+    serviceAssetFilter,
+    serviceNameFilter,
+    servicePaymentFilter,
+    serviceStartDate,
+    serviceEndDate,
+  ]);
 
   const stats = useMemo(() => {
     const totalRevenue = filteredSales.reduce((acc, curr) => acc + curr.total, 0);
