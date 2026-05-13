@@ -28,6 +28,7 @@ class ServiceFinanceReportService
     {
         $completedTrades = $this->completedTrades();
         $assetGroups = $this->assetGroupsCollection($completedTrades);
+        
         $tradeSessions = $completedTrades
             ->map(fn (Trade $trade) => $this->mapTradeSummarySession($trade))
             ->values();
@@ -41,7 +42,10 @@ class ServiceFinanceReportService
     protected function completedTrades(): Collection
     {
         return Trade::query()
-            ->where('session_status', 'completed')
+            ->where(function ($query) {
+                $query->where('session_status', 'completed')
+                      ->orWhereNotNull('asset_snapshot');
+            })
             ->orderByDesc('end_time')
             ->orderByDesc('created_at')
             ->get();

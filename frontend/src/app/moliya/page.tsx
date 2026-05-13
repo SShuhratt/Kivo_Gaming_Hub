@@ -344,7 +344,8 @@ export default function MoliyaPage() {
   const [serviceAssetFilter, setServiceAssetFilter] = useState('BARCHASI');
   const [serviceNameFilter, setServiceNameFilter] = useState('BARCHASI');
   const [servicePaymentFilter, setServicePaymentFilter] = useState<'all' | 'paid' | 'debt'>('all');
-  const [expandedAssetKeys, setExpandedAssetKeys] = useState<string[]>([]);
+  // Remove expandedAssetKeys as it's no longer needed after removing the expansion button
+  // const [expandedAssetKeys, setExpandedAssetKeys] = useState<string[]>([]);
 
   const [debtToPay, setDebtToPay] = useState<string | null>(null);
   const [debtToDelete, setDebtToDelete] = useState<string | null>(null);
@@ -522,9 +523,10 @@ export default function MoliyaPage() {
     [dashboardAssets],
   );
 
-  const serviceAssets = serviceDetailsResponse?.assets?.length
-    ? serviceDetailsResponse.assets
-    : fallbackServiceAssets;
+  const serviceAssets = useMemo(() => {
+    if (!serviceDetailsResponse) return fallbackServiceAssets;
+    return serviceDetailsResponse.assets;
+  }, [serviceDetailsResponse, fallbackServiceAssets]);
 
   const displayedServiceSummary = useMemo(() => {
     if (
@@ -609,6 +611,16 @@ export default function MoliyaPage() {
       servicePaymentFilter !== 'all' ||
       serviceStartDate !== '' ||
       serviceEndDate !== '';
+
+    if (isServiceDetailsLoading && !serviceDetailsResponse) {
+      return {
+        totalDurationSeconds: 0,
+        totalDurationFormatted: '--:--:--',
+        totalIncome: 0,
+        totalRecords: 0,
+        totalSessionRecords: 0,
+      };
+    }
 
     if (!hasActiveFilters && serviceDetailsResponse?.summary) {
       return serviceDetailsResponse.summary;
@@ -1379,19 +1391,18 @@ export default function MoliyaPage() {
                     <TableHead className="h-10 text-[8px] font-black uppercase tracking-widest text-primary/60">Jami vaqt</TableHead>
                     <TableHead className="h-10 text-[8px] font-black uppercase tracking-widest text-primary/60">Jami daromad</TableHead>
                     <TableHead className="h-10 text-[8px] font-black uppercase tracking-widest text-primary/60">Sessionlar</TableHead>
-                    <TableHead className="h-10 pr-5 text-right text-[8px] font-black uppercase tracking-widest text-primary/60">Tafsilot</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {isServiceDetailsLoading && filteredServiceAssets.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="py-12 text-center text-[10px] font-bold uppercase tracking-widest text-white/30">
+                      <TableCell colSpan={7} className="py-12 text-center text-[10px] font-bold uppercase tracking-widest text-white/30">
                         Xizmat tafsilotlari yuklanmoqda...
                       </TableCell>
                     </TableRow>
                   ) : serviceDetailsError && filteredServiceAssets.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="py-12 text-center">
+                      <TableCell colSpan={7} className="py-12 text-center">
                         <div className="space-y-3">
                           <p className="text-[10px] font-bold uppercase tracking-widest text-red-300/70">
                             {serviceDetailsError}
@@ -1409,16 +1420,15 @@ export default function MoliyaPage() {
                     </TableRow>
                   ) : filteredServiceAssets.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="py-12 text-center text-[10px] font-bold uppercase tracking-widest text-white/30">
+                      <TableCell colSpan={7} className="py-12 text-center text-[10px] font-bold uppercase tracking-widest text-white/30">
                         {serviceAssets.length === 0 ? "Ko'rsatilgan xizmatlar mavjud emas" : "Filtr bo'yicha xizmat topilmadi"}
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredServiceAssets.flatMap((asset) => {
+                    filteredServiceAssets.map((asset) => {
                       const key = serviceAssetKey(asset);
-                      const isExpanded = expandedAssetKeys.includes(key);
 
-                      return [
+                      return (
                         <TableRow key={key} className="border-white/5 transition-colors hover:bg-white/5">
                           <TableCell className="px-5 py-4">
                             <p className="text-[11px] font-black uppercase tracking-tight text-white">{asset.assetName}</p>
@@ -1437,92 +1447,11 @@ export default function MoliyaPage() {
                           <TableCell className="py-4 text-[10px] font-black text-primary">
                             {formatCurrency(asset.totalIncome)} so'm
                           </TableCell>
-                          <TableCell className="py-4 text-[10px] font-bold text-white/70">
+                          <TableCell className="py-4 pr-5 text-[10px] font-bold text-white/70">
                             {asset.sessions.length} ta
                           </TableCell>
-                          <TableCell className="py-4 pr-5 text-right">
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              onClick={() => setExpandedAssetKeys((current) => (
-                                current.includes(key)
-                                  ? current.filter((item) => item !== key)
-                                  : [...current, key]
-                              ))}
-                              className="h-9 rounded-xl border border-white/10 bg-white/5 px-3 text-[10px] font-black uppercase tracking-widest text-white/70 hover:bg-white/10 hover:text-white"
-                            >
-                              <ChevronDown className={cn('mr-2 h-4 w-4 transition-transform', isExpanded && 'rotate-180')} />
-                              {isExpanded ? 'Yopish' : 'Ochish'}
-                            </Button>
-                          </TableCell>
-                        </TableRow>,
-                        ...(isExpanded ? [
-                          <TableRow key={`${key}-sessions`} className="border-white/5 bg-[#051111]">
-                            <TableCell colSpan={8} className="px-5 py-5">
-                              <div className="overflow-hidden rounded-2xl border border-white/5">
-                                <Table>
-                                  <TableHeader className="bg-[#081818]">
-                                    <TableRow className="border-white/5 hover:bg-transparent">
-                                      <TableHead className="h-10 px-4 text-[8px] font-black uppercase tracking-widest text-primary/60">Session</TableHead>
-                                      <TableHead className="h-10 text-[8px] font-black uppercase tracking-widest text-primary/60">Boshlanish</TableHead>
-                                      <TableHead className="h-10 text-[8px] font-black uppercase tracking-widest text-primary/60">Tugash</TableHead>
-                                      <TableHead className="h-10 text-[8px] font-black uppercase tracking-widest text-primary/60">Davomiylik</TableHead>
-                                      <TableHead className="h-10 text-[8px] font-black uppercase tracking-widest text-primary/60">Summa</TableHead>
-                                      <TableHead className="h-10 text-[8px] font-black uppercase tracking-widest text-primary/60">Holat</TableHead>
-                                      <TableHead className="h-10 pr-4 text-right text-[8px] font-black uppercase tracking-widest text-primary/60">Yakunlangan</TableHead>
-                                    </TableRow>
-                                  </TableHeader>
-                                  <TableBody>
-                                    {asset.sessions.length === 0 ? (
-                                      <TableRow>
-                                        <TableCell colSpan={7} className="px-4 py-8 text-center text-[10px] font-bold uppercase tracking-widest text-white/35">
-                                          {isServiceDetailsLoading
-                                            ? "Sessiya tafsilotlari yuklanmoqda..."
-                                            : serviceDetailsError
-                                              ? serviceDetailsError
-                                              : "Sessiya tafsilotlari mavjud emas"}
-                                        </TableCell>
-                                      </TableRow>
-                                    ) : asset.sessions.map((session) => (
-                                      <TableRow key={`${key}-${session.tradeId}`} className="border-white/5 hover:bg-white/5">
-                                        <TableCell className="px-4 py-4">
-                                          <p className="text-[10px] font-black text-white">{`Trade #${session.tradeId}`}</p>
-                                          <p className="mt-1 text-[9px] font-bold uppercase tracking-widest text-white/35">
-                                            {session.sessionId ? `Session #${session.sessionId}` : "Session yo'q"}
-                                          </p>
-                                          {session.debtorName ? (
-                                            <p className="mt-2 text-[9px] font-bold text-white/45">
-                                              {session.debtorName} {session.debtorPhone ? `• ${session.debtorPhone}` : ''}
-                                            </p>
-                                          ) : null}
-                                        </TableCell>
-                                        <TableCell className="py-4 text-[10px] font-bold text-white/70">{formatDateTime(session.startTime)}</TableCell>
-                                        <TableCell className="py-4 text-[10px] font-bold text-white/70">{formatDateTime(session.endTime)}</TableCell>
-                                        <TableCell className="py-4 text-[10px] font-black text-primary">{session.durationFormatted}</TableCell>
-                                        <TableCell className="py-4 text-[10px] font-black text-primary">{formatCurrency(session.amount)} so'm</TableCell>
-                                        <TableCell className="py-4">
-                                          <Badge className={cn(
-                                            'border uppercase tracking-widest',
-                                            session.paymentStatus === 'paid'
-                                              ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
-                                              : 'border-amber-500/30 bg-amber-500/10 text-amber-200',
-                                          )}>
-                                            {session.paymentStatusLabel}
-                                          </Badge>
-                                          <p className="mt-2 text-[9px] font-bold uppercase tracking-widest text-white/35">
-                                            {session.paymentMethodLabel}
-                                          </p>
-                                        </TableCell>
-                                        <TableCell className="py-4 pr-4 text-right text-[10px] font-bold text-white/70">{formatDateTime(session.completedAt)}</TableCell>
-                                      </TableRow>
-                                    ))}
-                                  </TableBody>
-                                </Table>
-                              </div>
-                            </TableCell>
-                          </TableRow>,
-                        ] : []),
-                      ];
+                        </TableRow>
+                      );
                     })
                   )}
                 </TableBody>
