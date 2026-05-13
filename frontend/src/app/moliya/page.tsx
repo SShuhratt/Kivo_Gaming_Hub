@@ -189,11 +189,14 @@ function serviceAssetKey(asset: ServiceFinanceAssetRecord) {
   return String(asset.assetId ?? `${asset.roomName}:${asset.serviceName}:${asset.assetName}:${asset.assetOrder ?? 'n/a'}`);
 }
 
-function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string) {
+function withTimeout<T>(promiseFactory: Promise<T> | (() => Promise<T>), timeoutMs: number, message: string) {
   return new Promise<T>((resolve, reject) => {
     const timeoutId = window.setTimeout(() => reject(new Error(message)), timeoutMs);
+    const pendingPromise = typeof promiseFactory === 'function'
+      ? Promise.resolve().then(() => promiseFactory())
+      : promiseFactory;
 
-    promise
+    pendingPromise
       .then((result) => {
         window.clearTimeout(timeoutId);
         resolve(result);
@@ -216,10 +219,12 @@ function summarizeServiceAssets(assets: ServiceFinanceAssetRecord[]) {
     }
   }
 
-  const totalDurationSeconds = Array.from(uniqueSessions.values()).reduce(
-    (acc, session) => acc + session.durationSeconds,
-    0,
-  );
+  const totalDurationSeconds = uniqueSessions.size > 0
+    ? Array.from(uniqueSessions.values()).reduce(
+        (acc, session) => acc + session.durationSeconds,
+        0,
+      )
+    : assets.reduce((acc, asset) => acc + asset.totalDurationSeconds, 0);
 
   return {
     totalDurationSeconds,
@@ -305,6 +310,7 @@ function resolveDebtDisplayDate(record: DebtRecord) {
 
 export default function MoliyaPage() {
   const {
+    assets: dashboardAssets,
     sales,
     debts,
     isCheckingAuth,
@@ -377,7 +383,7 @@ export default function MoliyaPage() {
     setServiceSummaryError(null);
 
     withTimeout(
-      getServiceFinanceSummary(),
+      getServiceFinanceSummary,
       15000,
       "Xizmatlar summary so'rovi juda uzoq davom etdi.",
     )
@@ -414,7 +420,7 @@ export default function MoliyaPage() {
     setServiceDetailsError(null);
 
     withTimeout(
-      getServiceFinanceDetails(),
+      getServiceFinanceDetails,
       15000,
       "Xizmatlar tafsilotlari so'rovi juda uzoq davom etdi.",
     )
@@ -499,7 +505,46 @@ export default function MoliyaPage() {
     });
   }, [soldItems, tradedSearch, tradedManufacturer, tradedPaymentMethod, startDate, endDate]);
 
-  const serviceAssets = serviceDetailsResponse?.assets ?? [];
+  const fallbackServiceAssets = useMemo<ServiceFinanceAssetRecord[]>(
+    () => dashboardAssets
+      .filter((asset) => asset.totalUsageDurationMinutes > 0 || asset.totalEarnedMoney > 0)
+      .map((asset) => {
+        const totalDurationSeconds = Math.max(0, asset.totalUsageDurationMinutes) * 60;
+
+        return {
+          assetId: asset.backendId,
+          assetName: asset.name,
+          roomName: asset.roomName ?? asset.roomNumber ?? 'Xona N/A',
+          serviceName: asset.serviceName ?? asset.category ?? 'Xizmat N/A',
+          assetOrder: asset.assetOrder,
+          totalDurationSeconds,
+          totalDurationFormatted: formatDurationFromSeconds(totalDurationSeconds),
+          totalIncome: asset.totalEarnedMoney,
+          sessions: [],
+        };
+      }),
+    [dashboardAssets],
+  );
+
+  const serviceAssets = serviceDetailsResponse?.assets?.length
+    ? serviceDetailsResponse.assets
+    : fallbackServiceAssets;
+
+  const displayedServiceSummary = useMemo(() => {
+    if (
+      serviceSummary
+      && (
+        serviceSummary.totalDurationSeconds > 0
+        || serviceSummary.totalIncome > 0
+        || serviceSummary.totalRecords > 0
+        || serviceSummary.totalSessionRecords > 0
+      )
+    ) {
+      return serviceSummary;
+    }
+
+    return summarizeServiceAssets(fallbackServiceAssets);
+  }, [fallbackServiceAssets, serviceSummary]);
 
   const serviceRoomOptions = useMemo(
     () => ['BARCHASI', ...new Set(serviceAssets.map((asset) => asset.roomName).filter(Boolean))],
@@ -526,6 +571,10 @@ export default function MoliyaPage() {
         return matchesRoom && matchesAsset && matchesService;
       })
       .map((asset) => {
+        if (asset.sessions.length === 0) {
+          return asset;
+        }
+
         const filteredSessions = asset.sessions.filter((session) => {
           const matchesPayment =
             servicePaymentFilter === 'all'
@@ -544,7 +593,7 @@ export default function MoliyaPage() {
           sessions: filteredSessions,
         };
       })
-      .filter((asset) => asset.sessions.length > 0);
+      .filter((asset) => asset.sessions.length > 0 || asset.totalDurationSeconds > 0 || asset.totalIncome > 0);
   }, [
     serviceAssetFilter,
     serviceAssets,
@@ -693,16 +742,18 @@ export default function MoliyaPage() {
           <FinanceCard title="Sarflangan pul" value="0 UZS" icon={Wallet} />
           <FinanceCard
             title="Jami xizmat ko'rsatilgan vaqt (soat):"
-            value={isServiceSummaryLoading ? '--:--:--' : serviceSummary?.totalDurationFormatted ?? '00:00:00'}
+            value={isServiceSummaryLoading && displayedServiceSummary.totalRecords === 0
+              ? '--:--:--'
+              : displayedServiceSummary.totalDurationFormatted}
             icon={Clock}
             secondaryLabel="Jami olingan summa:"
-            secondaryValue={isServiceSummaryLoading
+            secondaryValue={isServiceSummaryLoading && displayedServiceSummary.totalRecords === 0
               ? 'Yuklanmoqda...'
-              : `${formatCurrency(serviceSummary?.totalIncome ?? 0)} so'm`}
+              : `${formatCurrency(displayedServiceSummary.totalIncome)} so'm`}
             subValue={serviceSummaryError
               ? serviceSummaryError
-              : serviceSummary?.totalRecords
-                ? `${serviceSummary.totalRecords} ta asset bo'yicha`
+              : displayedServiceSummary.totalRecords
+                ? `${displayedServiceSummary.totalRecords} ta asset bo'yicha`
                 : "Ko'rsatilgan xizmatlar mavjud emas"}
             onClick={openServicesPanel}
             isActive={activePanel === 'services'}
@@ -1314,13 +1365,13 @@ export default function MoliyaPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {isServiceDetailsLoading ? (
+                  {isServiceDetailsLoading && filteredServiceAssets.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={8} className="py-12 text-center text-[10px] font-bold uppercase tracking-widest text-white/30">
                         Xizmat tafsilotlari yuklanmoqda...
                       </TableCell>
                     </TableRow>
-                  ) : serviceDetailsError ? (
+                  ) : serviceDetailsError && filteredServiceAssets.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={8} className="py-12 text-center">
                         <div className="space-y-3">
@@ -1404,7 +1455,17 @@ export default function MoliyaPage() {
                                     </TableRow>
                                   </TableHeader>
                                   <TableBody>
-                                    {asset.sessions.map((session) => (
+                                    {asset.sessions.length === 0 ? (
+                                      <TableRow>
+                                        <TableCell colSpan={7} className="px-4 py-8 text-center text-[10px] font-bold uppercase tracking-widest text-white/35">
+                                          {isServiceDetailsLoading
+                                            ? "Sessiya tafsilotlari yuklanmoqda..."
+                                            : serviceDetailsError
+                                              ? serviceDetailsError
+                                              : "Sessiya tafsilotlari mavjud emas"}
+                                        </TableCell>
+                                      </TableRow>
+                                    ) : asset.sessions.map((session) => (
                                       <TableRow key={`${key}-${session.tradeId}`} className="border-white/5 hover:bg-white/5">
                                         <TableCell className="px-4 py-4">
                                           <p className="text-[10px] font-black text-white">{`Trade #${session.tradeId}`}</p>
