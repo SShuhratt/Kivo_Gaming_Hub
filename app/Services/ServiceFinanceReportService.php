@@ -166,8 +166,8 @@ class ServiceFinanceReportService
 
     protected function summarizeReport(Collection $tradeSessions, Collection $assetGroups): array
     {
-        $totalDurationSeconds = (int) $tradeSessions->sum('duration_seconds');
-        $totalIncome = round((float) $tradeSessions->sum('amount'), 2);
+        $totalDurationSeconds = (int) $assetGroups->sum('total_duration_seconds');
+        $totalIncome = round((float) $assetGroups->sum('total_income'), 2);
 
         return [
             'total_duration_seconds' => $totalDurationSeconds,

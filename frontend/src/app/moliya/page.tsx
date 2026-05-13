@@ -219,12 +219,7 @@ function summarizeServiceAssets(assets: ServiceFinanceAssetRecord[]) {
     }
   }
 
-  const totalDurationSeconds = uniqueSessions.size > 0
-    ? Array.from(uniqueSessions.values()).reduce(
-        (acc, session) => acc + session.durationSeconds,
-        0,
-      )
-    : assets.reduce((acc, asset) => acc + asset.totalDurationSeconds, 0);
+  const totalDurationSeconds = assets.reduce((acc, asset) => acc + asset.totalDurationSeconds, 0);
 
   return {
     totalDurationSeconds,
