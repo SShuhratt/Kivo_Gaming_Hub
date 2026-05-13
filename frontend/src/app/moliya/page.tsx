@@ -205,6 +205,31 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string)
   });
 }
 
+function summarizeServiceAssets(assets: ServiceFinanceAssetRecord[]) {
+  const uniqueSessions = new Map<number, ServiceFinanceAssetRecord['sessions'][number]>();
+
+  for (const asset of assets) {
+    for (const session of asset.sessions) {
+      if (!uniqueSessions.has(session.tradeId)) {
+        uniqueSessions.set(session.tradeId, session);
+      }
+    }
+  }
+
+  const totalDurationSeconds = Array.from(uniqueSessions.values()).reduce(
+    (acc, session) => acc + session.durationSeconds,
+    0,
+  );
+
+  return {
+    totalDurationSeconds,
+    totalDurationFormatted: formatDurationFromSeconds(totalDurationSeconds),
+    totalIncome: assets.reduce((acc, asset) => acc + asset.totalIncome, 0),
+    totalRecords: assets.length,
+    totalSessionRecords: uniqueSessions.size,
+  };
+}
+
 function matchesDateRange(value: string | null, startDate: string, endDate: string) {
   if (!startDate && !endDate) {
     return true;
@@ -321,6 +346,25 @@ export default function MoliyaPage() {
 
   const [debtToPay, setDebtToPay] = useState<string | null>(null);
   const [debtToDelete, setDebtToDelete] = useState<string | null>(null);
+  const controlIds = {
+    overviewStartDate: 'finance-overview-start-date',
+    overviewEndDate: 'finance-overview-end-date',
+    overviewRoom: 'finance-overview-room',
+    overviewPaymentType: 'finance-overview-payment-type',
+    tradedSearch: 'finance-traded-search',
+    tradedManufacturer: 'finance-traded-manufacturer',
+    tradedPaymentMethod: 'finance-traded-payment-method',
+    tradedStartDate: 'finance-traded-start-date',
+    tradedEndDate: 'finance-traded-end-date',
+    serviceRoom: 'finance-service-room',
+    serviceAsset: 'finance-service-asset',
+    serviceName: 'finance-service-name',
+    serviceStatus: 'finance-service-status',
+    serviceStartDate: 'finance-service-start-date',
+    serviceEndDate: 'finance-service-end-date',
+    debtSearch: 'finance-debt-search',
+    debtStatus: 'finance-debt-status',
+  } as const;
 
   useEffect(() => {
     if (isCheckingAuth) {
@@ -512,15 +556,7 @@ export default function MoliyaPage() {
   ]);
 
   const filteredServiceSummary = useMemo(() => {
-    const totalDurationSeconds = filteredServiceAssets.reduce((acc, asset) => acc + asset.totalDurationSeconds, 0);
-
-    return {
-      totalDurationSeconds,
-      totalDurationFormatted: formatDurationFromSeconds(totalDurationSeconds),
-      totalIncome: filteredServiceAssets.reduce((acc, asset) => acc + asset.totalIncome, 0),
-      totalRecords: filteredServiceAssets.length,
-      totalSessionRecords: filteredServiceAssets.reduce((acc, asset) => acc + asset.sessions.length, 0),
-    };
+    return summarizeServiceAssets(filteredServiceAssets);
   }, [filteredServiceAssets]);
 
   const stats = useMemo(() => {
@@ -739,10 +775,12 @@ export default function MoliyaPage() {
             <div className="space-y-6 rounded-[32px] border border-white/5 bg-[#0a1a1a]/40 p-8 backdrop-blur-md">
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
                 <div className="space-y-2.5">
-                  <Label className="ml-1 text-[10px] font-black uppercase tracking-[0.2em] text-white/20">Boshlanish sanasi</Label>
+                  <Label htmlFor={controlIds.overviewStartDate} className="ml-1 text-[10px] font-black uppercase tracking-[0.2em] text-white/20">Boshlanish sanasi</Label>
                   <div className="flex h-14 items-center gap-3 rounded-2xl border border-white/5 bg-[#051111] px-4">
                     <CalendarIcon className="h-5 w-5 text-primary/40" />
                     <input
+                      id={controlIds.overviewStartDate}
+                      name="overview_start_date"
                       type="date"
                       value={startDate}
                       onChange={(event) => setStartDate(event.target.value)}
@@ -751,10 +789,12 @@ export default function MoliyaPage() {
                   </div>
                 </div>
                 <div className="space-y-2.5">
-                  <Label className="ml-1 text-[10px] font-black uppercase tracking-[0.2em] text-white/20">Tugash sanasi</Label>
+                  <Label htmlFor={controlIds.overviewEndDate} className="ml-1 text-[10px] font-black uppercase tracking-[0.2em] text-white/20">Tugash sanasi</Label>
                   <div className="flex h-14 items-center gap-3 rounded-2xl border border-white/5 bg-[#051111] px-4">
                     <CalendarIcon className="h-5 w-5 text-primary/40" />
                     <input
+                      id={controlIds.overviewEndDate}
+                      name="overview_end_date"
                       type="date"
                       value={endDate}
                       onChange={(event) => setEndDate(event.target.value)}
@@ -763,10 +803,11 @@ export default function MoliyaPage() {
                   </div>
                 </div>
                 <div className="space-y-2.5">
-                  <Label className="ml-1 text-[10px] font-black uppercase tracking-[0.2em] text-white/20">Xonani tanlang</Label>
+                  <Label htmlFor={controlIds.overviewRoom} className="ml-1 text-[10px] font-black uppercase tracking-[0.2em] text-white/20">Xonani tanlang</Label>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button
+                        id={controlIds.overviewRoom}
                         variant="outline"
                         className="h-14 w-full justify-between rounded-2xl border-white/5 bg-[#051111] px-5 text-[11px] font-black uppercase text-white/60 transition-all hover:bg-[#081818] hover:text-white"
                       >
@@ -787,10 +828,11 @@ export default function MoliyaPage() {
                   </DropdownMenu>
                 </div>
                 <div className="space-y-2.5">
-                  <Label className="ml-1 text-[10px] font-black uppercase tracking-[0.2em] text-white/20">To'lov turi</Label>
+                  <Label htmlFor={controlIds.overviewPaymentType} className="ml-1 text-[10px] font-black uppercase tracking-[0.2em] text-white/20">To'lov turi</Label>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button
+                        id={controlIds.overviewPaymentType}
                         variant="outline"
                         className="h-14 w-full justify-between rounded-2xl border-white/5 bg-[#051111] px-5 text-[11px] font-black uppercase text-white/60 transition-all hover:bg-[#081818] hover:text-white"
                       >
@@ -916,12 +958,14 @@ export default function MoliyaPage() {
 
               <div className="grid grid-cols-1 gap-6 lg:grid-cols-6">
                 <div className="space-y-2.5 lg:col-span-2">
-                  <Label className="ml-1 text-[10px] font-black uppercase tracking-[0.2em] text-white/20">
+                  <Label htmlFor={controlIds.tradedSearch} className="ml-1 text-[10px] font-black uppercase tracking-[0.2em] text-white/20">
                     Mahsulot yoki ishlab chiqaruvchi
                   </Label>
                   <div className="relative">
                     <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-primary/40" />
                     <Input
+                      id={controlIds.tradedSearch}
+                      name="traded_search"
                       aria-label="Savdo qilingan mahsulot qidiruvi"
                       value={tradedSearch}
                       onChange={(event) => setTradedSearch(event.target.value)}
@@ -931,10 +975,11 @@ export default function MoliyaPage() {
                   </div>
                 </div>
                 <div className="space-y-2.5">
-                  <Label className="ml-1 text-[10px] font-black uppercase tracking-[0.2em] text-white/20">Ishlab chiqaruvchi</Label>
+                  <Label htmlFor={controlIds.tradedManufacturer} className="ml-1 text-[10px] font-black uppercase tracking-[0.2em] text-white/20">Ishlab chiqaruvchi</Label>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button
+                        id={controlIds.tradedManufacturer}
                         variant="outline"
                         className="h-14 w-full justify-between rounded-2xl border-white/5 bg-[#051111] px-5 text-[11px] font-black uppercase text-white/60 transition-all hover:bg-[#081818] hover:text-white"
                       >
@@ -956,10 +1001,11 @@ export default function MoliyaPage() {
                   </DropdownMenu>
                 </div>
                 <div className="space-y-2.5">
-                  <Label className="ml-1 text-[10px] font-black uppercase tracking-[0.2em] text-white/20">To'lov usuli</Label>
+                  <Label htmlFor={controlIds.tradedPaymentMethod} className="ml-1 text-[10px] font-black uppercase tracking-[0.2em] text-white/20">To'lov usuli</Label>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button
+                        id={controlIds.tradedPaymentMethod}
                         variant="outline"
                         className="h-14 w-full justify-between rounded-2xl border-white/5 bg-[#051111] px-5 text-[11px] font-black uppercase text-white/60 transition-all hover:bg-[#081818] hover:text-white"
                       >
@@ -981,10 +1027,12 @@ export default function MoliyaPage() {
                   </DropdownMenu>
                 </div>
                 <div className="space-y-2.5">
-                  <Label className="ml-1 text-[10px] font-black uppercase tracking-[0.2em] text-white/20">Boshlanish sanasi</Label>
+                  <Label htmlFor={controlIds.tradedStartDate} className="ml-1 text-[10px] font-black uppercase tracking-[0.2em] text-white/20">Boshlanish sanasi</Label>
                   <div className="flex h-14 items-center gap-3 rounded-2xl border border-white/5 bg-[#051111] px-4">
                     <CalendarIcon className="h-5 w-5 text-primary/40" />
                     <input
+                      id={controlIds.tradedStartDate}
+                      name="traded_start_date"
                       type="date"
                       value={startDate}
                       onChange={(event) => setStartDate(event.target.value)}
@@ -993,10 +1041,12 @@ export default function MoliyaPage() {
                   </div>
                 </div>
                 <div className="space-y-2.5">
-                  <Label className="ml-1 text-[10px] font-black uppercase tracking-[0.2em] text-white/20">Tugash sanasi</Label>
+                  <Label htmlFor={controlIds.tradedEndDate} className="ml-1 text-[10px] font-black uppercase tracking-[0.2em] text-white/20">Tugash sanasi</Label>
                   <div className="flex h-14 items-center gap-3 rounded-2xl border border-white/5 bg-[#051111] px-4">
                     <CalendarIcon className="h-5 w-5 text-primary/40" />
                     <input
+                      id={controlIds.tradedEndDate}
+                      name="traded_end_date"
                       type="date"
                       value={endDate}
                       onChange={(event) => setEndDate(event.target.value)}
@@ -1115,10 +1165,11 @@ export default function MoliyaPage() {
 
               <div className="grid grid-cols-1 gap-6 lg:grid-cols-6">
                 <div className="space-y-2.5">
-                  <Label className="ml-1 text-[10px] font-black uppercase tracking-[0.2em] text-white/20">Xona</Label>
+                  <Label htmlFor={controlIds.serviceRoom} className="ml-1 text-[10px] font-black uppercase tracking-[0.2em] text-white/20">Xona</Label>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button
+                        id={controlIds.serviceRoom}
                         variant="outline"
                         className="h-14 w-full justify-between rounded-2xl border-white/5 bg-[#051111] px-5 text-[11px] font-black uppercase text-white/60 transition-all hover:bg-[#081818] hover:text-white"
                       >
@@ -1140,10 +1191,11 @@ export default function MoliyaPage() {
                   </DropdownMenu>
                 </div>
                 <div className="space-y-2.5">
-                  <Label className="ml-1 text-[10px] font-black uppercase tracking-[0.2em] text-white/20">Asset</Label>
+                  <Label htmlFor={controlIds.serviceAsset} className="ml-1 text-[10px] font-black uppercase tracking-[0.2em] text-white/20">Asset</Label>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button
+                        id={controlIds.serviceAsset}
                         variant="outline"
                         className="h-14 w-full justify-between rounded-2xl border-white/5 bg-[#051111] px-5 text-[11px] font-black uppercase text-white/60 transition-all hover:bg-[#081818] hover:text-white"
                       >
@@ -1165,10 +1217,11 @@ export default function MoliyaPage() {
                   </DropdownMenu>
                 </div>
                 <div className="space-y-2.5">
-                  <Label className="ml-1 text-[10px] font-black uppercase tracking-[0.2em] text-white/20">Xizmat</Label>
+                  <Label htmlFor={controlIds.serviceName} className="ml-1 text-[10px] font-black uppercase tracking-[0.2em] text-white/20">Xizmat</Label>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button
+                        id={controlIds.serviceName}
                         variant="outline"
                         className="h-14 w-full justify-between rounded-2xl border-white/5 bg-[#051111] px-5 text-[11px] font-black uppercase text-white/60 transition-all hover:bg-[#081818] hover:text-white"
                       >
@@ -1190,10 +1243,11 @@ export default function MoliyaPage() {
                   </DropdownMenu>
                 </div>
                 <div className="space-y-2.5">
-                  <Label className="ml-1 text-[10px] font-black uppercase tracking-[0.2em] text-white/20">Holati</Label>
+                  <Label htmlFor={controlIds.serviceStatus} className="ml-1 text-[10px] font-black uppercase tracking-[0.2em] text-white/20">Holati</Label>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button
+                        id={controlIds.serviceStatus}
                         variant="outline"
                         className="h-14 w-full justify-between rounded-2xl border-white/5 bg-[#051111] px-5 text-[11px] font-black uppercase text-white/60 transition-all hover:bg-[#081818] hover:text-white"
                       >
@@ -1215,10 +1269,12 @@ export default function MoliyaPage() {
                   </DropdownMenu>
                 </div>
                 <div className="space-y-2.5">
-                  <Label className="ml-1 text-[10px] font-black uppercase tracking-[0.2em] text-white/20">Boshlanish sanasi</Label>
+                  <Label htmlFor={controlIds.serviceStartDate} className="ml-1 text-[10px] font-black uppercase tracking-[0.2em] text-white/20">Boshlanish sanasi</Label>
                   <div className="flex h-14 items-center gap-3 rounded-2xl border border-white/5 bg-[#051111] px-4">
                     <CalendarIcon className="h-5 w-5 text-primary/40" />
                     <input
+                      id={controlIds.serviceStartDate}
+                      name="service_start_date"
                       type="date"
                       value={serviceStartDate}
                       onChange={(event) => setServiceStartDate(event.target.value)}
@@ -1227,10 +1283,12 @@ export default function MoliyaPage() {
                   </div>
                 </div>
                 <div className="space-y-2.5">
-                  <Label className="ml-1 text-[10px] font-black uppercase tracking-[0.2em] text-white/20">Tugash sanasi</Label>
+                  <Label htmlFor={controlIds.serviceEndDate} className="ml-1 text-[10px] font-black uppercase tracking-[0.2em] text-white/20">Tugash sanasi</Label>
                   <div className="flex h-14 items-center gap-3 rounded-2xl border border-white/5 bg-[#051111] px-4">
                     <CalendarIcon className="h-5 w-5 text-primary/40" />
                     <input
+                      id={controlIds.serviceEndDate}
+                      name="service_end_date"
                       type="date"
                       value={serviceEndDate}
                       onChange={(event) => setServiceEndDate(event.target.value)}
@@ -1437,12 +1495,14 @@ export default function MoliyaPage() {
 
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                 <div className="space-y-2.5">
-                  <Label className="ml-1 text-[10px] font-black uppercase tracking-[0.2em] text-white/20">
+                  <Label htmlFor={controlIds.debtSearch} className="ml-1 text-[10px] font-black uppercase tracking-[0.2em] text-white/20">
                     Qarzdor qidiruvi
                   </Label>
                   <div className="relative">
                     <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-primary/40" />
                     <Input
+                      id={controlIds.debtSearch}
+                      name="debt_search"
                       aria-label="Qarzdor qidiruvi"
                       value={debtSearch}
                       onChange={(event) => setDebtSearch(event.target.value)}
@@ -1452,10 +1512,11 @@ export default function MoliyaPage() {
                   </div>
                 </div>
                 <div className="space-y-2.5">
-                  <Label className="ml-1 text-[10px] font-black uppercase tracking-[0.2em] text-white/20">Holati</Label>
+                  <Label htmlFor={controlIds.debtStatus} className="ml-1 text-[10px] font-black uppercase tracking-[0.2em] text-white/20">Holati</Label>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button
+                        id={controlIds.debtStatus}
                         variant="outline"
                         className="h-14 w-full justify-between rounded-2xl border-white/5 bg-[#051111] px-5 text-[11px] font-black uppercase text-white/60 transition-all hover:bg-[#081818] hover:text-white"
                       >

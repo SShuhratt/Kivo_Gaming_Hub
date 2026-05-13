@@ -26,21 +26,30 @@ class ServiceFinanceReportService
 
     protected function buildReport(): array
     {
-        $assetGroups = $this->assetGroupsCollection();
+        $completedTrades = $this->completedTrades();
+        $assetGroups = $this->assetGroupsCollection($completedTrades);
+        $tradeSessions = $completedTrades
+            ->map(fn (Trade $trade) => $this->mapTradeSummarySession($trade))
+            ->values();
 
         return [
-            'summary' => $this->summarizeAssetGroups($assetGroups),
+            'summary' => $this->summarizeReport($tradeSessions, $assetGroups),
             'assets' => $assetGroups->all(),
         ];
     }
 
-    protected function assetGroupsCollection(): Collection
+    protected function completedTrades(): Collection
     {
         return Trade::query()
             ->where('session_status', 'completed')
             ->orderByDesc('end_time')
             ->orderByDesc('created_at')
-            ->get()
+            ->get();
+    }
+
+    protected function assetGroupsCollection(Collection $completedTrades): Collection
+    {
+        return $completedTrades
             ->flatMap(fn (Trade $trade) => $this->mapTradeAssetSessions($trade))
             ->groupBy('asset_key')
             ->map(fn (Collection $assetSessions) => $this->summarizeAssetSessions($assetSessions))
@@ -62,6 +71,17 @@ class ServiceFinanceReportService
 
                 return $assetGroup;
             });
+    }
+
+    protected function mapTradeSummarySession(Trade $trade): array
+    {
+        $durationSeconds = $this->resolveDurationSeconds($trade);
+
+        return [
+            'trade_id' => $trade->id,
+            'duration_seconds' => $durationSeconds,
+            'amount' => round((float) $trade->total_cost, 2),
+        ];
     }
 
     protected function mapTradeAssetSessions(Trade $trade): Collection
@@ -144,10 +164,10 @@ class ServiceFinanceReportService
         ];
     }
 
-    protected function summarizeAssetGroups(Collection $assetGroups): array
+    protected function summarizeReport(Collection $tradeSessions, Collection $assetGroups): array
     {
-        $totalDurationSeconds = (int) $assetGroups->sum('total_duration_seconds');
-        $totalIncome = round((float) $assetGroups->sum('total_income'), 2);
+        $totalDurationSeconds = (int) $tradeSessions->sum('duration_seconds');
+        $totalIncome = round((float) $tradeSessions->sum('amount'), 2);
 
         return [
             'total_duration_seconds' => $totalDurationSeconds,
@@ -155,7 +175,7 @@ class ServiceFinanceReportService
             'total_income' => $totalIncome,
             'total_earned_amount' => $totalIncome,
             'total_records' => $assetGroups->count(),
-            'total_session_records' => $assetGroups->sum(fn (array $assetGroup) => count($assetGroup['sessions'] ?? [])),
+            'total_session_records' => $tradeSessions->count(),
         ];
     }
 

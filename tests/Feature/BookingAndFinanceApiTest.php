@@ -662,8 +662,19 @@ class BookingAndFinanceApiTest extends TestCase
             'assets_count' => 2,
         ]);
 
+        $this->getJson('/api/finance/service-summary', $headers)
+            ->assertOk()
+            ->assertJsonPath('total_duration_seconds', 7200)
+            ->assertJsonPath('total_duration_formatted', '02:00:00')
+            ->assertJsonPath('total_income', 110000)
+            ->assertJsonPath('total_records', 2)
+            ->assertJsonPath('total_session_records', 1);
+
         $assets = $this->getJson('/api/finance/service-details', $headers)
             ->assertOk()
+            ->assertJsonPath('summary.total_duration_seconds', 7200)
+            ->assertJsonPath('summary.total_duration_formatted', '02:00:00')
+            ->assertJsonPath('summary.total_session_records', 1)
             ->json('assets');
 
         $computerAsset = collect($assets)->firstWhere('asset_name', 'computer1');
