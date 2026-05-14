@@ -11,6 +11,6 @@ class Manufacturer extends Model
 
     public function warehouseItems(): HasMany
     {
-        return $this->hasMany(Warehouse::class);
+        return $this->hasMany(Warehouse::class, 'manufacturer_id');
     }
 }

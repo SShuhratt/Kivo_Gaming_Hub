@@ -35,6 +35,13 @@ class Warehouse extends Model
 
     protected $appends = ['profit_percentage'];
 
+    protected $casts = [
+        'manufacturer_id' => 'integer',
+        'count' => 'integer',
+        'purchase_price' => 'float',
+        'sell_price' => 'float',
+    ];
+
     public static function allowedUnits(): array
     {
         return [

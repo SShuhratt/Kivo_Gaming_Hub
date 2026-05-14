@@ -715,13 +715,14 @@ export function deleteRoomAssetsRequest(token: string, roomId: number) {
 export function createWarehouseItemRequest(
   token: string,
   payload: {
-    manufacturer: string;
-    product_name: string;
-    shtrix_code: string;
+    manufacturer_id?: number;
+    manufacturer?: string;
+    name: string;
+    barcode: string;
     unit: WarehouseUnit;
-    count: number;
+    quantity: number;
     purchase_price: number;
-    sell_price: number;
+    sale_price: number;
   }
 ) {
   return apiRequest('/warehouse', {
@@ -735,13 +736,14 @@ export function updateWarehouseItemRequest(
   token: string,
   itemId: number,
   payload: {
-    manufacturer: string;
-    product_name: string;
-    shtrix_code: string;
+    manufacturer_id?: number;
+    manufacturer?: string;
+    name: string;
+    barcode: string;
     unit: WarehouseUnit;
-    count: number;
+    quantity: number;
     purchase_price: number;
-    sell_price: number;
+    sale_price: number;
   }
 ) {
   return apiRequest(`/warehouse/${itemId}`, {

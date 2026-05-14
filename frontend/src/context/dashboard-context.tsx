@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import {
   ApiError,
@@ -352,7 +352,8 @@ interface DashboardContextType {
   deleteAsset: (asset: AssetDevice) => Promise<void>;
   saveWarehouseProduct: (payload: {
     backendId?: number;
-    manufacturer: string;
+    manufacturerId?: number;
+    manufacturer?: string;
     name: string;
     barcode: string;
     quantity: number;
@@ -687,6 +688,9 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
   const [assets, setAssets] = useState<AssetDevice[]>([]);
   const [token, setToken] = useState<string | null>(null);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  const tokenRef = useRef<string | null>(null);
+  const refreshRequestIdRef = useRef(0);
+  const unauthorizedNoticeShownRef = useRef(false);
 
   const resetState = useCallback(() => {
     setCurrentUser(null);
@@ -700,25 +704,60 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     setAssets([]);
   }, []);
 
-  const logout = useCallback(() => {
+  const clearSession = useCallback(() => {
     localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
+    refreshRequestIdRef.current += 1;
+    tokenRef.current = null;
     setToken(null);
     resetState();
     setIsCheckingAuth(false);
   }, [resetState]);
 
+  const logout = useCallback(() => {
+    unauthorizedNoticeShownRef.current = false;
+    clearSession();
+  }, [clearSession]);
+
+  const handleUnauthorized = useCallback(
+    (activeToken?: string) => {
+      if (activeToken && tokenRef.current && activeToken !== tokenRef.current) {
+        return;
+      }
+
+      if (!unauthorizedNoticeShownRef.current) {
+        unauthorizedNoticeShownRef.current = true;
+        toast({
+          title: "Sessiya muddati tugadi",
+          description: "Iltimos, qaytadan tizimga kiring.",
+          variant: "destructive",
+        });
+      }
+
+      clearSession();
+    },
+    [clearSession, toast]
+  );
+
   const refreshDashboard = useCallback(
     async (overrideToken?: string) => {
-      const activeToken = overrideToken ?? token;
+      const activeToken = overrideToken ?? tokenRef.current ?? token;
+      const requestId = ++refreshRequestIdRef.current;
 
       if (!activeToken) {
-        resetState();
-        setIsCheckingAuth(false);
+        if (requestId === refreshRequestIdRef.current) {
+          resetState();
+          setIsCheckingAuth(false);
+        }
         return;
       }
 
       try {
         const payload = await getDashboardBootstrap(activeToken);
+
+        if (requestId !== refreshRequestIdRef.current) {
+          return;
+        }
+
         const mapped = mapBootstrapPayload(payload);
 
         setCurrentUser(mapped.currentUser);
@@ -731,17 +770,23 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
         setCompanies(mapped.companies);
         setAssets(mapped.assets);
       } catch (error) {
+        if (requestId !== refreshRequestIdRef.current) {
+          return;
+        }
+
         if (error instanceof ApiError && error.status === 401) {
-          logout();
+          handleUnauthorized(activeToken);
           return;
         }
 
         throw error;
       } finally {
-        setIsCheckingAuth(false);
+        if (requestId === refreshRequestIdRef.current) {
+          setIsCheckingAuth(false);
+        }
       }
     },
-    [logout, resetState, token]
+    [handleUnauthorized, resetState, token]
   );
 
   useEffect(() => {
@@ -752,22 +797,28 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
+    unauthorizedNoticeShownRef.current = false;
+    tokenRef.current = storedToken;
     setToken(storedToken);
     void refreshDashboard(storedToken);
-  }, [refreshDashboard]);
+  }, []);
 
   const requireToken = useCallback(() => {
-    if (!token) {
+    const activeToken = tokenRef.current ?? token;
+
+    if (!activeToken) {
       throw new Error('Authentication token is missing.');
     }
 
-    return token;
+    return activeToken;
   }, [token]);
 
   const login = useCallback(
     async (phoneNumber: string, password: string) => {
       const response = await loginRequest(phoneNumber, password);
+      unauthorizedNoticeShownRef.current = false;
       localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, response.token);
+      tokenRef.current = response.token;
       setToken(response.token);
       await refreshDashboard(response.token);
     },
@@ -807,7 +858,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
         is_recommendable: isRecommendable,
       });
 
-      await refreshDashboard();
+      await refreshDashboard(activeToken);
     },
     [refreshDashboard, requireToken]
   );
@@ -817,7 +868,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       const activeToken = requireToken();
 
       await deleteServiceRequest(activeToken, service.backendId);
-      await refreshDashboard();
+      await refreshDashboard(activeToken);
     },
     [refreshDashboard, requireToken]
   );
@@ -869,7 +920,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
         });
       }
 
-      await refreshDashboard();
+      await refreshDashboard(activeToken);
     },
     [requireToken, refreshDashboard, services]
   );
@@ -886,7 +937,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
         name: name.trim(),
       });
 
-      await refreshDashboard();
+      await refreshDashboard(activeToken);
     },
     [refreshDashboard, requireToken]
   );
@@ -896,7 +947,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       const activeToken = requireToken();
 
       await deleteRoomRequest(activeToken, room.backendId);
-      await refreshDashboard();
+      await refreshDashboard(activeToken);
     },
     [refreshDashboard, requireToken]
   );
@@ -930,7 +981,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
         room_number: roomNumber,
       });
 
-      await refreshDashboard();
+      await refreshDashboard(activeToken);
     },
     [refreshDashboard, requireToken]
   );
@@ -966,7 +1017,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
         room_number: roomNumber,
       });
 
-      await refreshDashboard();
+      await refreshDashboard(activeToken);
     },
     [refreshDashboard, requireToken]
   );
@@ -976,7 +1027,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       const activeToken = requireToken();
 
       await deleteAssetRequest(activeToken, asset.backendId);
-      await refreshDashboard();
+      await refreshDashboard(activeToken);
     },
     [refreshDashboard, requireToken]
   );
@@ -986,7 +1037,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       const activeToken = requireToken();
 
       await deleteRoomAssetsRequest(activeToken, roomBackendId);
-      await refreshDashboard();
+      await refreshDashboard(activeToken);
     },
     [refreshDashboard, requireToken]
   );
@@ -994,7 +1045,8 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
   const saveWarehouseProduct = useCallback(
     async (payload: {
       backendId?: number;
-      manufacturer: string;
+      manufacturerId?: number;
+      manufacturer?: string;
       name: string;
       barcode: string;
       quantity: number;
@@ -1004,24 +1056,34 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     }) => {
       const activeToken = requireToken();
       const requestPayload = {
+        manufacturer_id: payload.manufacturerId,
         manufacturer: payload.manufacturer,
-        product_name: payload.name,
-        shtrix_code: payload.barcode,
+        name: payload.name,
+        barcode: payload.barcode,
         unit: payload.unit,
-        count: payload.quantity,
+        quantity: payload.quantity,
         purchase_price: payload.purchasePrice,
-        sell_price: payload.sellingPrice,
+        sale_price: payload.sellingPrice,
       };
 
-      if (payload.backendId) {
-        await updateWarehouseItemRequest(activeToken, payload.backendId, requestPayload);
-      } else {
-        await createWarehouseItemRequest(activeToken, requestPayload);
+      try {
+        if (payload.backendId) {
+          await updateWarehouseItemRequest(activeToken, payload.backendId, requestPayload);
+        } else {
+          await createWarehouseItemRequest(activeToken, requestPayload);
+        }
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 401) {
+          handleUnauthorized(activeToken);
+          throw new Error("Sessiya muddati tugadi. Iltimos, qaytadan tizimga kiring.");
+        }
+
+        throw error;
       }
 
-      await refreshDashboard();
+      await refreshDashboard(activeToken);
     },
-    [refreshDashboard, requireToken]
+    [handleUnauthorized, refreshDashboard, requireToken]
   );
 
   const deleteWarehouseProduct = useCallback(
@@ -1029,7 +1091,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       const activeToken = requireToken();
 
       await deleteWarehouseItemRequest(activeToken, backendId);
-      await refreshDashboard();
+      await refreshDashboard(activeToken);
     },
     [refreshDashboard, requireToken]
   );
@@ -1039,7 +1101,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       const activeToken = requireToken();
 
       await deleteManufacturerRequest(activeToken, company.backendId);
-      await refreshDashboard();
+      await refreshDashboard(activeToken);
     },
     [refreshDashboard, requireToken]
   );
@@ -1092,7 +1154,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
         payment_method: payload.paymentMethod,
       });
 
-      await refreshDashboard();
+      await refreshDashboard(activeToken);
     },
     [refreshDashboard, requireToken]
   );
@@ -1271,7 +1333,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
         debt_phone_number: debtPhoneNumber,
       });
 
-      await refreshDashboard();
+      await refreshDashboard(activeToken);
     },
     [refreshDashboard, requireToken]
   );
@@ -1292,7 +1354,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
         return [...activeSessionRecords, ...endedSessionRecords];
       });
 
-      await refreshDashboard();
+      await refreshDashboard(activeToken);
       return endedSession;
     },
     [refreshDashboard, requireToken]
@@ -1303,7 +1365,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       const activeToken = requireToken();
 
       await deleteSessionRequest(activeToken, sessionId);
-      await refreshDashboard();
+      await refreshDashboard(activeToken);
     },
     [refreshDashboard, requireToken]
   );
@@ -1312,7 +1374,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     async (debtId: string) => {
       const activeToken = requireToken();
       await markDebtPaidRequest(activeToken, debtId);
-      await refreshDashboard();
+      await refreshDashboard(activeToken);
     },
     [refreshDashboard, requireToken]
   );

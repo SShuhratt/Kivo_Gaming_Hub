@@ -190,7 +190,8 @@ export default function OmborPage() {
       setIsSaving(true);
       await saveWarehouseProduct({
         backendId: editingProduct?.backendId,
-        manufacturer: productForm.manufacturer.trim(),
+        manufacturerId: selectedCompany?.backendId,
+        manufacturer: (selectedCompany?.name ?? productForm.manufacturer).trim(),
         name: productForm.name.trim(),
         barcode: productForm.barcode.trim(),
         quantity: Number(productForm.quantity),
@@ -363,6 +364,7 @@ export default function OmborPage() {
             productForm={productForm}
             setProductForm={setProductForm}
             profitMargin={profitMargin}
+            isManufacturerLocked={Boolean(selectedCompany)}
             onSave={handleSaveProduct}
           />
         </div>
@@ -537,6 +539,7 @@ export default function OmborPage() {
           productForm={productForm}
           setProductForm={setProductForm}
           profitMargin={profitMargin}
+          isManufacturerLocked={Boolean(selectedCompany)}
           onSave={handleSaveProduct}
         />
       </div>
@@ -552,6 +555,7 @@ function ProductModal({
   productForm,
   setProductForm,
   profitMargin,
+  isManufacturerLocked,
   onSave,
 }: {
   isOpen: boolean;
@@ -561,6 +565,7 @@ function ProductModal({
   productForm: ProductFormState;
   setProductForm: React.Dispatch<React.SetStateAction<ProductFormState>>;
   profitMargin: string | null;
+  isManufacturerLocked: boolean;
   onSave: () => void;
 }) {
   return (
@@ -582,7 +587,8 @@ function ProductModal({
               aria-label="Ishlab chiqaruvchi"
               value={productForm.manufacturer}
               onChange={(e) => setProductForm((prev) => ({ ...prev, manufacturer: e.target.value }))}
-              className="h-12 bg-[#051111] border-white/5 rounded-xl font-bold px-4 text-sm focus:border-primary/40"
+              readOnly={isManufacturerLocked}
+              className="h-12 bg-[#051111] border-white/5 rounded-xl font-bold px-4 text-sm focus:border-primary/40 read-only:cursor-not-allowed read-only:opacity-80"
             />
           </div>
 
@@ -610,8 +616,8 @@ function ProductModal({
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
+          <div className="grid items-start gap-4 sm:grid-cols-2">
+            <div className="flex flex-col gap-2">
               <Label className="text-[10px] font-black uppercase tracking-widest text-primary/60 flex items-center gap-2">
                 <Scale className="h-3 w-3" /> Soni
               </Label>
@@ -623,10 +629,12 @@ function ProductModal({
                 className="h-12 bg-[#051111] border-white/5 rounded-xl font-bold px-4 text-sm focus:border-primary/40"
               />
             </div>
-            <div className="space-y-2">
-              <Label className="text-[10px] font-black uppercase tracking-widest text-primary/60">Birligi</Label>
+            <div className="flex flex-col gap-2">
+              <Label className="text-[10px] font-black uppercase tracking-widest text-primary/60 flex items-center gap-2">
+                <Package className="h-3 w-3" /> Birligi
+              </Label>
               <Select value={productForm.unit} onValueChange={(value: Product['unit']) => setProductForm((prev) => ({ ...prev, unit: value }))}>
-                <SelectTrigger className="h-12 bg-[#051111] border-white/5 rounded-xl font-bold px-4 text-sm focus:border-primary/40">
+                <SelectTrigger className="h-12 w-full bg-[#051111] border-white/5 rounded-xl font-bold px-4 text-sm focus:border-primary/40">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="bg-[#0a1a1a] border-white/10 text-white rounded-xl">

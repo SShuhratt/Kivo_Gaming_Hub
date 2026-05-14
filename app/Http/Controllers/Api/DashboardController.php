@@ -11,6 +11,7 @@ use App\Models\Manufacturer;
 use App\Models\Room;
 use App\Models\Service;
 use App\Models\Trade;
+use App\Models\Warehouse;
 use App\Services\AssetDisplayOrderService;
 use App\Services\SessionLifecycleService;
 use Illuminate\Http\JsonResponse;
@@ -92,17 +93,17 @@ class DashboardController extends Controller
                     'id' => (string) $manufacturer->id,
                     'backend_id' => $manufacturer->id,
                     'name' => $manufacturer->name,
-                    'products' => $manufacturer->warehouseItems->map(function ($item) {
+                    'products' => $manufacturer->warehouseItems->map(function (Warehouse $item) use ($manufacturer) {
                         return [
                             'id' => (string) $item->id,
                             'backend_id' => $item->id,
-                            'manufacturer' => $item->manufacturer,
-                            'name' => $item->product_name,
-                            'barcode' => $item->shtrix_code,
-                            'quantity' => $item->count,
+                            'manufacturer' => $item->manufacturerRecord?->name ?? $item->manufacturer ?? $manufacturer->name,
+                            'name' => (string) ($item->product_name ?? ''),
+                            'barcode' => (string) ($item->shtrix_code ?? ''),
+                            'quantity' => (int) ($item->count ?? 0),
                             'unit' => $item->unit,
-                            'purchase_price' => (float) $item->purchase_price,
-                            'selling_price' => (float) $item->sell_price,
+                            'purchase_price' => (float) ($item->purchase_price ?? 0),
+                            'selling_price' => (float) ($item->sell_price ?? 0),
                         ];
                     })->values()->all(),
                 ];
