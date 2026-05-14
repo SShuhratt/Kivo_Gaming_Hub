@@ -580,10 +580,12 @@ function ProductModal({
 
         <div className="py-6 space-y-5">
           <div className="space-y-2">
-            <Label className="text-[10px] font-black uppercase tracking-widest text-primary/60 flex items-center gap-2">
+            <Label htmlFor="warehouse-manufacturer" className="text-[10px] font-black uppercase tracking-widest text-primary/60 flex items-center gap-2">
               <Building2 className="h-3 w-3" /> Ishlab chiqaruvchi
             </Label>
             <Input
+              id="warehouse-manufacturer"
+              name="manufacturer"
               aria-label="Ishlab chiqaruvchi"
               value={productForm.manufacturer}
               onChange={(e) => setProductForm((prev) => ({ ...prev, manufacturer: e.target.value }))}
@@ -593,10 +595,12 @@ function ProductModal({
           </div>
 
           <div className="space-y-2">
-            <Label className="text-[10px] font-black uppercase tracking-widest text-primary/60 flex items-center gap-2">
+            <Label htmlFor="warehouse-product-name" className="text-[10px] font-black uppercase tracking-widest text-primary/60 flex items-center gap-2">
               <Tag className="h-3 w-3" /> Mahsulot Nomi
             </Label>
             <Input
+              id="warehouse-product-name"
+              name="product_name"
               aria-label="Mahsulot nomi"
               value={productForm.name}
               onChange={(e) => setProductForm((prev) => ({ ...prev, name: e.target.value }))}
@@ -605,10 +609,12 @@ function ProductModal({
           </div>
 
           <div className="space-y-2">
-            <Label className="text-[10px] font-black uppercase tracking-widest text-primary/60 flex items-center gap-2">
+            <Label htmlFor="warehouse-barcode" className="text-[10px] font-black uppercase tracking-widest text-primary/60 flex items-center gap-2">
               <Barcode className="h-3 w-3" /> Shtrix Kod
             </Label>
             <Input
+              id="warehouse-barcode"
+              name="barcode"
               aria-label="Shtrix kod"
               value={productForm.barcode}
               onChange={(e) => setProductForm((prev) => ({ ...prev, barcode: e.target.value }))}
@@ -618,10 +624,12 @@ function ProductModal({
 
           <div className="grid items-start gap-4 sm:grid-cols-2">
             <div className="flex flex-col gap-2">
-              <Label className="text-[10px] font-black uppercase tracking-widest text-primary/60 flex items-center gap-2">
+              <Label htmlFor="warehouse-quantity" className="text-[10px] font-black uppercase tracking-widest text-primary/60 flex items-center gap-2">
                 <Scale className="h-3 w-3" /> Soni
               </Label>
               <Input
+                id="warehouse-quantity"
+                name="quantity"
                 type="number"
                 aria-label="Soni"
                 value={productForm.quantity}
@@ -630,11 +638,19 @@ function ProductModal({
               />
             </div>
             <div className="flex flex-col gap-2">
-              <Label className="text-[10px] font-black uppercase tracking-widest text-primary/60 flex items-center gap-2">
+              <Label htmlFor="warehouse-unit" className="text-[10px] font-black uppercase tracking-widest text-primary/60 flex items-center gap-2">
                 <Package className="h-3 w-3" /> Birligi
               </Label>
-              <Select value={productForm.unit} onValueChange={(value: Product['unit']) => setProductForm((prev) => ({ ...prev, unit: value }))}>
-                <SelectTrigger className="h-12 w-full bg-[#051111] border-white/5 rounded-xl font-bold px-4 text-sm focus:border-primary/40">
+              <Select
+                name="unit"
+                value={productForm.unit}
+                onValueChange={(value: Product['unit']) => setProductForm((prev) => ({ ...prev, unit: value }))}
+              >
+                <SelectTrigger
+                  id="warehouse-unit"
+                  aria-label="Birligi"
+                  className="h-12 w-full bg-[#051111] border-white/5 rounded-xl font-bold px-4 text-sm focus:border-primary/40"
+                >
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="bg-[#0a1a1a] border-white/10 text-white rounded-xl">
@@ -650,10 +666,12 @@ function ProductModal({
 
           <div className="grid grid-cols-2 gap-4 relative">
             <div className="space-y-2">
-              <Label className="text-[10px] font-black uppercase tracking-widest text-primary/60 flex items-center gap-2">
+              <Label htmlFor="warehouse-purchase-price" className="text-[10px] font-black uppercase tracking-widest text-primary/60 flex items-center gap-2">
                 <DollarSign className="h-3 w-3" /> Olish Narxi
               </Label>
               <Input
+                id="warehouse-purchase-price"
+                name="purchase_price"
                 type="number"
                 aria-label="Olish narxi"
                 value={productForm.purchasePrice}
@@ -662,10 +680,12 @@ function ProductModal({
               />
             </div>
             <div className="space-y-2">
-              <Label className="text-[10px] font-black uppercase tracking-widest text-primary/60 flex items-center gap-2">
+              <Label htmlFor="warehouse-sale-price" className="text-[10px] font-black uppercase tracking-widest text-primary/60 flex items-center gap-2">
                 <DollarSign className="h-3 w-3" /> Sotish Narxi
               </Label>
               <Input
+                id="warehouse-sale-price"
+                name="sale_price"
                 type="number"
                 aria-label="Sotish narxi"
                 value={productForm.sellingPrice}

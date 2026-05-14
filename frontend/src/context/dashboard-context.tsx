@@ -727,8 +727,8 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       if (!unauthorizedNoticeShownRef.current) {
         unauthorizedNoticeShownRef.current = true;
         toast({
-          title: "Sessiya muddati tugadi",
-          description: "Iltimos, qaytadan tizimga kiring.",
+          title: "Sessiya tugagan",
+          description: "Qayta kiring.",
           variant: "destructive",
         });
       }
@@ -1075,7 +1075,11 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       } catch (error) {
         if (error instanceof ApiError && error.status === 401) {
           handleUnauthorized(activeToken);
-          throw new Error("Sessiya muddati tugadi. Iltimos, qaytadan tizimga kiring.");
+          throw new Error("Sessiya tugagan. Qayta kiring.");
+        }
+
+        if (error instanceof ApiError && error.status >= 500) {
+          throw new Error('Server xatosi');
         }
 
         throw error;

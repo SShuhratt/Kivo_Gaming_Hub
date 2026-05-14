@@ -18,6 +18,10 @@ class ApiTokenMiddleware
 
     public function handle(Request $request, Closure $next): Response
     {
+        if ($request->isMethod('OPTIONS')) {
+            return response()->noContent();
+        }
+
         $token = $request->bearerToken();
 
         if (! $token) {

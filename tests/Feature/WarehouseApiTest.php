@@ -13,6 +13,31 @@ class WarehouseApiTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_warehouse_requires_jwt_and_returns_401_instead_of_500(): void
+    {
+        $this->getJson('/api/warehouse')
+            ->assertStatus(401)
+            ->assertJson([
+                'message' => 'JWT bearer token is missing.',
+            ]);
+
+        $this->postJson('/api/warehouse', [
+            'name' => 'Lays snacks',
+        ])
+            ->assertStatus(401)
+            ->assertJson([
+                'message' => 'JWT bearer token is missing.',
+            ]);
+    }
+
+    public function test_warehouse_options_preflight_is_not_blocked_by_jwt_middleware(): void
+    {
+        $this->call('OPTIONS', '/api/warehouse', [], [], [], [
+            'HTTP_ORIGIN' => 'http://localhost:9002',
+            'HTTP_ACCESS_CONTROL_REQUEST_METHOD' => 'POST',
+        ])->assertStatus(204);
+    }
+
     public function test_product_creation_under_existing_manufacturer_uses_manufacturer_id_and_frontend_payload_keys(): void
     {
         $manufacturer = Manufacturer::create([

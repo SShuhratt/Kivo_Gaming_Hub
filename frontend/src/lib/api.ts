@@ -24,18 +24,24 @@ function resolveApiBaseUrls(): string[] {
     ? window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1'
     : process.env.NODE_ENV === 'production';
 
+  const normalizedEnvApiUrl = normalizeApiBaseUrl(envApiUrl);
   const browserOrigin =
     typeof window !== 'undefined' ? normalizeApiBaseUrl(window.location.origin) : null;
 
-  const candidates = [
-    normalizeApiBaseUrl(envApiUrl),
-    browserOrigin,
-    isProductionRuntime ? null : normalizeApiBaseUrl('http://localhost:8000'),
-  ].filter((value): value is string => Boolean(value));
-
   if (isProductionRuntime) {
-    return Array.from(new Set(candidates.filter((value) => value !== 'http://localhost:8000/api')));
+    if (!normalizedEnvApiUrl) {
+      console.error('NEXT_PUBLIC_API_URL must be configured in production.');
+      return [];
+    }
+
+    return [normalizedEnvApiUrl];
   }
+
+  const candidates = [
+    normalizedEnvApiUrl,
+    browserOrigin,
+    normalizeApiBaseUrl('http://localhost:8000'),
+  ].filter((value): value is string => Boolean(value));
 
   if (process.env.NODE_ENV !== 'production') {
     console.log('Resolved API URLs:', Array.from(new Set(candidates)));
@@ -314,6 +320,10 @@ async function apiRequest<T>(path: string, options: RequestOptions = {}): Promis
   const apiBaseUrls = resolveApiBaseUrls();
   let lastError: unknown;
 
+  if (apiBaseUrls.length === 0) {
+    throw new Error('API base URL is not configured for this environment.');
+  }
+
   for (const [index, baseUrl] of apiBaseUrls.entries()) {
     try {
       return await requestAgainstBase<T>(baseUrl, path, options);
@@ -336,6 +346,10 @@ async function apiRequest<T>(path: string, options: RequestOptions = {}): Promis
 async function downloadApiFile(path: string, options: RequestOptions = {}): Promise<DownloadedApiFile> {
   const apiBaseUrls = resolveApiBaseUrls();
   let lastError: unknown;
+
+  if (apiBaseUrls.length === 0) {
+    throw new Error('API base URL is not configured for this environment.');
+  }
 
   for (const [index, baseUrl] of apiBaseUrls.entries()) {
     try {
