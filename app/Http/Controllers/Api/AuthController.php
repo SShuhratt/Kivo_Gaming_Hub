@@ -39,45 +39,72 @@ class AuthController extends Controller
 
         $validated = $this->validateAuth($request, [
             'name' => 'required|string|max:255',
-            'email' => 'required|email|max:255|unique:users,gmail',
-            'phone_number' => 'required|string|max:255|unique:users,phone_number',
+            'email' => 'required|email|max:255',
+            'phone_number' => 'required|string|max:255',
             'password' => 'required|string|min:8',
         ]);
 
+        $existingEmailUser = User::where('gmail', $validated['email'])->first();
+        $existingPhoneUser = User::where('phone_number', $validated['phone_number'])->first();
+
+        if ($existingEmailUser?->hasVerifiedEmail()) {
+            return $this->validationError('email', 'Bu email allaqachon ro‘yxatdan o‘tgan.');
+        }
+
+        if ($existingPhoneUser && $existingEmailUser && $existingPhoneUser->id !== $existingEmailUser->id) {
+            return $this->validationError('phone_number', 'Bu telefon raqami allaqachon ishlatilgan.');
+        }
+
+        if ($existingPhoneUser && ! $existingEmailUser) {
+            return $this->validationError('phone_number', 'Bu telefon raqami allaqachon ishlatilgan.');
+        }
+
+        $userWasExisting = $existingEmailUser !== null;
+
+        $user = $existingEmailUser ?? new User();
+
+        $user->fill([
+            'name' => $validated['name'],
+            'gmail' => $validated['email'],
+            'phone_number' => $validated['phone_number'],
+            'password_hash' => Hash::make($validated['password']),
+            'email_verified_at' => null,
+        ]);
+
+        $user->save();
+
+        $otp = $this->otpService->issueOtp($user, User::OTP_PURPOSE_REGISTRATION);
+
+        Log::info('Registration OTP email attempt', $this->mailDiagnostics->safeContext([
+            'email' => $user->gmail,
+            'purpose' => User::OTP_PURPOSE_REGISTRATION,
+            'user_id' => $user->id,
+            'existing_unverified_user' => $userWasExisting,
+        ]));
+
         try {
-            DB::transaction(function () use ($validated) {
-                $user = User::create([
-                    'name' => $validated['name'],
-                    'gmail' => $validated['email'],
-                    'phone_number' => $validated['phone_number'],
-                    'password_hash' => Hash::make($validated['password']),
-                    'email_verified_at' => null,
-                ]);
-
-                $otp = $this->otpService->issueOtp($user, User::OTP_PURPOSE_REGISTRATION);
-
-                $this->sendRegistrationOtpEmail($user, $otp);
-            });
+            $this->sendRegistrationOtpEmail($user, $otp);
         } catch (Throwable $e) {
-            Log::error('Registration OTP email sending failed', $this->mailDiagnostics->safeContext([
-                'email' => $validated['email'],
+            Log::error('Registration OTP email failed', $this->mailDiagnostics->safeContext([
+                'email' => $user->gmail,
                 'purpose' => User::OTP_PURPOSE_REGISTRATION,
                 'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
             ]));
 
             return response()->json([
-                'message' => 'Could not send the verification email. Please check your Gmail SMTP settings and try again.',
-                'message_uz' => 'Tasdiqlash emailini yuborib bo\'lmadi. Gmail SMTP sozlamalarini tekshirib, qayta urinib ko\'ring.',
-            ], 500);
+                'message' => 'Tasdiqlash emailini yuborib bo\'lmadi. Gmail SMTP sozlamalarini tekshirib, qayta urining',
+            ], 503);
         }
 
         return response()->json([
-            'message' => 'Verification OTP sent to your email.',
-            'email' => $validated['email'],
+            'message' => 'Tasdiqlash kodi emailingizga yuborildi',
+            'email' => $user->gmail,
             'purpose' => User::OTP_PURPOSE_REGISTRATION,
             'requires_verification' => true,
             'expires_in_minutes' => UserOtpService::OTP_EXPIRY_MINUTES,
-        ], 201);
+        ], $userWasExisting ? 200 : 201);
     }
 
     public function login(Request $request): JsonResponse
@@ -177,16 +204,17 @@ class AuthController extends Controller
                 'email' => $user->gmail,
                 'purpose' => User::OTP_PURPOSE_REGISTRATION,
                 'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
             ]));
 
             return response()->json([
-                'message' => 'Could not resend the verification email. Please try again later.',
-                'message_uz' => 'Tasdiqlash emailini qayta yuborib bo\'lmadi. Keyinroq qayta urinib ko\'ring.',
-            ], 500);
+                'message' => 'Tasdiqlash emailini yuborib bo\'lmadi. Gmail SMTP sozlamalarini tekshirib, qayta urining',
+            ], 503);
         }
 
         return response()->json([
-            'message' => 'A new registration OTP was sent to your email.',
+            'message' => 'Tasdiqlash kodi emailingizga yuborildi',
             'email' => $user->gmail,
             'purpose' => User::OTP_PURPOSE_REGISTRATION,
             'requires_verification' => true,
@@ -226,6 +254,8 @@ class AuthController extends Controller
                 'email' => $user->gmail,
                 'purpose' => User::OTP_PURPOSE_PASSWORD_RESET,
                 'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
             ]));
 
             return response()->json([
@@ -344,6 +374,16 @@ class AuthController extends Controller
     {
         return response()->json([
             'message' => $message,
+        ], 422);
+    }
+
+    protected function validationError(string $field, string $message): JsonResponse
+    {
+        return response()->json([
+            'message' => 'Validation failed.',
+            'errors' => [
+                $field => [$message],
+            ],
         ], 422);
     }
 

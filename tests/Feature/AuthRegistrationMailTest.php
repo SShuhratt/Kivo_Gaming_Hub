@@ -27,7 +27,7 @@ class AuthRegistrationMailTest extends TestCase
 
         $response
             ->assertCreated()
-            ->assertJsonPath('message', 'Verification OTP sent to your email.')
+            ->assertJsonPath('message', 'Tasdiqlash kodi emailingizga yuborildi')
             ->assertJsonPath('email', 'user3@gmail.com')
             ->assertJsonPath('requires_verification', true);
 
@@ -90,7 +90,7 @@ class AuthRegistrationMailTest extends TestCase
         $this->postJson('/api/auth/resend-registration-otp', [
             'email' => 'user4@gmail.com',
         ])->assertOk()
-            ->assertJsonPath('message', 'A new registration OTP was sent to your email.');
+            ->assertJsonPath('message', 'Tasdiqlash kodi emailingizga yuborildi');
 
         $secondOtp = $this->latestOtpFromSentMail(RegistrationOtpMail::class, 'user4@gmail.com');
 
@@ -119,12 +119,45 @@ class AuthRegistrationMailTest extends TestCase
             'email' => 'user5@gmail.com',
             'phone_number' => '+998777777779',
             'password' => 'User$H123',
-        ])->assertStatus(500)
-            ->assertJsonPath('message', 'Could not send the verification email. Please check your Gmail SMTP settings and try again.');
+        ])->assertStatus(503)
+            ->assertJsonPath('message', 'Tasdiqlash emailini yuborib bo\'lmadi. Gmail SMTP sozlamalarini tekshirib, qayta urining');
 
-        $this->assertDatabaseMissing('users', [
+        $this->assertDatabaseHas('users', [
             'gmail' => 'user5@gmail.com',
         ]);
+    }
+
+    public function test_registering_again_with_existing_unverified_email_reissues_otp_instead_of_failing(): void
+    {
+        Mail::fake();
+
+        $user = User::create([
+            'name' => 'Existing Pending',
+            'gmail' => 'pending.user@gmail.com',
+            'phone_number' => '+998777777780',
+            'password_hash' => Hash::make('OldPass123!'),
+            'email_verified_at' => null,
+        ]);
+
+        $response = $this->postJson('/api/auth/register', [
+            'name' => 'Updated Pending',
+            'email' => 'pending.user@gmail.com',
+            'phone_number' => '+998777777780',
+            'password' => 'NewPass123!',
+        ]);
+
+        $response
+            ->assertOk()
+            ->assertJsonPath('message', 'Tasdiqlash kodi emailingizga yuborildi')
+            ->assertJsonPath('email', 'pending.user@gmail.com');
+
+        $user->refresh();
+
+        $this->assertSame('Updated Pending', $user->name);
+        $this->assertTrue(Hash::check('NewPass123!', $user->password_hash));
+        $this->assertNotNull($user->otp_code_hash);
+
+        Mail::assertSent(RegistrationOtpMail::class, fn (RegistrationOtpMail $mail) => $mail->hasTo('pending.user@gmail.com'));
     }
 
     public function test_password_reset_uses_email_otp_and_updates_the_password(): void

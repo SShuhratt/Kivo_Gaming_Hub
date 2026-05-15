@@ -71,7 +71,7 @@ class OpenApiSpec
                     'errors' => ['type' => 'object', 'additionalProperties' => ['type' => 'array', 'items' => ['type' => 'string']]],
                 ]),
                 'OtpChallengeResponse' => $this->object([
-                    'message' => ['type' => 'string', 'example' => 'Verification OTP sent to your email.'],
+                    'message' => ['type' => 'string', 'example' => 'Tasdiqlash kodi emailingizga yuborildi'],
                     'email' => ['type' => 'string', 'format' => 'email', 'example' => 'user1@gmail.com'],
                     'purpose' => ['type' => 'string', 'enum' => ['registration', 'password_reset'], 'example' => 'registration'],
                     'expires_in_minutes' => ['type' => 'integer', 'example' => 10],

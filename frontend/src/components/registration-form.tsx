@@ -32,6 +32,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import { PasswordTool } from '@/components/password-tool';
 import {
+  ApiError,
   registerRequest,
   resendRegistrationOtpRequest,
   verifyRegistrationOtpRequest,
@@ -97,10 +98,20 @@ export function RegistrationForm() {
         description: "Ro'yxatdan o'tishni yakunlash uchun emailingizga yuborilgan 6 xonali kodni kiriting.",
       });
     } catch (error) {
+      const description = error instanceof ApiError
+        ? error.status === 503
+          ? error.message
+          : error.status >= 500
+            ? "Serverda vaqtinchalik xatolik yuz berdi. Birozdan keyin qayta urinib ko'ring."
+            : error.message
+        : error instanceof Error
+          ? error.message
+          : "So'rov bajarilmadi.";
+
       toast({
         variant: "destructive",
         title: "Ro'yxatdan o'tishda xatolik",
-        description: error instanceof Error ? error.message : "So'rov bajarilmadi.",
+        description,
       });
     } finally {
       setIsSubmitting(false);
@@ -194,10 +205,12 @@ export function RegistrationForm() {
         </div>
 
         <div className="space-y-2">
-          <FormLabel className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40 ml-1">
+          <FormLabel htmlFor="registration-otp" className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40 ml-1">
             OTP kodi
           </FormLabel>
           <Input
+            id="registration-otp"
+            name="otp"
             value={otp}
             onChange={(event) => setOtp(event.target.value.replace(/\D+/g, '').slice(0, 6))}
             inputMode="numeric"
@@ -268,13 +281,14 @@ export function RegistrationForm() {
             name="username"
             render={({ field }) => (
               <FormItem className="space-y-2">
-                <FormLabel className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40 ml-1">
+                <FormLabel htmlFor="register-name" className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40 ml-1">
                   Foydalanuvchi ismi
                 </FormLabel>
-                <FormControl>
+                <FormControl id="register-name">
                   <div className="relative group">
                     <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20 group-focus-within:text-primary transition-colors" />
                     <Input
+                      id="register-name"
                       aria-label="Foydalanuvchi ismi"
                       autoComplete="name"
                       className="h-14 pl-12 border-white/5 bg-[#051111]/60 text-white font-bold focus:border-primary/40 focus:ring-primary/5 rounded-xl transition-all"
@@ -292,13 +306,14 @@ export function RegistrationForm() {
             name="email"
             render={({ field }) => (
               <FormItem className="space-y-2">
-                <FormLabel className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40 ml-1">
+                <FormLabel htmlFor="register-email" className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40 ml-1">
                   Email
                 </FormLabel>
-                <FormControl>
+                <FormControl id="register-email">
                   <div className="relative group">
                     <MailCheck className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20 group-focus-within:text-primary transition-colors" />
                     <Input
+                      id="register-email"
                       type="email"
                       autoComplete="email"
                       autoCapitalize="none"
@@ -318,13 +333,14 @@ export function RegistrationForm() {
             name="phoneNumber"
             render={({ field }) => (
               <FormItem className="space-y-2">
-                <FormLabel className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40 ml-1">
+                <FormLabel htmlFor="register-phone" className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40 ml-1">
                   Telefon raqami
                 </FormLabel>
-                <FormControl>
+                <FormControl id="register-phone">
                   <div className="relative group">
                     <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20 group-focus-within:text-primary transition-colors" />
                     <Input
+                      id="register-phone"
                       aria-label="Telefon raqami"
                       type="tel"
                       autoComplete="tel"
@@ -345,14 +361,15 @@ export function RegistrationForm() {
             render={({ field }) => (
               <FormItem className="space-y-2">
                 <div className="flex items-center justify-between px-1">
-                  <FormLabel className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40">
+                  <FormLabel htmlFor="register-password" className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40">
                     Parol
                   </FormLabel>
                 </div>
-                <FormControl>
+                <FormControl id="register-password">
                   <div className="relative group">
                     <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20 group-focus-within:text-primary transition-colors" />
                     <Input
+                      id="register-password"
                       type={showPassword ? 'text' : 'password'}
                       autoComplete="new-password"
                       spellCheck={false}
@@ -384,13 +401,14 @@ export function RegistrationForm() {
             name="confirmPassword"
             render={({ field }) => (
               <FormItem className="space-y-2">
-                <FormLabel className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40 ml-1">
+                <FormLabel htmlFor="register-password-confirmation" className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40 ml-1">
                   Parolni tasdiqlash
                 </FormLabel>
-                <FormControl>
+                <FormControl id="register-password-confirmation">
                   <div className="relative group">
                     <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20 group-focus-within:text-primary transition-colors" />
                     <Input
+                      id="register-password-confirmation"
                       type="password"
                       autoComplete="new-password"
                       spellCheck={false}
@@ -413,12 +431,13 @@ export function RegistrationForm() {
             <FormItem className="flex flex-row items-center space-x-3 space-y-0 bg-white/5 p-4 rounded-xl border border-white/5">
               <FormControl>
                 <Checkbox
+                  id="register-terms"
                   checked={field.value}
                   onCheckedChange={field.onChange}
                   className="h-5 w-5 border-white/10 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
                 />
               </FormControl>
-              <FormLabel className="text-[10px] font-bold text-white/40 leading-relaxed uppercase tracking-widest">
+              <FormLabel htmlFor="register-terms" className="text-[10px] font-bold text-white/40 leading-relaxed uppercase tracking-widest">
                 Men <span className="text-primary hover:underline cursor-pointer">Foydalanish shartlariga</span> va Maxfiylik siyosatiga roziman
               </FormLabel>
             </FormItem>
