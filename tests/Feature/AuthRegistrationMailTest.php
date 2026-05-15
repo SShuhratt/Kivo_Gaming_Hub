@@ -2,33 +2,202 @@
 
 namespace Tests\Feature;
 
+use App\Mail\PasswordResetOtpMail;
+use App\Mail\RegistrationOtpMail;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
 use Tests\TestCase;
 
 class AuthRegistrationMailTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_user_can_register_and_it_attempts_to_send_email(): void
+    public function test_registration_sends_otp_and_user_stays_unverified_until_the_code_is_confirmed(): void
     {
-        $data = [
+        Mail::fake();
+
+        $response = $this->postJson('/api/auth/register', [
             'name' => 'User3',
-            'gmail' => 'user3@gmail.com',
+            'email' => 'user3@gmail.com',
             'phone_number' => '+998777777777',
             'password' => 'User$H123',
-        ];
-
-        $response = $this->postJson('/api/auth/register', $data);
-
-        $response->assertStatus(201);
-        $response->assertJson(['message' => 'User registered successfully']);
-        $response->assertJsonPath('user.name', 'User3');
-
-        $this->assertDatabaseHas('users', [
-            'name' => 'User3',
-            'gmail' => 'user3@gmail.com',
-            'phone_number' => '+998777777777',
         ]);
+
+        $response
+            ->assertCreated()
+            ->assertJsonPath('message', 'Verification OTP sent to your email.')
+            ->assertJsonPath('email', 'user3@gmail.com')
+            ->assertJsonPath('requires_verification', true);
+
+        $user = User::where('gmail', 'user3@gmail.com')->firstOrFail();
+
+        $this->assertNull($user->email_verified_at);
+        $this->assertSame(User::OTP_PURPOSE_REGISTRATION, $user->otp_purpose);
+        $this->assertNotNull($user->otp_code_hash);
+        $this->assertNull($user->otp_code);
+
+        $otp = $this->latestOtpFromSentMail(RegistrationOtpMail::class, 'user3@gmail.com');
+
+        $this->postJson('/api/auth/login', [
+            'phone_number' => '+998777777777',
+            'password' => 'User$H123',
+        ])->assertStatus(403);
+
+        $this->postJson('/api/auth/verify-registration-otp', [
+            'email' => 'user3@gmail.com',
+            'otp' => '111111',
+        ])->assertStatus(422)
+            ->assertJsonPath('message', 'Invalid OTP.');
+
+        $this->postJson('/api/auth/verify-registration-otp', [
+            'email' => 'user3@gmail.com',
+            'otp' => $otp,
+        ])->assertOk()
+            ->assertJsonPath('message', 'Registration OTP verified successfully.');
+
+        $user->refresh();
+
+        $this->assertNotNull($user->email_verified_at);
+        $this->assertNull($user->otp_code_hash);
+        $this->assertNull($user->otp_purpose);
+
+        $this->postJson('/api/auth/login', [
+            'phone_number' => '+998777777777',
+            'password' => 'User$H123',
+        ])->assertOk();
+
+        $this->postJson('/api/auth/verify-registration-otp', [
+            'email' => 'user3@gmail.com',
+            'otp' => $otp,
+        ])->assertStatus(422);
+    }
+
+    public function test_resending_registration_otp_replaces_the_previous_code(): void
+    {
+        Mail::fake();
+
+        $this->postJson('/api/auth/register', [
+            'name' => 'User4',
+            'email' => 'user4@gmail.com',
+            'phone_number' => '+998777777778',
+            'password' => 'User$H123',
+        ])->assertCreated();
+
+        $firstOtp = $this->latestOtpFromSentMail(RegistrationOtpMail::class, 'user4@gmail.com');
+
+        $this->postJson('/api/auth/resend-registration-otp', [
+            'email' => 'user4@gmail.com',
+        ])->assertOk()
+            ->assertJsonPath('message', 'A new registration OTP was sent to your email.');
+
+        $secondOtp = $this->latestOtpFromSentMail(RegistrationOtpMail::class, 'user4@gmail.com');
+
+        $this->assertNotSame($firstOtp, $secondOtp);
+
+        $this->postJson('/api/auth/verify-registration-otp', [
+            'email' => 'user4@gmail.com',
+            'otp' => $firstOtp,
+        ])->assertStatus(422)
+            ->assertJsonPath('message', 'Invalid OTP.');
+
+        $this->postJson('/api/auth/verify-registration-otp', [
+            'email' => 'user4@gmail.com',
+            'otp' => $secondOtp,
+        ])->assertOk();
+    }
+
+    public function test_registration_is_blocked_if_the_otp_email_cannot_be_sent(): void
+    {
+        Mail::shouldReceive('to')
+            ->once()
+            ->andThrow(new \RuntimeException('SMTP failed'));
+
+        $this->postJson('/api/auth/register', [
+            'name' => 'User5',
+            'email' => 'user5@gmail.com',
+            'phone_number' => '+998777777779',
+            'password' => 'User$H123',
+        ])->assertStatus(500)
+            ->assertJsonPath('message', 'Could not send the verification email. Please check your Gmail SMTP settings and try again.');
+
+        $this->assertDatabaseMissing('users', [
+            'gmail' => 'user5@gmail.com',
+        ]);
+    }
+
+    public function test_password_reset_uses_email_otp_and_updates_the_password(): void
+    {
+        Mail::fake();
+
+        $user = User::create([
+            'name' => 'Reset User',
+            'gmail' => 'reset.user@gmail.com',
+            'phone_number' => '+998901234500',
+            'password_hash' => Hash::make('OldPassword1!'),
+            'email_verified_at' => now(),
+        ]);
+
+        $this->postJson('/api/auth/forgot-password/send-otp', [
+            'email' => $user->gmail,
+        ])->assertOk()
+            ->assertJsonPath('message', 'Password reset OTP sent to your email.');
+
+        $otp = $this->latestOtpFromSentMail(PasswordResetOtpMail::class, $user->gmail);
+
+        $this->postJson('/api/auth/forgot-password/verify-otp', [
+            'email' => $user->gmail,
+            'otp' => '654321',
+        ])->assertStatus(422)
+            ->assertJsonPath('message', 'Invalid OTP.');
+
+        $this->postJson('/api/auth/forgot-password/verify-otp', [
+            'email' => $user->gmail,
+            'otp' => $otp,
+        ])->assertOk()
+            ->assertJsonPath('message', 'Password reset OTP verified successfully.');
+
+        $this->postJson('/api/auth/forgot-password/reset', [
+            'email' => $user->gmail,
+            'otp' => $otp,
+            'password' => 'NewPassword1!',
+            'password_confirmation' => 'NewPassword1!',
+        ])->assertOk()
+            ->assertJsonPath('message', 'Password reset successfully.');
+
+        $user->refresh();
+
+        $this->assertTrue(Hash::check('NewPassword1!', $user->password_hash));
+        $this->assertNull($user->otp_code_hash);
+        $this->assertNull($user->otp_purpose);
+
+        $this->postJson('/api/auth/login', [
+            'phone_number' => $user->phone_number,
+            'password' => 'OldPassword1!',
+        ])->assertStatus(401);
+
+        $this->postJson('/api/auth/login', [
+            'phone_number' => $user->phone_number,
+            'password' => 'NewPassword1!',
+        ])->assertOk();
+
+        $this->postJson('/api/auth/forgot-password/reset', [
+            'email' => $user->gmail,
+            'otp' => $otp,
+            'password' => 'AnotherPass1!',
+            'password_confirmation' => 'AnotherPass1!',
+        ])->assertStatus(422);
+    }
+
+    protected function latestOtpFromSentMail(string $mailableClass, string $email): string
+    {
+        $sentMail = collect(Mail::sent($mailableClass))
+            ->filter(fn (object $mail) => $mail->hasTo($email))
+            ->last();
+
+        $this->assertNotNull($sentMail, "Expected {$mailableClass} to be sent to {$email}.");
+
+        return $sentMail->otp;
     }
 }

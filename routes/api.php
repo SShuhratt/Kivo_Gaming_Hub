@@ -17,13 +17,21 @@ Route::post('/auth/register', [AuthController::class, 'register'])
     ->defaults('openapiOperation', 'registerUser');
 Route::post('/auth/login', [AuthController::class, 'login'])
     ->defaults('openapiOperation', 'loginUser');
-Route::post('/auth/forgot-password', [AuthController::class, 'forgotPassword'])
+Route::post('/auth/verify-registration-otp', [AuthController::class, 'verifyRegistrationOtp'])
+    ->middleware('throttle:6,1')
+    ->defaults('openapiOperation', 'verifyRegistrationOtp');
+Route::post('/auth/resend-registration-otp', [AuthController::class, 'resendRegistrationOtp'])
     ->middleware('throttle:3,1')
-    ->defaults('openapiOperation', 'forgotPassword');
-Route::post('/auth/verify-otp', [AuthController::class, 'verifyOtp'])
-    ->defaults('openapiOperation', 'verifyOtp');
-Route::post('/auth/reset-password', [AuthController::class, 'resetPassword'])
-    ->defaults('openapiOperation', 'resetPassword');
+    ->defaults('openapiOperation', 'resendRegistrationOtp');
+Route::post('/auth/forgot-password/send-otp', [AuthController::class, 'sendForgotPasswordOtp'])
+    ->middleware('throttle:3,1')
+    ->defaults('openapiOperation', 'sendForgotPasswordOtp');
+Route::post('/auth/forgot-password/verify-otp', [AuthController::class, 'verifyForgotPasswordOtp'])
+    ->middleware('throttle:6,1')
+    ->defaults('openapiOperation', 'verifyForgotPasswordOtp');
+Route::post('/auth/forgot-password/reset', [AuthController::class, 'resetForgotPassword'])
+    ->middleware('throttle:6,1')
+    ->defaults('openapiOperation', 'resetForgotPassword');
 Route::post('/auth/test-mail', TestMailController::class)
     ->defaults('openapiOperation', 'sendTestMail');
 

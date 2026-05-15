@@ -4,15 +4,19 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Api\Concerns\ValidatesApiRequests;
 use App\Http\Controllers\Controller;
-use App\Mail\WelcomeRegistrationMail;
+use App\Mail\PasswordResetOtpMail;
+use App\Mail\RegistrationOtpMail;
 use App\Models\User;
 use App\Services\JwtService;
 use App\Services\MailDiagnosticsService;
-use Carbon\Carbon;
+use App\Services\UserOtpService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Throwable;
 
 class AuthController extends Controller
 {
@@ -21,74 +25,64 @@ class AuthController extends Controller
     public function __construct(
         protected JwtService $jwt,
         protected MailDiagnosticsService $mailDiagnostics,
-    ) {}
+        protected UserOtpService $otpService,
+    ) {
+    }
 
-    public function register(Request $request)
+    public function register(Request $request): JsonResponse
     {
-        Log::info('Registration attempt started', [
-            'input' => $request->except(['password', 'password_confirmation']),
-        ]);
-
-        $request->merge([
+        $this->mergeNormalizedAuthInputs($request, [
             'name' => trim((string) $request->input('name')),
-            'gmail' => $this->normalizeEmail($request->input('gmail')),
+            'email' => $this->normalizeEmail($request->input('email', $request->input('gmail'))),
             'phone_number' => $this->normalizePhoneNumber($request->input('phone_number')),
         ]);
 
-        try {
-            $validated = $this->validateApi($request, [
-                'name' => 'required|string',
-                'gmail' => 'required|email|unique:users,gmail',
-                'phone_number' => 'required|string|unique:users,phone_number',
-                'password' => 'required|string|min:6',
-            ]);
-        } catch (\Throwable $e) {
-            Log::warning('Registration validation failed', [
-                'errors' => ($e instanceof \Illuminate\Http\Exceptions\HttpResponseException) ? $e->getResponse()->getContent() : $e->getMessage(),
-            ]);
-            throw $e;
-        }
-
-        $user = User::create([
-            'name' => $validated['name'],
-            'gmail' => $validated['gmail'],
-            'phone_number' => $validated['phone_number'],
-            'password_hash' => Hash::make($validated['password']),
+        $validated = $this->validateAuth($request, [
+            'name' => 'required|string|max:255',
+            'email' => 'required|email|max:255|unique:users,gmail',
+            'phone_number' => 'required|string|max:255|unique:users,phone_number',
+            'password' => 'required|string|min:8',
         ]);
 
-        Log::info('User created successfully', ['user_id' => $user->id]);
-
-        $email = $user->gmail;
-
-        Log::info('Registration email sending started', $this->mailDiagnostics->safeContext([
-            'user_id' => $user->id,
-            'email' => $email,
-        ]));
-
         try {
-            Mail::to($email)->send(new WelcomeRegistrationMail($user));
+            DB::transaction(function () use ($validated) {
+                $user = User::create([
+                    'name' => $validated['name'],
+                    'gmail' => $validated['email'],
+                    'phone_number' => $validated['phone_number'],
+                    'password_hash' => Hash::make($validated['password']),
+                    'email_verified_at' => null,
+                ]);
 
-            Log::info('Registration email sent successfully', $this->mailDiagnostics->safeContext([
-                'user_id' => $user->id,
-                'email' => $email,
-            ]));
-        } catch (\Throwable $e) {
-            Log::error('Registration email sending failed', $this->mailDiagnostics->safeContext([
-                'user_id' => $user->id ?? null,
-                'email' => $email ?? null,
+                $otp = $this->otpService->issueOtp($user, User::OTP_PURPOSE_REGISTRATION);
+
+                $this->sendRegistrationOtpEmail($user, $otp);
+            });
+        } catch (Throwable $e) {
+            Log::error('Registration OTP email sending failed', $this->mailDiagnostics->safeContext([
+                'email' => $validated['email'],
+                'purpose' => User::OTP_PURPOSE_REGISTRATION,
                 'error' => $e->getMessage(),
             ]));
+
+            return response()->json([
+                'message' => 'Could not send the verification email. Please check your Gmail SMTP settings and try again.',
+                'message_uz' => 'Tasdiqlash emailini yuborib bo\'lmadi. Gmail SMTP sozlamalarini tekshirib, qayta urinib ko\'ring.',
+            ], 500);
         }
 
         return response()->json([
-            'message' => 'User registered successfully',
-            'user' => $user,
+            'message' => 'Verification OTP sent to your email.',
+            'email' => $validated['email'],
+            'purpose' => User::OTP_PURPOSE_REGISTRATION,
+            'requires_verification' => true,
+            'expires_in_minutes' => UserOtpService::OTP_EXPIRY_MINUTES,
         ], 201);
     }
 
-    public function login(Request $request)
+    public function login(Request $request): JsonResponse
     {
-        $request->merge([
+        $this->mergeNormalizedAuthInputs($request, [
             'phone_number' => $this->normalizePhoneNumber($request->input('phone_number')),
         ]);
 
@@ -103,6 +97,13 @@ class AuthController extends Controller
             return response()->json(['message' => 'Invalid credentials'], 401);
         }
 
+        if (! $user->hasVerifiedEmail() && $user->otp_purpose === User::OTP_PURPOSE_REGISTRATION) {
+            return response()->json([
+                'message' => 'Your email is not verified yet. Please confirm the OTP sent to your email before logging in.',
+                'message_uz' => 'Email manzilingiz hali tasdiqlanmagan. Tizimga kirishdan oldin emailingizga yuborilgan OTP kodni tasdiqlang.',
+            ], 403);
+        }
+
         return response()->json([
             'token_type' => 'Bearer',
             'token' => $this->jwt->issue($user),
@@ -111,110 +112,258 @@ class AuthController extends Controller
         ]);
     }
 
-    public function forgotPassword(Request $request, \App\Contracts\SmsServiceInterface $smsService)
+    public function verifyRegistrationOtp(Request $request): JsonResponse
     {
-        $request->merge([
-            'phone_number' => $this->normalizePhoneNumber($request->input('phone_number')),
-            'gmail' => $this->normalizeEmail($request->input('gmail')),
-            'delivery_method' => $request->input('delivery_method', 'sms'),
+        $this->mergeNormalizedAuthInputs($request, [
+            'email' => $this->normalizeEmail($request->input('email', $request->input('gmail'))),
+            'otp' => $this->normalizeOtp($request->input('otp')),
         ]);
 
-        $validated = $this->validateApi($request, [
-            'delivery_method' => 'required|string|in:sms,email',
-            'phone_number' => 'required_if:delivery_method,sms|string|nullable',
-            'gmail' => 'required_if:delivery_method,email|email|nullable',
+        $validated = $this->validateAuth($request, [
+            'email' => 'required|email|max:255',
+            'otp' => 'required|digits:6',
         ]);
 
-        $deliveryMethod = $validated['delivery_method'];
+        $user = User::where('gmail', $validated['email'])->first();
 
-        if ($deliveryMethod === 'sms') {
-            $user = User::where('phone_number', $validated['phone_number'])->firstOrFail();
-        } else {
-            $user = User::where('gmail', $validated['gmail'])->firstOrFail();
+        if (! $user || $user->hasVerifiedEmail()) {
+            return $this->otpValidationError('No pending registration verification was found for this email.');
         }
 
-        $otp = (string) rand(100000, 999999);
-        $user->update([
-            'otp_code' => $otp,
-            'otp_expiry' => Carbon::now()->addMinutes(10),
-        ]);
+        $otpStateError = $this->otpStateError($user, $validated['otp'], User::OTP_PURPOSE_REGISTRATION);
 
-        if ($deliveryMethod === 'sms') {
-            $smsService->send($user->phone_number, "Your OTP is {$otp}. It expires in 10 minutes.");
-        } else {
-            Mail::to($user->gmail)->send(new \App\Mail\PasswordResetOtpMail($otp));
+        if ($otpStateError !== null) {
+            return $otpStateError;
         }
 
-        return response()->json(['message' => 'OTP sent successfully']);
+        $user->forceFill([
+            'email_verified_at' => now(),
+        ])->save();
+
+        $this->otpService->consumeOtp($user);
+
+        return response()->json([
+            'message' => 'Registration OTP verified successfully.',
+        ]);
     }
 
-    public function verifyOtp(Request $request)
+    public function resendRegistrationOtp(Request $request): JsonResponse
     {
-        $request->merge([
-            'phone_number' => $this->normalizePhoneNumber($request->input('phone_number')),
-            'gmail' => $this->normalizeEmail($request->input('gmail')),
+        $this->mergeNormalizedAuthInputs($request, [
+            'email' => $this->normalizeEmail($request->input('email', $request->input('gmail'))),
         ]);
 
-        $validated = $this->validateApi($request, [
-            'phone_number' => 'required_without:gmail|string|nullable',
-            'gmail' => 'required_without:phone_number|email|nullable',
-            'otp' => 'required|string',
+        $validated = $this->validateAuth($request, [
+            'email' => 'required|email|max:255',
         ]);
 
-        $query = User::where('otp_code', $validated['otp'])
-            ->where('otp_expiry', '>', Carbon::now());
-
-        if (!empty($validated['phone_number'])) {
-            $query->where('phone_number', $validated['phone_number']);
-        } else {
-            $query->where('gmail', $validated['gmail']);
-        }
-
-        $user = $query->first();
+        $user = User::where('gmail', $validated['email'])->first();
 
         if (! $user) {
-            return response()->json(['message' => 'Invalid or expired OTP'], 400);
+            return $this->otpValidationError('No account was found for this email.');
         }
 
-        return response()->json(['message' => 'OTP verified successfully']);
+        if ($user->hasVerifiedEmail()) {
+            return $this->otpValidationError('This account is already verified.');
+        }
+
+        try {
+            DB::transaction(function () use ($user) {
+                $otp = $this->otpService->issueOtp($user, User::OTP_PURPOSE_REGISTRATION);
+                $this->sendRegistrationOtpEmail($user, $otp);
+            });
+        } catch (Throwable $e) {
+            Log::error('Registration OTP resend failed', $this->mailDiagnostics->safeContext([
+                'email' => $user->gmail,
+                'purpose' => User::OTP_PURPOSE_REGISTRATION,
+                'error' => $e->getMessage(),
+            ]));
+
+            return response()->json([
+                'message' => 'Could not resend the verification email. Please try again later.',
+                'message_uz' => 'Tasdiqlash emailini qayta yuborib bo\'lmadi. Keyinroq qayta urinib ko\'ring.',
+            ], 500);
+        }
+
+        return response()->json([
+            'message' => 'A new registration OTP was sent to your email.',
+            'email' => $user->gmail,
+            'purpose' => User::OTP_PURPOSE_REGISTRATION,
+            'requires_verification' => true,
+            'expires_in_minutes' => UserOtpService::OTP_EXPIRY_MINUTES,
+        ]);
     }
 
-    public function resetPassword(Request $request)
+    public function sendForgotPasswordOtp(Request $request): JsonResponse
     {
-        $request->merge([
-            'phone_number' => $this->normalizePhoneNumber($request->input('phone_number')),
-            'gmail' => $this->normalizeEmail($request->input('gmail')),
+        $this->mergeNormalizedAuthInputs($request, [
+            'email' => $this->normalizeEmail($request->input('email', $request->input('gmail'))),
         ]);
 
-        $validated = $this->validateApi($request, [
-            'phone_number' => 'required_without:gmail|string|nullable',
-            'gmail' => 'required_without:phone_number|email|nullable',
-            'otp' => 'required|string',
-            'new_password' => 'required|string|min:6',
+        $validated = $this->validateAuth($request, [
+            'email' => 'required|email|max:255',
         ]);
 
-        $query = User::where('otp_code', $validated['otp'])
-            ->where('otp_expiry', '>', Carbon::now());
-
-        if (!empty($validated['phone_number'])) {
-            $query->where('phone_number', $validated['phone_number']);
-        } else {
-            $query->where('gmail', $validated['gmail']);
-        }
-
-        $user = $query->first();
+        $user = User::where('gmail', $validated['email'])->first();
 
         if (! $user) {
-            return response()->json(['message' => 'Invalid or expired OTP'], 400);
+            return response()->json([
+                'message' => 'No account was found for this email.',
+            ], 404);
         }
 
-        $user->update([
-            'password_hash' => Hash::make($validated['new_password']),
-            'otp_code' => null,
-            'otp_expiry' => null,
+        if (! $user->hasVerifiedEmail()) {
+            return $this->otpValidationError('This email address is not verified yet. Complete registration verification first.');
+        }
+
+        try {
+            DB::transaction(function () use ($user) {
+                $otp = $this->otpService->issueOtp($user, User::OTP_PURPOSE_PASSWORD_RESET);
+                $this->sendPasswordResetOtpEmail($user, $otp);
+            });
+        } catch (Throwable $e) {
+            Log::error('Password reset OTP email sending failed', $this->mailDiagnostics->safeContext([
+                'email' => $user->gmail,
+                'purpose' => User::OTP_PURPOSE_PASSWORD_RESET,
+                'error' => $e->getMessage(),
+            ]));
+
+            return response()->json([
+                'message' => 'Could not send the password reset email. Please check your Gmail SMTP settings and try again.',
+                'message_uz' => 'Parolni tiklash emailini yuborib bo\'lmadi. Gmail SMTP sozlamalarini tekshirib, qayta urinib ko\'ring.',
+            ], 500);
+        }
+
+        return response()->json([
+            'message' => 'Password reset OTP sent to your email.',
+            'email' => $user->gmail,
+            'purpose' => User::OTP_PURPOSE_PASSWORD_RESET,
+            'expires_in_minutes' => UserOtpService::OTP_EXPIRY_MINUTES,
+        ]);
+    }
+
+    public function verifyForgotPasswordOtp(Request $request): JsonResponse
+    {
+        $this->mergeNormalizedAuthInputs($request, [
+            'email' => $this->normalizeEmail($request->input('email', $request->input('gmail'))),
+            'otp' => $this->normalizeOtp($request->input('otp')),
         ]);
 
-        return response()->json(['message' => 'Password reset successfully']);
+        $validated = $this->validateAuth($request, [
+            'email' => 'required|email|max:255',
+            'otp' => 'required|digits:6',
+        ]);
+
+        $user = User::where('gmail', $validated['email'])->first();
+
+        if (! $user) {
+            return $this->otpValidationError('No account was found for this email.');
+        }
+
+        $otpStateError = $this->otpStateError($user, $validated['otp'], User::OTP_PURPOSE_PASSWORD_RESET);
+
+        if ($otpStateError !== null) {
+            return $otpStateError;
+        }
+
+        $this->otpService->markOtpVerified($user);
+
+        return response()->json([
+            'message' => 'Password reset OTP verified successfully.',
+        ]);
+    }
+
+    public function resetForgotPassword(Request $request): JsonResponse
+    {
+        $this->mergeNormalizedAuthInputs($request, [
+            'email' => $this->normalizeEmail($request->input('email', $request->input('gmail'))),
+            'otp' => $this->normalizeOtp($request->input('otp')),
+        ]);
+
+        $validated = $this->validateAuth($request, [
+            'email' => 'required|email|max:255',
+            'otp' => 'required|digits:6',
+            'password' => 'required|string|min:8|confirmed',
+        ]);
+
+        $user = User::where('gmail', $validated['email'])->first();
+
+        if (! $user) {
+            return $this->otpValidationError('No account was found for this email.');
+        }
+
+        if ($user->otp_verified_at === null) {
+            return $this->otpValidationError('Verify the OTP before resetting your password.');
+        }
+
+        $otpStateError = $this->otpStateError($user, $validated['otp'], User::OTP_PURPOSE_PASSWORD_RESET);
+
+        if ($otpStateError !== null) {
+            return $otpStateError;
+        }
+
+        $user->forceFill([
+            'password_hash' => Hash::make($validated['password']),
+        ])->save();
+
+        $this->otpService->consumeOtp($user);
+
+        return response()->json([
+            'message' => 'Password reset successfully.',
+        ]);
+    }
+
+    protected function validateAuth(Request $request, array $rules): array
+    {
+        return $this->validateApi(
+            $request,
+            $rules,
+            status: 422,
+            message: 'Validation failed.',
+        );
+    }
+
+    protected function otpStateError(User $user, string $otp, string $purpose): ?JsonResponse
+    {
+        if ($user->otp_purpose !== $purpose || blank($user->otp_code_hash)) {
+            return $this->otpValidationError('No active OTP was found for this request.');
+        }
+
+        if ($this->otpService->otpIsExpired($user, $purpose)) {
+            return $this->otpValidationError('OTP expired. Please request a new code.');
+        }
+
+        if (! $this->otpService->otpMatches($user, $otp, $purpose)) {
+            return $this->otpValidationError('Invalid OTP.');
+        }
+
+        return null;
+    }
+
+    protected function otpValidationError(string $message): JsonResponse
+    {
+        return response()->json([
+            'message' => $message,
+        ], 422);
+    }
+
+    protected function sendRegistrationOtpEmail(User $user, string $otp): void
+    {
+        Mail::to($user->gmail)->send(
+            new RegistrationOtpMail($otp, UserOtpService::OTP_EXPIRY_MINUTES),
+        );
+    }
+
+    protected function sendPasswordResetOtpEmail(User $user, string $otp): void
+    {
+        Mail::to($user->gmail)->send(
+            new PasswordResetOtpMail($otp, UserOtpService::OTP_EXPIRY_MINUTES),
+        );
+    }
+
+    protected function mergeNormalizedAuthInputs(Request $request, array $inputs): void
+    {
+        $request->merge($inputs);
     }
 
     protected function normalizePhoneNumber(?string $phoneNumber): string
@@ -231,5 +380,10 @@ class AuthController extends Controller
     protected function normalizeEmail(?string $email): string
     {
         return mb_strtolower(trim((string) $email));
+    }
+
+    protected function normalizeOtp(mixed $otp): string
+    {
+        return preg_replace('/\D+/', '', trim((string) $otp)) ?? '';
     }
 }

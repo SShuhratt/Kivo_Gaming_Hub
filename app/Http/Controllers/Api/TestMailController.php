@@ -24,9 +24,9 @@ class TestMailController extends Controller
         ]));
 
         try {
-            Mail::raw('Hello from Laravel + Brevo', function ($message) use ($validated) {
+            Mail::raw('Hello from Kivo Gaming Hub. This message was sent using the configured SMTP mailer.', function ($message) use ($validated) {
                 $message->to($validated['email'])
-                    ->subject('Laravel Brevo Test');
+                    ->subject('Kivo Gaming Hub SMTP test');
             });
 
             Log::info('Test mail sent successfully', $mailDiagnostics->safeContext([

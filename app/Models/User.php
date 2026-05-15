@@ -12,18 +12,27 @@ class User extends Authenticatable
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable;
 
+    public const OTP_PURPOSE_REGISTRATION = 'registration';
+    public const OTP_PURPOSE_PASSWORD_RESET = 'password_reset';
+
     protected $fillable = [
         'name',
         'gmail',
         'phone_number',
         'password_hash',
+        'email_verified_at',
         'otp_code',
         'otp_expiry',
+        'otp_code_hash',
+        'otp_expires_at',
+        'otp_verified_at',
+        'otp_purpose',
     ];
 
     protected $hidden = [
         'password_hash',
         'otp_code',
+        'otp_code_hash',
     ];
 
     /**
@@ -37,7 +46,24 @@ class User extends Authenticatable
     protected function casts(): array
     {
         return [
+            'email_verified_at' => 'datetime',
             'otp_expiry' => 'datetime',
+            'otp_expires_at' => 'datetime',
+            'otp_verified_at' => 'datetime',
         ];
+    }
+
+    protected static function booted(): void
+    {
+        static::creating(function (User $user) {
+            if (! array_key_exists('email_verified_at', $user->getAttributes())) {
+                $user->email_verified_at = now();
+            }
+        });
+    }
+
+    public function hasVerifiedEmail(): bool
+    {
+        return $this->email_verified_at !== null;
     }
 }

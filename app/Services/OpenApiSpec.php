@@ -70,12 +70,19 @@ class OpenApiSpec
                     'message' => ['type' => 'string', 'example' => 'Bad request.'],
                     'errors' => ['type' => 'object', 'additionalProperties' => ['type' => 'array', 'items' => ['type' => 'string']]],
                 ]),
+                'OtpChallengeResponse' => $this->object([
+                    'message' => ['type' => 'string', 'example' => 'Verification OTP sent to your email.'],
+                    'email' => ['type' => 'string', 'format' => 'email', 'example' => 'user1@gmail.com'],
+                    'purpose' => ['type' => 'string', 'enum' => ['registration', 'password_reset'], 'example' => 'registration'],
+                    'expires_in_minutes' => ['type' => 'integer', 'example' => 10],
+                    'requires_verification' => ['type' => 'boolean', 'nullable' => true, 'example' => true],
+                ]),
                 'UserRegisterRequest' => $this->object([
                     'name' => ['type' => 'string', 'example' => 'User One'],
-                    'gmail' => ['type' => 'string', 'format' => 'email', 'example' => 'user1 @gmail.com'],
+                    'email' => ['type' => 'string', 'format' => 'email', 'example' => 'user1@gmail.com'],
                     'phone_number' => ['type' => 'string', 'example' => '+998901234567'],
                     'password' => ['type' => 'string', 'format' => 'password', 'example' => 'user123'],
-                ], ['name', 'gmail', 'phone_number', 'password']),
+                ], ['name', 'email', 'phone_number', 'password']),
                 'UserLoginRequest' => $this->object([
                     'phone_number' => ['type' => 'string', 'example' => '+998901234567'],
                     'password' => ['type' => 'string', 'format' => 'password', 'example' => 'user123'],
@@ -86,18 +93,26 @@ class OpenApiSpec
                     'expires_in' => ['type' => 'integer', 'example' => 86400],
                     'user' => ['$ref' => '#/components/schemas/User'],
                 ]),
-                'ForgotPasswordRequest' => $this->object([
-                    'phone_number' => ['type' => 'string', 'example' => '+998901234567'],
-                ], ['phone_number']),
-                'VerifyOtpRequest' => $this->object([
-                    'phone_number' => ['type' => 'string', 'example' => '+998901234567'],
+                'VerifyRegistrationOtpRequest' => $this->object([
+                    'email' => ['type' => 'string', 'format' => 'email', 'example' => 'user1@gmail.com'],
                     'otp' => ['type' => 'string', 'example' => '123456'],
-                ], ['phone_number', 'otp']),
-                'ResetPasswordRequest' => $this->object([
-                    'phone_number' => ['type' => 'string', 'example' => '+998901234567'],
+                ], ['email', 'otp']),
+                'ResendRegistrationOtpRequest' => $this->object([
+                    'email' => ['type' => 'string', 'format' => 'email', 'example' => 'user1@gmail.com'],
+                ], ['email']),
+                'ForgotPasswordSendOtpRequest' => $this->object([
+                    'email' => ['type' => 'string', 'format' => 'email', 'example' => 'user1@gmail.com'],
+                ], ['email']),
+                'ForgotPasswordVerifyOtpRequest' => $this->object([
+                    'email' => ['type' => 'string', 'format' => 'email', 'example' => 'user1@gmail.com'],
                     'otp' => ['type' => 'string', 'example' => '123456'],
-                    'new_password' => ['type' => 'string', 'format' => 'password', 'example' => 'newpass123'],
-                ], ['phone_number', 'otp', 'new_password']),
+                ], ['email', 'otp']),
+                'ForgotPasswordResetRequest' => $this->object([
+                    'email' => ['type' => 'string', 'format' => 'email', 'example' => 'user1@gmail.com'],
+                    'otp' => ['type' => 'string', 'example' => '123456'],
+                    'password' => ['type' => 'string', 'format' => 'password', 'example' => 'newpass123'],
+                    'password_confirmation' => ['type' => 'string', 'format' => 'password', 'example' => 'newpass123'],
+                ], ['email', 'otp', 'password', 'password_confirmation']),
                 'User' => $this->object([
                     'id' => ['type' => 'integer', 'example' => 1],
                     'name' => ['type' => 'string', 'example' => 'User One'],
@@ -404,11 +419,13 @@ class OpenApiSpec
     protected function authPaths(): array
     {
         return [
-            '/auth/register' => ['post' => $this->operation('Auth', 'Register user', 'registerUser', 'UserRegisterRequest', 'MessageResponse', 201, false, true)],
+            '/auth/register' => ['post' => $this->operation('Auth', 'Register user and send registration OTP', 'registerUser', 'UserRegisterRequest', 'OtpChallengeResponse', 201, false, true)],
             '/auth/login' => ['post' => $this->operation('Auth', 'Login and receive JWT', 'loginUser', 'UserLoginRequest', 'LoginResponse', 200, false, true, true)],
-            '/auth/forgot-password' => ['post' => $this->operation('Auth', 'Generate password reset OTP', 'forgotPassword', 'ForgotPasswordRequest', 'MessageResponse', 200, false, true, false, true)],
-            '/auth/verify-otp' => ['post' => $this->operation('Auth', 'Verify password reset OTP', 'verifyOtp', 'VerifyOtpRequest', 'MessageResponse', 200, false, true)],
-            '/auth/reset-password' => ['post' => $this->operation('Auth', 'Reset password with OTP', 'resetPassword', 'ResetPasswordRequest', 'MessageResponse', 200, false, true)],
+            '/auth/verify-registration-otp' => ['post' => $this->operation('Auth', 'Verify registration OTP', 'verifyRegistrationOtp', 'VerifyRegistrationOtpRequest', 'MessageResponse', 200, false, true)],
+            '/auth/resend-registration-otp' => ['post' => $this->operation('Auth', 'Resend registration OTP', 'resendRegistrationOtp', 'ResendRegistrationOtpRequest', 'OtpChallengeResponse', 200, false, true)],
+            '/auth/forgot-password/send-otp' => ['post' => $this->operation('Auth', 'Send password reset OTP', 'sendForgotPasswordOtp', 'ForgotPasswordSendOtpRequest', 'OtpChallengeResponse', 200, false, true, false, true)],
+            '/auth/forgot-password/verify-otp' => ['post' => $this->operation('Auth', 'Verify password reset OTP', 'verifyForgotPasswordOtp', 'ForgotPasswordVerifyOtpRequest', 'MessageResponse', 200, false, true)],
+            '/auth/forgot-password/reset' => ['post' => $this->operation('Auth', 'Reset password with OTP', 'resetForgotPassword', 'ForgotPasswordResetRequest', 'MessageResponse', 200, false, true)],
         ];
     }
 

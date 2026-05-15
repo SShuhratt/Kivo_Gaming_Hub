@@ -61,6 +61,13 @@ type ApiMessageResponse = {
   message: string;
 };
 
+export type OtpChallengeResponse = ApiMessageResponse & {
+  email: string;
+  purpose: 'registration' | 'password_reset';
+  expires_in_minutes: number;
+  requires_verification?: boolean | null;
+};
+
 export type DownloadedApiFile = {
   filename: string;
   blob: Blob;
@@ -570,42 +577,67 @@ export function loginRequest(phoneNumber: string, password: string) {
 
 export function registerRequest(payload: {
   name: string;
-  gmail: string;
+  email: string;
   phone_number: string;
   password: string;
 }) {
-  return apiRequest<ApiMessageResponse>('/auth/register', {
+  return apiRequest<OtpChallengeResponse>('/auth/register', {
     method: 'POST',
     body: payload,
   });
 }
 
-export function forgotPasswordRequest(phoneNumber: string) {
-  return apiRequest<ApiMessageResponse>('/auth/forgot-password', {
+export function verifyRegistrationOtpRequest(email: string, otp: string) {
+  return apiRequest<ApiMessageResponse>('/auth/verify-registration-otp', {
     method: 'POST',
     body: {
-      phone_number: phoneNumber,
-    },
-  });
-}
-
-export function verifyOtpRequest(phoneNumber: string, otp: string) {
-  return apiRequest<ApiMessageResponse>('/auth/verify-otp', {
-    method: 'POST',
-    body: {
-      phone_number: phoneNumber,
+      email,
       otp,
     },
   });
 }
 
-export function resetPasswordRequest(phoneNumber: string, otp: string, newPassword: string) {
-  return apiRequest<ApiMessageResponse>('/auth/reset-password', {
+export function resendRegistrationOtpRequest(email: string) {
+  return apiRequest<OtpChallengeResponse>('/auth/resend-registration-otp', {
     method: 'POST',
     body: {
-      phone_number: phoneNumber,
+      email,
+    },
+  });
+}
+
+export function forgotPasswordSendOtpRequest(email: string) {
+  return apiRequest<OtpChallengeResponse>('/auth/forgot-password/send-otp', {
+    method: 'POST',
+    body: {
+      email,
+    },
+  });
+}
+
+export function forgotPasswordVerifyOtpRequest(email: string, otp: string) {
+  return apiRequest<ApiMessageResponse>('/auth/forgot-password/verify-otp', {
+    method: 'POST',
+    body: {
+      email,
       otp,
-      new_password: newPassword,
+    },
+  });
+}
+
+export function forgotPasswordResetRequest(
+  email: string,
+  otp: string,
+  password: string,
+  passwordConfirmation: string,
+) {
+  return apiRequest<ApiMessageResponse>('/auth/forgot-password/reset', {
+    method: 'POST',
+    body: {
+      email,
+      otp,
+      password,
+      password_confirmation: passwordConfirmation,
     },
   });
 }

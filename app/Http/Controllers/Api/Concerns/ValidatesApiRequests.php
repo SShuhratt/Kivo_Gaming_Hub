@@ -13,15 +13,17 @@ trait ValidatesApiRequests
         array $rules,
         array $messages = [],
         array $attributes = [],
+        int $status = 400,
+        string $message = 'Bad request.',
     ): array
     {
         $validator = Validator::make($request->all(), $rules, $messages, $attributes);
 
         if ($validator->fails()) {
             throw new HttpResponseException(response()->json([
-                'message' => 'Bad request.',
+                'message' => $message,
                 'errors' => $validator->errors(),
-            ], 400));
+            ], $status));
         }
 
         return $validator->validated();
