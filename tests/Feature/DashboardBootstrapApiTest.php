@@ -44,7 +44,7 @@ class DashboardBootstrapApiTest extends TestCase
             'manufacturer' => 'Pepsi',
             'product_name' => 'Pepsi 0.5L',
             'shtrix_code' => '4780099999999',
-            'unit' => 'bottle',
+            'unit' => 'shisha',
             'count' => 18,
             'purchase_price' => 6000,
             'sell_price' => 9000,

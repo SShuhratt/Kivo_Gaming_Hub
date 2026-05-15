@@ -578,7 +578,7 @@ class BookingAndFinanceApiTest extends TestCase
             'manufacturer_name' => 'Pepsi',
             'product_name' => 'Pepsi 0.5L',
             'barcode' => '4780099999999',
-            'unit' => 'bottle',
+            'unit' => 'shisha',
             'quantity' => 1,
             'unit_price' => 15000,
             'total_price' => 15000,

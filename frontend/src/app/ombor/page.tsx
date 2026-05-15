@@ -48,7 +48,7 @@ import {
   TableRow
 } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
-import { getWarehouseUnitLabel, WAREHOUSE_UNIT_OPTIONS } from '@/lib/warehouse-units';
+import { getWarehouseUnitLabel, normalizeWarehouseUnit, WAREHOUSE_UNIT_OPTIONS } from '@/lib/warehouse-units';
 
 type ProductFormState = {
   manufacturer: string;
@@ -65,7 +65,7 @@ const emptyProductForm: ProductFormState = {
   name: '',
   barcode: '',
   quantity: '',
-  unit: 'piece',
+  unit: 'dona',
   purchasePrice: '',
   sellingPrice: '',
 };
@@ -154,7 +154,7 @@ export default function OmborPage() {
         name: product.name,
         barcode: product.barcode,
         quantity: product.quantity.toString(),
-        unit: product.unit,
+        unit: normalizeWarehouseUnit(product.unit) ?? emptyProductForm.unit,
         purchasePrice: product.purchasePrice.toString(),
         sellingPrice: product.sellingPrice.toString(),
       });

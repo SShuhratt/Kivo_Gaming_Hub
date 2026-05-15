@@ -19,17 +19,17 @@ class CheckoutSaleApiTest extends TestCase
             'manufacturer' => 'Nestle',
             'product_name' => 'Shokolad',
             'shtrix_code' => 'NESTLE-001',
-            'unit' => 'piece',
+            'unit' => 'dona',
             'count' => 20,
             'purchase_price' => 5000,
             'sell_price' => 7000,
         ], $this->authHeaders())
             ->assertCreated()
-            ->assertJsonPath('unit', 'piece');
+            ->assertJsonPath('unit', 'dona');
 
         $this->assertDatabaseHas('warehouse', [
             'shtrix_code' => 'NESTLE-001',
-            'unit' => 'piece',
+            'unit' => 'dona',
         ]);
     }
 
@@ -41,7 +41,7 @@ class CheckoutSaleApiTest extends TestCase
             'manufacturer' => 'Pepsi',
             'product_name' => 'Pepsi 0.5L',
             'shtrix_code' => '4780099999999',
-            'unit' => 'bottle',
+            'unit' => 'shisha',
             'count' => 10,
             'purchase_price' => 6000,
             'sell_price' => 9000,
@@ -105,7 +105,7 @@ class CheckoutSaleApiTest extends TestCase
             'manufacturer' => 'Coca-Cola',
             'product_name' => 'Coke Zero',
             'shtrix_code' => '4780011111111',
-            'unit' => 'bottle',
+            'unit' => 'shisha',
             'count' => 1,
             'purchase_price' => 6000,
             'sell_price' => 9000,

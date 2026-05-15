@@ -36,7 +36,7 @@ import {
   updateAssetRequest,
   updateWarehouseItemRequest,
 } from '@/lib/api';
-import type { WarehouseUnit } from '@/lib/warehouse-units';
+import { normalizeWarehouseUnit, type WarehouseUnit } from '@/lib/warehouse-units';
 
 const AUTH_TOKEN_STORAGE_KEY = 'kivo:auth-token';
 
@@ -632,7 +632,7 @@ function mapBootstrapPayload(payload: DashboardBootstrapResponse) {
       productName: sale.product_name,
       manufacturer: sale.manufacturer,
       quantity: sale.quantity,
-      unit: sale.unit,
+      unit: normalizeWarehouseUnit(sale.unit),
       unitPrice: sale.unit_price,
       cashierName: sale.cashier_name,
       relatedSaleId: sale.related_sale_id,
@@ -651,7 +651,7 @@ function mapBootstrapPayload(payload: DashboardBootstrapResponse) {
         name: product.name,
         barcode: product.barcode,
         quantity: product.quantity,
-        unit: product.unit,
+        unit: normalizeWarehouseUnit(product.unit) ?? 'dona',
         purchasePrice: product.purchase_price,
         sellingPrice: product.selling_price,
       })),

@@ -23,7 +23,7 @@ class CsvExportApiTest extends TestCase
             'manufacturer' => 'Sony',
             'product_name' => 'DualSense',
             'shtrix_code' => 'TRADE-0001',
-            'unit' => 'piece',
+            'unit' => 'dona',
             'count' => 3,
             'purchase_price' => 500000,
             'sell_price' => 650000,
@@ -33,7 +33,7 @@ class CsvExportApiTest extends TestCase
             'manufacturer' => 'Pepsi',
             'product_name' => 'Pepsi 0.5L',
             'shtrix_code' => 'TRADE-0002',
-            'unit' => 'bottle',
+            'unit' => 'shisha',
             'count' => 10,
             'purchase_price' => 6000,
             'sell_price' => 9000,
@@ -64,7 +64,7 @@ class CsvExportApiTest extends TestCase
             ],
         ], $this->authHeaders())->assertCreated();
 
-        $response = $this->get('/api/trades/export?search=pepsi', $this->authHeaders());
+        $response = $this->withHeaders($this->authHeaders())->get('/api/trades/export?search=pepsi');
 
         $response
             ->assertOk()
@@ -94,7 +94,7 @@ class CsvExportApiTest extends TestCase
             'manufacturer' => 'Pepsi',
             'product_name' => 'Pepsi oila qutisi',
             'shtrix_code' => 'WAREHOUSE-0001',
-            'unit' => 'box',
+            'unit' => 'quti',
             'count' => 4,
             'purchase_price' => 15000,
             'sell_price' => 22000,
@@ -104,7 +104,7 @@ class CsvExportApiTest extends TestCase
             'manufacturer' => 'Pepsi',
             'product_name' => 'Pepsi dona',
             'shtrix_code' => 'WAREHOUSE-0002',
-            'unit' => 'piece',
+            'unit' => 'dona',
             'count' => 7,
             'purchase_price' => 5000,
             'sell_price' => 9000,
@@ -114,15 +114,14 @@ class CsvExportApiTest extends TestCase
             'manufacturer' => 'Coca-Cola',
             'product_name' => 'Coke box',
             'shtrix_code' => 'WAREHOUSE-0003',
-            'unit' => 'box',
+            'unit' => 'quti',
             'count' => 2,
             'purchase_price' => 14000,
             'sell_price' => 21000,
         ]);
 
-        $response = $this->get(
+        $response = $this->withHeaders($this->authHeaders())->get(
             "/api/manufacturers/{$matchingProduct->manufacturer_id}/products/export?search=quti",
-            $this->authHeaders(),
         );
 
         $response
@@ -146,22 +145,21 @@ class CsvExportApiTest extends TestCase
             'manufacturer' => 'Nestle',
             'product_name' => 'KitKat',
             'shtrix_code' => 'EMPTY-0001',
-            'unit' => 'piece',
+            'unit' => 'dona',
             'count' => 5,
             'purchase_price' => 4000,
             'sell_price' => 7000,
         ])->refresh();
 
-        $this->getJson('/api/trades/export?search=hech-narsa', $this->authHeaders())
+        $this->withHeaders($this->authHeaders())->getJson('/api/trades/export?search=hech-narsa')
             ->assertStatus(422)
             ->assertJson([
                 'message' => 'No data available to export',
                 'message_uz' => "Eksport qilish uchun ma'lumot yo'q",
             ]);
 
-        $this->getJson(
+        $this->withHeaders($this->authHeaders())->getJson(
             "/api/manufacturers/{$manufacturerProduct->manufacturer_id}/products/export?search=topilmadi",
-            $this->authHeaders(),
         )
             ->assertStatus(422)
             ->assertJson([
@@ -170,36 +168,33 @@ class CsvExportApiTest extends TestCase
             ]);
     }
 
-    public function test_export_probe_returns_a_hardcoded_xlsx_for_both_endpoints(): void
+    public function test_export_probe_returns_json_diagnostics_for_both_endpoints(): void
     {
         $manufacturerProduct = Warehouse::create([
             'manufacturer' => 'Probe Co',
             'product_name' => 'Probe Item',
             'shtrix_code' => 'PROBE-0001',
-            'unit' => 'piece',
+            'unit' => 'dona',
             'count' => 1,
             'purchase_price' => 1000,
             'sell_price' => 1500,
         ])->refresh();
 
-        $tradeProbeResponse = $this->get('/api/trades/export?debug_probe=1', $this->authHeaders());
+        $tradeProbeResponse = $this->withHeaders($this->authHeaders())->get('/api/trades/export?debug_probe=1');
         $tradeProbeResponse
             ->assertOk()
-            ->assertHeader('content-type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+            ->assertHeader('content-type', 'application/json')
+            ->assertJsonPath('route', 'trades.export')
+            ->assertJsonPath('authenticated', true);
 
-        $tradeProbeRows = $this->xlsxRows($tradeProbeResponse);
-        $this->assertSame([['Test', 'Value'], ['OK', 1]], $tradeProbeRows);
-
-        $manufacturerProbeResponse = $this->get(
+        $manufacturerProbeResponse = $this->withHeaders($this->authHeaders())->get(
             "/api/manufacturers/{$manufacturerProduct->manufacturer_id}/products/export?debug_probe=1",
-            $this->authHeaders(),
         );
         $manufacturerProbeResponse
             ->assertOk()
-            ->assertHeader('content-type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-
-        $manufacturerProbeRows = $this->xlsxRows($manufacturerProbeResponse);
-        $this->assertSame([['Test', 'Value'], ['OK', 1]], $manufacturerProbeRows);
+            ->assertHeader('content-type', 'application/json')
+            ->assertJsonPath('route', 'manufacturers.products.export')
+            ->assertJsonPath('authenticated', true);
     }
 
     protected function xlsxRows(TestResponse $response): array

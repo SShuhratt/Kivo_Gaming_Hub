@@ -5,6 +5,7 @@ namespace App\Http\Middleware;
 use App\Models\User;
 use App\Services\JwtService;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Auth;
 use Closure;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -40,6 +41,7 @@ class ApiTokenMiddleware
             return $this->unauthorizedResponse('JWT bearer token is invalid or expired.');
         }
 
+        Auth::setUser($user);
         $request->setUserResolver(fn (): User => $user);
 
         return $next($request);

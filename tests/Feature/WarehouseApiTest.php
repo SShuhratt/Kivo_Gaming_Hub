@@ -49,7 +49,7 @@ class WarehouseApiTest extends TestCase
             'manufacturer' => 'Should Not Override',
             'name' => 'Pepsi 1L',
             'barcode' => 'PEPSI-100',
-            'unit' => 'bottle',
+            'unit' => 'shisha',
             'quantity' => 12,
             'purchase_price' => 7000,
             'sale_price' => 10000,
@@ -60,6 +60,7 @@ class WarehouseApiTest extends TestCase
             ->assertJsonPath('name', 'Pepsi 1L')
             ->assertJsonPath('barcode', 'PEPSI-100')
             ->assertJsonPath('quantity', 12)
+            ->assertJsonPath('unit', 'shisha')
             ->assertJsonPath('sale_price', 10000);
 
         $this->assertDatabaseHas('warehouse', [
@@ -102,6 +103,71 @@ class WarehouseApiTest extends TestCase
             ->assertJsonPath('errors.count.0', 'Miqdor butun son bo\'lishi kerak.');
     }
 
+    public function test_warehouse_accepts_every_supported_unit_for_create_and_update(): void
+    {
+        $manufacturer = Manufacturer::create([
+            'name' => 'Unit Factory',
+        ]);
+
+        foreach ($this->supportedUnits() as $index => $unit) {
+            $response = $this->postJson('/api/warehouse', [
+                'manufacturer_id' => $manufacturer->id,
+                'name' => "Mahsulot {$unit}",
+                'barcode' => sprintf('UNIT-%03d', $index + 1),
+                'unit' => $unit,
+                'quantity' => 10 + $index,
+                'purchase_price' => 1000 + $index,
+                'sale_price' => 2000 + $index,
+            ], $this->authHeaders());
+
+            $response
+                ->assertCreated()
+                ->assertJsonPath('unit', $unit);
+
+            $productId = (int) $response->json('id');
+
+            $this->assertDatabaseHas('warehouse', [
+                'id' => $productId,
+                'unit' => $unit,
+            ]);
+
+            $nextUnit = $this->supportedUnits()[($index + 1) % count($this->supportedUnits())];
+
+            $this->putJson("/api/warehouse/{$productId}", [
+                'unit' => $nextUnit,
+            ], $this->authHeaders())
+                ->assertOk()
+                ->assertJsonPath('unit', $nextUnit);
+
+            $this->assertDatabaseHas('warehouse', [
+                'id' => $productId,
+                'unit' => $nextUnit,
+            ]);
+        }
+    }
+
+    public function test_xalta_and_bag_are_rejected_with_a_422_validation_error(): void
+    {
+        $manufacturer = Manufacturer::create([
+            'name' => 'Snack Co',
+        ]);
+
+        foreach (['xalta', 'bag'] as $unit) {
+            $this->postJson('/api/warehouse', [
+                'manufacturer_id' => $manufacturer->id,
+                'name' => "Mahsulot {$unit}",
+                'barcode' => 'REJECT-'.strtoupper($unit),
+                'unit' => $unit,
+                'quantity' => 5,
+                'purchase_price' => 1000,
+                'sale_price' => 1500,
+            ], $this->authHeaders())
+                ->assertStatus(422)
+                ->assertJsonPath('message', 'Validation failed.')
+                ->assertJsonPath('errors.unit.0', "Tanlangan o'lchov birligi noto'g'ri.");
+        }
+    }
+
     public function test_warehouse_index_handles_products_without_a_resolved_manufacturer_relation(): void
     {
         DB::table('warehouse')->insert([
@@ -109,7 +175,7 @@ class WarehouseApiTest extends TestCase
             'manufacturer_id' => null,
             'product_name' => 'Loose Product',
             'shtrix_code' => 'LOOSE-001',
-            'unit' => 'piece',
+            'unit' => 'dona',
             'count' => 0,
             'purchase_price' => 0,
             'sell_price' => 0,
@@ -145,5 +211,21 @@ class WarehouseApiTest extends TestCase
             'phone_number' => '+998901234567',
             'password' => 'secret123',
         ])->json('token');
+    }
+
+    protected function supportedUnits(): array
+    {
+        return [
+            'dona',
+            'kg',
+            'g',
+            'l',
+            'ml',
+            'quti',
+            'qadoq',
+            'shisha',
+            'm',
+            'idish',
+        ];
     }
 }

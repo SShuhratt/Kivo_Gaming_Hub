@@ -185,13 +185,14 @@ class WarehouseController extends Controller
     protected function normalizeWarehousePayload(Request $request): array
     {
         $payload = $request->all();
+        $unit = $this->valueFromPayload($payload, ['unit']);
 
         return [
             'manufacturer_id' => $this->valueFromPayload($payload, ['manufacturer_id']),
             'manufacturer' => $this->valueFromPayload($payload, ['manufacturer', 'manufacturer_name']),
             'product_name' => $this->valueFromPayload($payload, ['product_name', 'name']),
             'shtrix_code' => $this->valueFromPayload($payload, ['shtrix_code', 'barcode']),
-            'unit' => $this->valueFromPayload($payload, ['unit']),
+            'unit' => Warehouse::normalizeUnitInput($unit) ?? $unit,
             'count' => $this->valueFromPayload($payload, ['count', 'quantity', 'stock', 'soni']),
             'purchase_price' => $this->valueFromPayload($payload, ['purchase_price']),
             'sell_price' => $this->valueFromPayload($payload, ['sell_price', 'sale_price', 'selling_price']),

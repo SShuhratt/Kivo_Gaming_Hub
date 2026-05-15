@@ -34,4 +34,22 @@ class CheckoutSaleItem extends Model
     {
         return $this->belongsTo(Warehouse::class, 'warehouse_id');
     }
+
+    public function getUnitAttribute(mixed $value): ?string
+    {
+        $normalizedUnit = Warehouse::normalizeStoredUnit($value);
+
+        if ($normalizedUnit !== null) {
+            return $normalizedUnit;
+        }
+
+        return is_string($value) ? trim($value) : null;
+    }
+
+    public function setUnitAttribute(mixed $value): void
+    {
+        $normalizedUnit = Warehouse::normalizeStoredUnit($value);
+
+        $this->attributes['unit'] = $normalizedUnit ?? (is_string($value) ? trim($value) : $value);
+    }
 }

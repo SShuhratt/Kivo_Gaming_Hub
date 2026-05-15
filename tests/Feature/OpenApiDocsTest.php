@@ -102,6 +102,14 @@ class OpenApiDocsTest extends TestCase
         $this->assertNotEmpty($spec['paths']['/trades']['get']['parameters'] ?? []);
         $this->assertSame([['bearerAuth' => []]], $spec['paths']['/assets']['get']['security']);
         $this->assertArrayNotHasKey('security', $spec['paths']['/auth/login']['post']);
+        $this->assertSame(
+            ['dona', 'kg', 'g', 'l', 'ml', 'quti', 'qadoq', 'shisha', 'm', 'idish'],
+            $spec['components']['schemas']['WarehouseItem']['properties']['unit']['enum'],
+        );
+        $this->assertNotContains(
+            'xalta',
+            $spec['components']['schemas']['WarehouseItem']['properties']['unit']['enum'],
+        );
     }
 
     public function test_api_routes_have_openapi_operation_decorators(): void
