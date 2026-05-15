@@ -146,6 +146,42 @@ class WarehouseApiTest extends TestCase
         }
     }
 
+    public function test_warehouse_alias_units_are_normalized_to_canonical_values(): void
+    {
+        $manufacturer = Manufacturer::create([
+            'name' => 'Alias Factory',
+        ]);
+
+        $aliases = [
+            'kg/kilogramm' => 'kg',
+            'g/gramm' => 'g',
+            'l/litr' => 'l',
+            'millilitr' => 'ml',
+            'm/metr' => 'm',
+        ];
+
+        foreach ($aliases as $input => $expected) {
+            $response = $this->postJson('/api/warehouse', [
+                'manufacturer_id' => $manufacturer->id,
+                'name' => "Mahsulot {$expected}",
+                'barcode' => 'ALIAS-'.strtoupper(str_replace(['/', ' '], '-', $expected)).'-'.substr(md5($input), 0, 6),
+                'unit' => $input,
+                'quantity' => 5,
+                'purchase_price' => 1000,
+                'sale_price' => 1500,
+            ], $this->authHeaders());
+
+            $response
+                ->assertCreated()
+                ->assertJsonPath('unit', $expected);
+
+            $this->assertDatabaseHas('warehouse', [
+                'id' => $response->json('id'),
+                'unit' => $expected,
+            ]);
+        }
+    }
+
     public function test_xalta_and_bag_are_rejected_with_a_422_validation_error(): void
     {
         $manufacturer = Manufacturer::create([

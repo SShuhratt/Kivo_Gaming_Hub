@@ -61,7 +61,6 @@ const WAREHOUSE_UNIT_ALIASES: Record<string, WarehouseUnit> = {
   idish: 'idish',
   container: 'idish',
   bag: 'qadoq',
-  xalta: 'qadoq',
 };
 
 export function normalizeWarehouseUnit(unit: string | null | undefined): WarehouseUnit | null {

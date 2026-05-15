@@ -48,7 +48,7 @@ class CheckoutSaleItem extends Model
 
     public function setUnitAttribute(mixed $value): void
     {
-        $normalizedUnit = Warehouse::normalizeStoredUnit($value);
+        $normalizedUnit = Warehouse::normalizeUnitInput($value);
 
         $this->attributes['unit'] = $normalizedUnit ?? (is_string($value) ? trim($value) : $value);
     }

@@ -52,7 +52,15 @@ return new class extends Migration
 
     public function down(): void
     {
-        // Canonical Uzbek unit values are intentionally preserved on rollback.
+        $legacyUnits = [
+            'bottle',
+            'box',
+            'container',
+            'bag',
+        ];
+
+        $this->dropWarehouseUnitConstraint();
+        $this->addWarehouseUnitConstraint($legacyUnits);
     }
 
     protected function normalizeTableUnits(string $table, array $unitMap): void

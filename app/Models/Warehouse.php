@@ -116,7 +116,6 @@ class Warehouse extends Model
     {
         return [
             'bag' => self::UNIT_QADOQ,
-            'xalta' => self::UNIT_QADOQ,
         ];
     }
 
@@ -220,7 +219,7 @@ class Warehouse extends Model
 
     public function setUnitAttribute(mixed $value): void
     {
-        $normalizedUnit = self::normalizeStoredUnit($value);
+        $normalizedUnit = self::normalizeUnitInput($value);
 
         $this->attributes['unit'] = $normalizedUnit ?? (is_string($value) ? trim($value) : $value);
     }
