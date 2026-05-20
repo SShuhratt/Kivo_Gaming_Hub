@@ -118,10 +118,11 @@ export default function LoginPage() {
               <div className="space-y-4 md:space-y-5">
                 {/* Telefon raqami */}
                 <div className="space-y-2">
-                  <label className="text-[9px] md:text-[10px] font-black uppercase tracking-widest text-muted-foreground/80">Telefon</label>
+                  <label htmlFor="login-phone-number" className="text-[9px] md:text-[10px] font-black uppercase tracking-widest text-muted-foreground/80">Telefon</label>
                   <div className="relative group">
                     <Phone className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/40 group-focus-within:text-primary transition-colors" />
                     <Input 
+                      id="login-phone-number"
                       type="tel" 
                       aria-label="Telefon"
                       name="phone_number"
@@ -138,7 +139,7 @@ export default function LoginPage() {
                 {/* Parol */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <label className="text-[9px] md:text-[10px] font-black uppercase tracking-widest text-muted-foreground/80">Parol</label>
+                    <label htmlFor="login-password" className="text-[9px] md:text-[10px] font-black uppercase tracking-widest text-muted-foreground/80">Parol</label>
                     <Link href="/forgot-password" className="text-[9px] md:text-[10px] text-primary hover:underline font-black uppercase tracking-tight">
                       Unutdingizmi?
                     </Link>
@@ -146,6 +147,7 @@ export default function LoginPage() {
                   <div className="relative group">
                     <Lock className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/40 group-focus-within:text-primary transition-colors" />
                     <Input 
+                      id="login-password"
                       type={showPassword ? "text" : "password"}
                       aria-label="Parol"
                       name="password"

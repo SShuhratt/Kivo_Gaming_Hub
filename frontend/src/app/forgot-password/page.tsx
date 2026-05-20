@@ -228,12 +228,13 @@ export default function ForgotPasswordPage() {
           {step === 'email' && (
             <form onSubmit={handleSendOtp} className="mt-8 space-y-5">
               <div className="space-y-2">
-                <label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40">
+                <label htmlFor="forgot-password-email" className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40">
                   Email
                 </label>
                 <div className="relative">
                   <Mail className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/20" />
                   <Input
+                    id="forgot-password-email"
                     type="email"
                     autoComplete="email"
                     value={email}
@@ -267,10 +268,11 @@ export default function ForgotPasswordPage() {
           {step === 'otp' && (
             <div className="mt-8 space-y-5">
               <div className="space-y-2">
-                <label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40">
+                <label htmlFor="forgot-password-otp" className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40">
                   OTP kodi
                 </label>
                 <Input
+                  id="forgot-password-otp"
                   value={otp}
                   onChange={(event) => setOtp(event.target.value.replace(/\D+/g, '').slice(0, 6))}
                   inputMode="numeric"
@@ -324,12 +326,13 @@ export default function ForgotPasswordPage() {
             <form onSubmit={handleResetPassword} className="mt-8 space-y-5">
               <div className="space-y-3">
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40">
+                  <label htmlFor="forgot-password-new-password" className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40">
                     Yangi parol
                   </label>
                   <div className="relative">
                     <Lock className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/20" />
                     <Input
+                      id="forgot-password-new-password"
                       type={showPassword ? 'text' : 'password'}
                       value={password}
                       onChange={(event) => setPassword(event.target.value)}
@@ -348,12 +351,13 @@ export default function ForgotPasswordPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40">
+                  <label htmlFor="forgot-password-confirm-password" className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40">
                     Parolni tasdiqlash
                   </label>
                   <div className="relative">
                     <Lock className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/20" />
                     <Input
+                      id="forgot-password-confirm-password"
                       type={showConfirmPassword ? 'text' : 'password'}
                       value={confirmPassword}
                       onChange={(event) => setConfirmPassword(event.target.value)}

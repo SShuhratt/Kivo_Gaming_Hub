@@ -284,7 +284,7 @@ export function RegistrationForm() {
                 <FormLabel htmlFor="register-name" className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40 ml-1">
                   Foydalanuvchi ismi
                 </FormLabel>
-                <FormControl id="register-name">
+                <FormControl>
                   <div className="relative group">
                     <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20 group-focus-within:text-primary transition-colors" />
                     <Input
@@ -309,7 +309,7 @@ export function RegistrationForm() {
                 <FormLabel htmlFor="register-email" className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40 ml-1">
                   Email
                 </FormLabel>
-                <FormControl id="register-email">
+                <FormControl>
                   <div className="relative group">
                     <MailCheck className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20 group-focus-within:text-primary transition-colors" />
                     <Input
@@ -336,7 +336,7 @@ export function RegistrationForm() {
                 <FormLabel htmlFor="register-phone" className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40 ml-1">
                   Telefon raqami
                 </FormLabel>
-                <FormControl id="register-phone">
+                <FormControl>
                   <div className="relative group">
                     <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20 group-focus-within:text-primary transition-colors" />
                     <Input
@@ -365,7 +365,7 @@ export function RegistrationForm() {
                     Parol
                   </FormLabel>
                 </div>
-                <FormControl id="register-password">
+                <FormControl>
                   <div className="relative group">
                     <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20 group-focus-within:text-primary transition-colors" />
                     <Input
@@ -404,7 +404,7 @@ export function RegistrationForm() {
                 <FormLabel htmlFor="register-password-confirmation" className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40 ml-1">
                   Parolni tasdiqlash
                 </FormLabel>
-                <FormControl id="register-password-confirmation">
+                <FormControl>
                   <div className="relative group">
                     <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20 group-focus-within:text-primary transition-colors" />
                     <Input
