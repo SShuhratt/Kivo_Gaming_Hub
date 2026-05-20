@@ -16,7 +16,7 @@ Artisan::command('mail:test {email}', function (string $email) {
     $this->info('Mail diagnostics: '.json_encode($mailDiagnostics->safeConfig(), JSON_UNESCAPED_SLASHES));
 
     try {
-        Mail::raw('Gmail SMTP test successful.', function ($message) use ($email) {
+        Mail::raw('SMTP test successful.', function ($message) use ($email) {
             $message->to($email)
                 ->subject('Kivo Gaming Hub test');
         });
@@ -40,4 +40,4 @@ Artisan::command('mail:test {email}', function (string $email) {
 
         return self::FAILURE;
     }
-})->purpose('Send a Gmail SMTP test email using the current Laravel mail configuration');
+})->purpose('Send an SMTP test email using the current Laravel mail configuration');

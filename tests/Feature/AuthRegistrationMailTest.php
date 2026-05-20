@@ -120,7 +120,7 @@ class AuthRegistrationMailTest extends TestCase
             'phone_number' => '+998777777779',
             'password' => 'User$H123',
         ])->assertStatus(503)
-            ->assertJsonPath('message', 'Tasdiqlash emailini yuborib bo\'lmadi. Gmail SMTP sozlamalarini tekshirib, qayta urining');
+            ->assertJsonPath('message', 'Tasdiqlash emailini yuborib bo\'lmadi. SMTP sozlamalarini tekshirib, qayta urining.');
 
         $this->assertDatabaseHas('users', [
             'gmail' => 'user5@gmail.com',

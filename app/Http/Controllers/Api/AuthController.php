@@ -94,7 +94,7 @@ class AuthController extends Controller
             ]));
 
             return response()->json([
-                'message' => 'Tasdiqlash emailini yuborib bo\'lmadi. Gmail SMTP sozlamalarini tekshirib, qayta urining',
+                'message' => 'Tasdiqlash emailini yuborib bo\'lmadi. SMTP sozlamalarini tekshirib, qayta urining.',
             ], 503);
         }
 
@@ -209,7 +209,7 @@ class AuthController extends Controller
             ]));
 
             return response()->json([
-                'message' => 'Tasdiqlash emailini yuborib bo\'lmadi. Gmail SMTP sozlamalarini tekshirib, qayta urining',
+                'message' => 'Tasdiqlash emailini yuborib bo\'lmadi. SMTP sozlamalarini tekshirib, qayta urining.',
             ], 503);
         }
 
@@ -259,8 +259,8 @@ class AuthController extends Controller
             ]));
 
             return response()->json([
-                'message' => 'Could not send the password reset email. Please check your Gmail SMTP settings and try again.',
-                'message_uz' => 'Parolni tiklash emailini yuborib bo\'lmadi. Gmail SMTP sozlamalarini tekshirib, qayta urinib ko\'ring.',
+                'message' => 'Could not send the password reset email. Please check your SMTP settings and try again.',
+                'message_uz' => 'Parolni tiklash emailini yuborib bo\'lmadi. SMTP sozlamalarini tekshirib, qayta urinib ko\'ring.',
             ], 500);
         }
 
