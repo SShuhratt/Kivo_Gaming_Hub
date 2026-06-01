@@ -68,22 +68,50 @@ class AuthController extends Controller
             'gmail' => $validated['email'],
             'phone_number' => $validated['phone_number'],
             'password_hash' => Hash::make($validated['password']),
-            'email_verified_at' => now(),
         ]);
 
         $user->save();
 
-        Log::info('User registered successfully without OTP verification', [
-            'email' => $user->gmail,
-            'user_id' => $user->id,
-            'existing_unverified_user' => $userWasExisting,
-        ]);
+        try {
+            if (! $this->shouldFallbackOnMailFailure($user)) {
+                $otp = $this->otpService->issueOtp($user, User::OTP_PURPOSE_REGISTRATION);
+                $this->sendRegistrationOtpEmail($user, $otp);
+            } else {
+                throw new \Exception('Skipping real email in test environment.');
+            }
+        } catch (\Exception $e) {
+            Log::error('Registration OTP sending failed', $this->mailDiagnostics->safeContext([
+                'email' => $user->gmail,
+                'error' => $e->getMessage(),
+                'purpose' => User::OTP_PURPOSE_REGISTRATION,
+            ]));
+
+            if ($this->shouldFallbackOnMailFailure($user)) {
+                $otp = null;
+                DB::transaction(function () use ($user, &$otp) {
+                    $otp = $this->otpService->issueOtp($user, User::OTP_PURPOSE_REGISTRATION);
+                });
+
+                Log::info("Fallback: Proceeding with registration OTP for test user/environment without sending email. OTP: {$otp}");
+
+                return response()->json([
+                    'message' => 'Ro\'yxatdan o\'tish boshlandi (test fallback).',
+                    'email' => $user->gmail,
+                    'requires_verification' => true,
+                    'purpose' => User::OTP_PURPOSE_REGISTRATION,
+                    'expires_in_minutes' => UserOtpService::OTP_EXPIRY_MINUTES,
+                    'debug_otp' => $otp,
+                ], 201);
+            }
+
+            throw $e;
+        }
 
         return response()->json([
-            'message' => 'Foydalanuvchi muvaffaqiyatli ro\'yxatdan o\'tdi.',
+            'message' => 'Ro\'yxatdan o\'tish boshlandi. Emailingizga yuborilgan OTP kodni tasdiqlang.',
             'email' => $user->gmail,
-            'requires_verification' => false,
-        ], $userWasExisting ? 200 : 201);
+            'requires_verification' => true,
+        ], 201);
     }
 
     public function login(Request $request): JsonResponse

@@ -55,11 +55,6 @@ class User extends Authenticatable
 
     protected static function booted(): void
     {
-        static::creating(function (User $user) {
-            if (! array_key_exists('email_verified_at', $user->getAttributes())) {
-                $user->email_verified_at = now();
-            }
-        });
     }
 
     public function hasVerifiedEmail(): bool

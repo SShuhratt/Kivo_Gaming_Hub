@@ -100,6 +100,15 @@ return [
             'retry_after' => 60,
         ],
 
+        // -----------------------------------------------------------------
+        // Gmail REST API driver (HTTPS-based, no SMTP ports required)
+        // Credentials are resolved exclusively from config/services.php
+        // so this stanza intentionally carries no secret values.
+        // -----------------------------------------------------------------
+        'gmail_api' => [
+            'transport' => 'gmail_api',
+        ],
+
     ],
 
     /*

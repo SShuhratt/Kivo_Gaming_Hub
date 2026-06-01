@@ -40,9 +40,24 @@ return [
     ],
 
     'twilio' => [
-        'sid' => env('TWILIO_SID'),
+        'sid'   => env('TWILIO_SID'),
         'token' => env('TWILIO_TOKEN'),
-        'from' => env('TWILIO_FROM'),
+        'from'  => env('TWILIO_FROM'),
+    ],
+
+    // -----------------------------------------------------------------
+    // Google Gmail REST API – OAuth2 credentials for the 'gmail_api'
+    // mail transport driver. All three values are mandatory at runtime.
+    //
+    // client_id / client_secret → Google Cloud Console OAuth 2.0 client
+    // refresh_token             → long-lived token obtained once via the
+    //                             OAuth consent flow; never expires unless
+    //                             revoked by the user or Google.
+    // -----------------------------------------------------------------
+    'gmail' => [
+        'client_id'     => env('GOOGLE_OAUTH_CLIENT_ID'),
+        'client_secret' => env('GOOGLE_OAUTH_CLIENT_SECRET'),
+        'refresh_token' => env('GOOGLE_OAUTH_REFRESH_TOKEN'),
     ],
 
 ];
