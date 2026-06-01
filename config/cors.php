@@ -24,13 +24,16 @@ return [
         env('FRONTEND_URL'),
         'https://kivo-gaming-hub.onrender.com',
         'https://kivo-gaming-hub-1.onrender.com',
+        'https://kivo-gaming-hub-3qp4.onrender.com',
         'http://localhost:3000',
         'http://localhost:5173',
         'http://localhost:8000',
         'http://localhost:9002',
     ], static fn ($origin) => is_string($origin) && $origin !== ''))),
 
-    'allowed_origins_patterns' => [],
+    'allowed_origins_patterns' => [
+        '/^https:\/\/.*\.onrender\.com$/',
+    ],
 
     'allowed_headers' => ['*'],
 
