@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\Concerns;
 
+use Illuminate\Support\Facades\Log;
 use RuntimeException;
 
 trait DownloadsXlsxExports
@@ -28,21 +29,21 @@ trait DownloadsXlsxExports
 
     protected function writeXlsxStructure(string $tempDir, string $sheetName, array $headings, array $rows): void
     {
-        $this->ensureDirectory($tempDir.'/_rels');
-        $this->ensureDirectory($tempDir.'/docProps');
-        $this->ensureDirectory($tempDir.'/xl/_rels');
-        $this->ensureDirectory($tempDir.'/xl/worksheets');
+        $this->ensureDirectory($tempDir.DIRECTORY_SEPARATOR.'_rels');
+        $this->ensureDirectory($tempDir.DIRECTORY_SEPARATOR.'docProps');
+        $this->ensureDirectory($tempDir.DIRECTORY_SEPARATOR.'xl'.DIRECTORY_SEPARATOR.'_rels');
+        $this->ensureDirectory($tempDir.DIRECTORY_SEPARATOR.'xl'.DIRECTORY_SEPARATOR.'worksheets');
 
         $allRows = [$headings, ...$rows];
 
-        file_put_contents($tempDir.'/[Content_Types].xml', $this->contentTypesXml());
-        file_put_contents($tempDir.'/_rels/.rels', $this->rootRelationshipsXml());
-        file_put_contents($tempDir.'/docProps/app.xml', $this->appPropertiesXml($sheetName));
-        file_put_contents($tempDir.'/docProps/core.xml', $this->corePropertiesXml());
-        file_put_contents($tempDir.'/xl/workbook.xml', $this->workbookXml($sheetName));
-        file_put_contents($tempDir.'/xl/_rels/workbook.xml.rels', $this->workbookRelationshipsXml());
-        file_put_contents($tempDir.'/xl/styles.xml', $this->stylesXml());
-        file_put_contents($tempDir.'/xl/worksheets/sheet1.xml', $this->worksheetXml($allRows));
+        file_put_contents($tempDir.DIRECTORY_SEPARATOR.'[Content_Types].xml', $this->contentTypesXml());
+        file_put_contents($tempDir.DIRECTORY_SEPARATOR.'_rels'.DIRECTORY_SEPARATOR.'.rels', $this->rootRelationshipsXml());
+        file_put_contents($tempDir.DIRECTORY_SEPARATOR.'docProps'.DIRECTORY_SEPARATOR.'app.xml', $this->appPropertiesXml($sheetName));
+        file_put_contents($tempDir.DIRECTORY_SEPARATOR.'docProps'.DIRECTORY_SEPARATOR.'core.xml', $this->corePropertiesXml());
+        file_put_contents($tempDir.DIRECTORY_SEPARATOR.'xl'.DIRECTORY_SEPARATOR.'workbook.xml', $this->workbookXml($sheetName));
+        file_put_contents($tempDir.DIRECTORY_SEPARATOR.'xl'.DIRECTORY_SEPARATOR.'_rels'.DIRECTORY_SEPARATOR.'workbook.xml.rels', $this->workbookRelationshipsXml());
+        file_put_contents($tempDir.DIRECTORY_SEPARATOR.'xl'.DIRECTORY_SEPARATOR.'styles.xml', $this->stylesXml());
+        file_put_contents($tempDir.DIRECTORY_SEPARATOR.'xl'.DIRECTORY_SEPARATOR.'worksheets'.DIRECTORY_SEPARATOR.'sheet1.xml', $this->worksheetXml($allRows));
     }
 
     protected function zipXlsxDirectory(string $sourceDir, string $xlsxPath): void
@@ -50,6 +51,7 @@ trait DownloadsXlsxExports
         $pclZipPath = base_path('vendor/phpoffice/phpexcel/Classes/PHPExcel/Shared/PCLZip/pclzip.lib.php');
 
         if (! file_exists($pclZipPath)) {
+            Log::error('PclZip library missing', ['path' => $pclZipPath]);
             throw new RuntimeException('PclZip library not found for XLSX export.');
         }
 
@@ -57,16 +59,24 @@ trait DownloadsXlsxExports
 
         $files = collect(scandir($sourceDir) ?: [])
             ->reject(fn ($entry) => $entry === '.' || $entry === '..')
-            ->map(fn ($entry) => $sourceDir.'/'.$entry)
+            ->map(fn ($entry) => $sourceDir.DIRECTORY_SEPARATOR.$entry)
             ->flatMap(fn ($path) => $this->collectPathsRecursively($path))
             ->values()
             ->all();
 
-        $archive = new \PclZip();
-        $archive->PclZip($xlsxPath);
-        $result = $archive->create($files, PCLZIP_OPT_REMOVE_PATH, $sourceDir);
+        // Use modern constructor and ensure the removal path ends with a separator
+        // to produce relative paths inside the archive (e.g. "xl/workbook.xml" instead of "/xl/workbook.xml")
+        $archive = new \PclZip($xlsxPath);
+        $removePath = rtrim($sourceDir, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR;
+        
+        $result = $archive->create($files, PCLZIP_OPT_REMOVE_PATH, $removePath);
 
         if ($result === 0) {
+            Log::error('PclZip creation failed', [
+                'error' => $archive->errorInfo(true),
+                'path' => $xlsxPath,
+                'files_count' => count($files)
+            ]);
             throw new RuntimeException('Failed to create XLSX archive: '.$archive->errorInfo(true));
         }
     }
@@ -88,7 +98,7 @@ trait DownloadsXlsxExports
                 continue;
             }
 
-            array_push($results, ...$this->collectPathsRecursively($path.'/'.$entry));
+            array_push($results, ...$this->collectPathsRecursively($path.DIRECTORY_SEPARATOR.$entry));
         }
 
         return $results;
@@ -112,7 +122,7 @@ trait DownloadsXlsxExports
                 continue;
             }
 
-            $entryPath = $path.'/'.$entry;
+            $entryPath = $path.DIRECTORY_SEPARATOR.$entry;
 
             if (is_dir($entryPath)) {
                 $this->deleteDirectory($entryPath);

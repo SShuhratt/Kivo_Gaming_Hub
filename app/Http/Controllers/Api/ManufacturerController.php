@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\Concerns\ValidatesApiRequests;
 use App\Http\Controllers\Controller;
 use App\Models\Manufacturer;
 use App\Models\Warehouse;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
@@ -135,6 +136,8 @@ class ManufacturerController extends Controller
                 $export->headings(),
                 $export->rows(),
             );
+        } catch (HttpResponseException $e) {
+            throw $e;
         } catch (\Throwable $e) {
             Log::error('Export failed', [
                 'endpoint' => request()->path(),

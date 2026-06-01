@@ -12,6 +12,7 @@ use App\Models\Trade;
 use App\Models\Warehouse;
 use App\Services\ServiceFinanceReportService;
 use App\Services\SessionLifecycleService;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -112,6 +113,8 @@ class TradeController extends Controller
                 $export->headings(),
                 $export->rows(),
             );
+        } catch (HttpResponseException $e) {
+            throw $e;
         } catch (\Throwable $e) {
             Log::error('Export failed', [
                 'endpoint' => request()->path(),

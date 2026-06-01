@@ -1112,35 +1112,16 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
 
   const exportManufacturerProducts = useCallback(
     async ({ manufacturerId, search }: { manufacturerId: number; search?: string }) => {
-      try {
-        const activeToken = requireToken();
-        const file = await exportManufacturerProductsRequest(activeToken, manufacturerId, {
-          search,
-        });
+      const activeToken = requireToken();
+      const file = await exportManufacturerProductsRequest(activeToken, manufacturerId, {
+        search,
+      });
 
-        triggerBrowserDownload(file.filename, file.blob);
+      triggerBrowserDownload(file.filename, file.blob);
 
-        return file.filename;
-      } catch (error) {
-        if (error instanceof ApiError && error.status === 401) {
-          toast({
-            title: "Sessiya muddati tugadi",
-            description: "Iltimos, qaytadan tizimga kiring.",
-            variant: "destructive",
-          });
-          // Do not logout automatically for export failures to prevent annoying redirects
-          return null;
-        }
-
-        toast({
-          title: "Eksportda xatolik yuz berdi",
-          description: error instanceof Error ? error.message : "Noma'lum xatolik",
-          variant: "destructive",
-        });
-        return null;
-      }
+      return file.filename;
     },
-    [requireToken, toast, logout]
+    [requireToken]
   );
 
   const completeCheckoutSale = useCallback(
@@ -1179,40 +1160,21 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       dateFrom?: string;
       dateTo?: string;
     }) => {
-      try {
-        const activeToken = requireToken();
-        const file = await exportTradesRequest(activeToken, {
-          status,
-          type,
-          search,
-          payment_method: paymentMethod,
-          date_from: dateFrom,
-          date_to: dateTo,
-        });
+      const activeToken = requireToken();
+      const file = await exportTradesRequest(activeToken, {
+        status,
+        type,
+        search,
+        payment_method: paymentMethod,
+        date_from: dateFrom,
+        date_to: dateTo,
+      });
 
-        triggerBrowserDownload(file.filename, file.blob);
+      triggerBrowserDownload(file.filename, file.blob);
 
-        return file.filename;
-      } catch (error) {
-        if (error instanceof ApiError && error.status === 401) {
-          toast({
-            title: "Sessiya muddati tugadi",
-            description: "Iltimos, qaytadan tizimga kiring.",
-            variant: "destructive",
-          });
-          // Do not logout automatically for export failures to prevent annoying redirects
-          return null;
-        }
-
-        toast({
-          title: "Eksportda xatolik yuz berdi",
-          description: error instanceof Error ? error.message : "Noma'lum xatolik",
-          variant: "destructive",
-        });
-        return null;
-      }
+      return file.filename;
     },
-    [requireToken, toast, logout]
+    [requireToken]
   );
 
   const calculateBooking = useCallback(
