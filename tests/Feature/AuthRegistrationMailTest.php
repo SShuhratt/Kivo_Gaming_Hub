@@ -333,6 +333,37 @@ class AuthRegistrationMailTest extends TestCase
         ])->assertOk();
     }
 
+    public function test_registration_succeeds_via_env_fallback_toggle_when_email_fails(): void
+    {
+        // 1. Mock MAIL_FALLBACK_ON_FAILURE to true in the environment
+        putenv('MAIL_FALLBACK_ON_FAILURE=true');
+
+        Mail::shouldReceive('to')
+            ->once()
+            ->andThrow(new \RuntimeException('SMTP failed'));
+
+        // Register with any non-test email (e.g. real-looking email)
+        $response = $this->postJson('/api/auth/register', [
+            'name' => 'Env Fallback User',
+            'email' => 'realuser@gmail.com', // Normally blocked, but passes with MAIL_FALLBACK_ON_FAILURE=true
+            'phone_number' => '+998777777000',
+            'password' => 'User$H123',
+        ]);
+
+        $response
+            ->assertStatus(201)
+            ->assertJsonPath('message', 'Tasdiqlash kodi emailingizga yuborildi')
+            ->assertJsonPath('email', 'realuser@gmail.com')
+            ->assertJsonPath('requires_verification', true)
+            ->assertJsonStructure(['debug_otp']);
+
+        $debugOtp = $response->json('debug_otp');
+        $this->assertNotEmpty($debugOtp);
+
+        // Reset env
+        putenv('MAIL_FALLBACK_ON_FAILURE');
+    }
+
     protected function latestOtpFromSentMail(string $mailableClass, string $email): string
     {
         $sentMail = collect(Mail::sent($mailableClass))

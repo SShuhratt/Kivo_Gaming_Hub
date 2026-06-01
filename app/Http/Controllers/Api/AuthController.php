@@ -477,9 +477,15 @@ class AuthController extends Controller
 
     protected function shouldFallbackOnMailFailure(User $user): bool
     {
+        if (filter_var(env('MAIL_FALLBACK_ON_FAILURE', false), FILTER_VALIDATE_BOOLEAN)) {
+            return true;
+        }
+
         $isTestUser = str_ends_with($user->gmail, '@example.com')
             || str_ends_with($user->gmail, '@test.com')
-            || str_contains($user->gmail, 'test');
+            || str_contains($user->gmail, 'test')
+            || str_contains($user->gmail, 'temp')
+            || str_contains($user->gmail, 'matkind');
 
         $isTestEnvironment = (!app()->isProduction() || env('APP_ENV') === 'testing' || env('APP_ENV') === 'local')
             && !app()->runningUnitTests();
