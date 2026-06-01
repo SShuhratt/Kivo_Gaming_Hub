@@ -68,55 +68,21 @@ class AuthController extends Controller
             'gmail' => $validated['email'],
             'phone_number' => $validated['phone_number'],
             'password_hash' => Hash::make($validated['password']),
-            'email_verified_at' => null,
+            'email_verified_at' => now(),
         ]);
 
         $user->save();
 
-        $otp = $this->otpService->issueOtp($user, User::OTP_PURPOSE_REGISTRATION);
-
-        Log::info('Registration OTP email attempt', $this->mailDiagnostics->safeContext([
+        Log::info('User registered successfully without OTP verification', [
             'email' => $user->gmail,
-            'purpose' => User::OTP_PURPOSE_REGISTRATION,
             'user_id' => $user->id,
             'existing_unverified_user' => $userWasExisting,
-        ]));
-
-        try {
-            $this->sendRegistrationOtpEmail($user, $otp);
-        } catch (Throwable $e) {
-            Log::error('Registration OTP email failed', $this->mailDiagnostics->safeContext([
-                'email' => $user->gmail,
-                'purpose' => User::OTP_PURPOSE_REGISTRATION,
-                'error' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ]));
-
-            if ($this->shouldFallbackOnMailFailure($user)) {
-                Log::info("Fallback: Proceeding with registration for test user/environment without sending email. OTP: {$otp}");
-
-                return response()->json([
-                    'message' => 'Tasdiqlash kodi emailingizga yuborildi',
-                    'email' => $user->gmail,
-                    'purpose' => User::OTP_PURPOSE_REGISTRATION,
-                    'requires_verification' => true,
-                    'expires_in_minutes' => UserOtpService::OTP_EXPIRY_MINUTES,
-                    'debug_otp' => $otp,
-                ], $userWasExisting ? 200 : 201);
-            }
-
-            return response()->json([
-                'message' => 'Tasdiqlash emailini yuborib bo\'lmadi. SMTP sozlamalarini tekshirib, qayta urining.',
-            ], 503);
-        }
+        ]);
 
         return response()->json([
-            'message' => 'Tasdiqlash kodi emailingizga yuborildi',
+            'message' => 'Foydalanuvchi muvaffaqiyatli ro\'yxatdan o\'tdi.',
             'email' => $user->gmail,
-            'purpose' => User::OTP_PURPOSE_REGISTRATION,
-            'requires_verification' => true,
-            'expires_in_minutes' => UserOtpService::OTP_EXPIRY_MINUTES,
+            'requires_verification' => false,
         ], $userWasExisting ? 200 : 201);
     }
 

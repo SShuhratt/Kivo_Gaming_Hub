@@ -89,14 +89,22 @@ export function RegistrationForm() {
         password: values.password,
       });
 
-      setPendingEmail(response.email);
-      setOtp('');
-      setStep('verify');
+      if (response.requires_verification === false) {
+        toast({
+          title: "Muvaffaqiyatli ro'yxatdan o'tildi",
+          description: "Hisobingiz faollashtirildi. Tizimga kirishingiz mumkin.",
+        });
+        router.push('/login');
+      } else {
+        setPendingEmail(response.email);
+        setOtp('');
+        setStep('verify');
 
-      toast({
-        title: "OTP yuborildi",
-        description: "Ro'yxatdan o'tishni yakunlash uchun emailingizga yuborilgan 6 xonali kodni kiriting.",
-      });
+        toast({
+          title: "OTP yuborildi",
+          description: "Ro'yxatdan o'tishni yakunlash uchun emailingizga yuborilgan 6 xonali kodni kiriting.",
+        });
+      }
     } catch (error) {
       const description = error instanceof ApiError
         ? error.status === 503

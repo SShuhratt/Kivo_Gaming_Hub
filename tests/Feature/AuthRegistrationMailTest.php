@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Mail\PasswordResetOtpMail;
-use App\Mail\RegistrationOtpMail;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
@@ -14,10 +13,8 @@ class AuthRegistrationMailTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_registration_sends_otp_and_user_stays_unverified_until_the_code_is_confirmed(): void
+    public function test_registration_succeeds_instantly_without_otp_and_allows_login(): void
     {
-        Mail::fake();
-
         $response = $this->postJson('/api/auth/register', [
             'name' => 'User3',
             'email' => 'user3@gmail.com',
@@ -27,137 +24,20 @@ class AuthRegistrationMailTest extends TestCase
 
         $response
             ->assertCreated()
-            ->assertJsonPath('message', 'Tasdiqlash kodi emailingizga yuborildi')
+            ->assertJsonPath('message', "Foydalanuvchi muvaffaqiyatli ro'yxatdan o'tdi.")
             ->assertJsonPath('email', 'user3@gmail.com')
-            ->assertJsonPath('requires_verification', true);
+            ->assertJsonPath('requires_verification', false);
 
         $user = User::where('gmail', 'user3@gmail.com')->firstOrFail();
 
-        $this->assertNull($user->email_verified_at);
-        $this->assertSame(User::OTP_PURPOSE_REGISTRATION, $user->otp_purpose);
-        $this->assertNotNull($user->otp_code_hash);
-        $this->assertNull($user->otp_code);
-
-        $otp = $this->latestOtpFromSentMail(RegistrationOtpMail::class, 'user3@gmail.com');
-
-        $this->postJson('/api/auth/login', [
-            'phone_number' => '+998777777777',
-            'password' => 'User$H123',
-        ])->assertStatus(403);
-
-        $this->postJson('/api/auth/verify-registration-otp', [
-            'email' => 'user3@gmail.com',
-            'otp' => '111111',
-        ])->assertStatus(422)
-            ->assertJsonPath('message', 'Invalid OTP.');
-
-        $this->postJson('/api/auth/verify-registration-otp', [
-            'email' => 'user3@gmail.com',
-            'otp' => $otp,
-        ])->assertOk()
-            ->assertJsonPath('message', 'Registration OTP verified successfully.');
-
-        $user->refresh();
-
         $this->assertNotNull($user->email_verified_at);
-        $this->assertNull($user->otp_code_hash);
         $this->assertNull($user->otp_purpose);
 
+        // Can login instantly
         $this->postJson('/api/auth/login', [
             'phone_number' => '+998777777777',
             'password' => 'User$H123',
         ])->assertOk();
-
-        $this->postJson('/api/auth/verify-registration-otp', [
-            'email' => 'user3@gmail.com',
-            'otp' => $otp,
-        ])->assertStatus(422);
-    }
-
-    public function test_resending_registration_otp_replaces_the_previous_code(): void
-    {
-        Mail::fake();
-
-        $this->postJson('/api/auth/register', [
-            'name' => 'User4',
-            'email' => 'user4@gmail.com',
-            'phone_number' => '+998777777778',
-            'password' => 'User$H123',
-        ])->assertCreated();
-
-        $firstOtp = $this->latestOtpFromSentMail(RegistrationOtpMail::class, 'user4@gmail.com');
-
-        $this->postJson('/api/auth/resend-registration-otp', [
-            'email' => 'user4@gmail.com',
-        ])->assertOk()
-            ->assertJsonPath('message', 'Tasdiqlash kodi emailingizga yuborildi');
-
-        $secondOtp = $this->latestOtpFromSentMail(RegistrationOtpMail::class, 'user4@gmail.com');
-
-        $this->assertNotSame($firstOtp, $secondOtp);
-
-        $this->postJson('/api/auth/verify-registration-otp', [
-            'email' => 'user4@gmail.com',
-            'otp' => $firstOtp,
-        ])->assertStatus(422)
-            ->assertJsonPath('message', 'Invalid OTP.');
-
-        $this->postJson('/api/auth/verify-registration-otp', [
-            'email' => 'user4@gmail.com',
-            'otp' => $secondOtp,
-        ])->assertOk();
-    }
-
-    public function test_registration_is_blocked_if_the_otp_email_cannot_be_sent(): void
-    {
-        Mail::shouldReceive('to')
-            ->once()
-            ->andThrow(new \RuntimeException('SMTP failed'));
-
-        $this->postJson('/api/auth/register', [
-            'name' => 'User5',
-            'email' => 'user5@gmail.com',
-            'phone_number' => '+998777777779',
-            'password' => 'User$H123',
-        ])->assertStatus(503)
-            ->assertJsonPath('message', 'Tasdiqlash emailini yuborib bo\'lmadi. SMTP sozlamalarini tekshirib, qayta urining.');
-
-        $this->assertDatabaseHas('users', [
-            'gmail' => 'user5@gmail.com',
-        ]);
-    }
-
-    public function test_registering_again_with_existing_unverified_email_reissues_otp_instead_of_failing(): void
-    {
-        Mail::fake();
-
-        $user = User::create([
-            'name' => 'Existing Pending',
-            'gmail' => 'pending.user@gmail.com',
-            'phone_number' => '+998777777780',
-            'password_hash' => Hash::make('OldPass123!'),
-            'email_verified_at' => null,
-        ]);
-
-        $response = $this->postJson('/api/auth/register', [
-            'name' => 'Updated Pending',
-            'email' => 'pending.user@gmail.com',
-            'phone_number' => '+998777777780',
-            'password' => 'NewPass123!',
-        ]);
-
-        $response
-            ->assertOk()
-            ->assertJsonPath('message', 'Tasdiqlash kodi emailingizga yuborildi')
-            ->assertJsonPath('email', 'pending.user@gmail.com');
-
-        $user->refresh();
-
-        $this->assertSame('Updated Pending', $user->name);
-        $this->assertTrue(Hash::check('NewPass123!', $user->password_hash));
-        $this->assertNotNull($user->otp_code_hash);
-
-        Mail::assertSent(RegistrationOtpMail::class, fn (RegistrationOtpMail $mail) => $mail->hasTo('pending.user@gmail.com'));
     }
 
     public function test_password_reset_uses_email_otp_and_updates_the_password(): void
@@ -223,81 +103,6 @@ class AuthRegistrationMailTest extends TestCase
         ])->assertStatus(422);
     }
 
-    public function test_registration_succeeds_with_fallback_for_test_users_if_email_fails(): void
-    {
-        Mail::shouldReceive('to')
-            ->once()
-            ->andThrow(new \RuntimeException('SMTP failed'));
-
-        // Register with a test user email ending in @example.com
-        $response = $this->postJson('/api/auth/register', [
-            'name' => 'Test User Fallback',
-            'email' => 'fallback-test-user@example.com',
-            'phone_number' => '+998777777799',
-            'password' => 'User$H123',
-        ]);
-
-        $response
-            ->assertStatus(201)
-            ->assertJsonPath('message', 'Tasdiqlash kodi emailingizga yuborildi')
-            ->assertJsonPath('email', 'fallback-test-user@example.com')
-            ->assertJsonPath('requires_verification', true)
-            ->assertJsonStructure(['debug_otp']);
-
-        $debugOtp = $response->json('debug_otp');
-
-        $this->assertNotEmpty($debugOtp);
-
-        $user = User::where('gmail', 'fallback-test-user@example.com')->firstOrFail();
-        $this->assertNull($user->email_verified_at);
-
-        // Verify using the debug OTP returned in the response
-        $this->postJson('/api/auth/verify-registration-otp', [
-            'email' => 'fallback-test-user@example.com',
-            'otp' => $debugOtp,
-        ])->assertOk()
-            ->assertJsonPath('message', 'Registration OTP verified successfully.');
-
-        $user->refresh();
-        $this->assertNotNull($user->email_verified_at);
-    }
-
-    public function test_resend_registration_otp_succeeds_with_fallback_for_test_users_if_email_fails(): void
-    {
-        // 1. Register normally using Mail::fake
-        Mail::fake();
-        $this->postJson('/api/auth/register', [
-            'name' => 'Resend Fallback User',
-            'email' => 'fallback-resend@test.com',
-            'phone_number' => '+998777777899',
-            'password' => 'User$H123',
-        ])->assertCreated();
-
-        // 2. Mock Mail to throw exception for the resend call
-        Mail::shouldReceive('to')
-            ->once()
-            ->andThrow(new \RuntimeException('SMTP failed'));
-
-        $response = $this->postJson('/api/auth/resend-registration-otp', [
-            'email' => 'fallback-resend@test.com',
-        ]);
-
-        $response
-            ->assertOk()
-            ->assertJsonPath('message', 'Tasdiqlash kodi emailingizga yuborildi')
-            ->assertJsonPath('email', 'fallback-resend@test.com')
-            ->assertJsonPath('requires_verification', true)
-            ->assertJsonStructure(['debug_otp']);
-
-        $debugOtp = $response->json('debug_otp');
-        $this->assertNotEmpty($debugOtp);
-
-        $this->postJson('/api/auth/verify-registration-otp', [
-            'email' => 'fallback-resend@test.com',
-            'otp' => $debugOtp,
-        ])->assertOk();
-    }
-
     public function test_send_forgot_password_otp_succeeds_with_fallback_for_test_users_if_email_fails(): void
     {
         // 1. Create a verified test user
@@ -331,37 +136,6 @@ class AuthRegistrationMailTest extends TestCase
             'email' => 'fallback-forgot@test.com',
             'otp' => $debugOtp,
         ])->assertOk();
-    }
-
-    public function test_registration_succeeds_via_env_fallback_toggle_when_email_fails(): void
-    {
-        // 1. Mock MAIL_FALLBACK_ON_FAILURE to true in the environment
-        putenv('MAIL_FALLBACK_ON_FAILURE=true');
-
-        Mail::shouldReceive('to')
-            ->once()
-            ->andThrow(new \RuntimeException('SMTP failed'));
-
-        // Register with any non-test email (e.g. real-looking email)
-        $response = $this->postJson('/api/auth/register', [
-            'name' => 'Env Fallback User',
-            'email' => 'realuser@gmail.com', // Normally blocked, but passes with MAIL_FALLBACK_ON_FAILURE=true
-            'phone_number' => '+998777777000',
-            'password' => 'User$H123',
-        ]);
-
-        $response
-            ->assertStatus(201)
-            ->assertJsonPath('message', 'Tasdiqlash kodi emailingizga yuborildi')
-            ->assertJsonPath('email', 'realuser@gmail.com')
-            ->assertJsonPath('requires_verification', true)
-            ->assertJsonStructure(['debug_otp']);
-
-        $debugOtp = $response->json('debug_otp');
-        $this->assertNotEmpty($debugOtp);
-
-        // Reset env
-        putenv('MAIL_FALLBACK_ON_FAILURE');
     }
 
     protected function latestOtpFromSentMail(string $mailableClass, string $email): string
