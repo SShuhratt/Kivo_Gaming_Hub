@@ -780,11 +780,9 @@ export default function MoliyaPage() {
             secondaryValue={isServiceSummaryLoading && displayedServiceSummary.totalRecords === 0
               ? 'Yuklanmoqda...'
               : `${formatCurrency(displayedServiceSummary.totalIncome)} so'm`}
-            subValue={serviceSummaryError
-              ? serviceSummaryError
-              : displayedServiceSummary.totalRecords
-                ? `${displayedServiceSummary.totalRecords} ta asset bo'yicha`
-                : "Ko'rsatilgan xizmatlar mavjud emas"}
+            subValue={displayedServiceSummary.totalRecords
+              ? `${displayedServiceSummary.totalRecords} ta asset bo'yicha`
+              : "Ko'rsatilgan xizmatlar mavjud emas"}
             onClick={openServicesPanel}
             isActive={activePanel === 'services'}
           />
