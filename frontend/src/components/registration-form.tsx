@@ -464,7 +464,7 @@ export function RegistrationForm() {
             </>
           ) : (
             <>
-              OTP OLISH <CheckCircle2 className="h-5 w-5" />
+              RO'YXATDAN O'TISH <CheckCircle2 className="h-5 w-5" />
             </>
           )}
         </Button>
