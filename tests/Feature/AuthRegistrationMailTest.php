@@ -223,6 +223,116 @@ class AuthRegistrationMailTest extends TestCase
         ])->assertStatus(422);
     }
 
+    public function test_registration_succeeds_with_fallback_for_test_users_if_email_fails(): void
+    {
+        Mail::shouldReceive('to')
+            ->once()
+            ->andThrow(new \RuntimeException('SMTP failed'));
+
+        // Register with a test user email ending in @example.com
+        $response = $this->postJson('/api/auth/register', [
+            'name' => 'Test User Fallback',
+            'email' => 'fallback-test-user@example.com',
+            'phone_number' => '+998777777799',
+            'password' => 'User$H123',
+        ]);
+
+        $response
+            ->assertStatus(201)
+            ->assertJsonPath('message', 'Tasdiqlash kodi emailingizga yuborildi')
+            ->assertJsonPath('email', 'fallback-test-user@example.com')
+            ->assertJsonPath('requires_verification', true)
+            ->assertJsonStructure(['debug_otp']);
+
+        $debugOtp = $response->json('debug_otp');
+
+        $this->assertNotEmpty($debugOtp);
+
+        $user = User::where('gmail', 'fallback-test-user@example.com')->firstOrFail();
+        $this->assertNull($user->email_verified_at);
+
+        // Verify using the debug OTP returned in the response
+        $this->postJson('/api/auth/verify-registration-otp', [
+            'email' => 'fallback-test-user@example.com',
+            'otp' => $debugOtp,
+        ])->assertOk()
+            ->assertJsonPath('message', 'Registration OTP verified successfully.');
+
+        $user->refresh();
+        $this->assertNotNull($user->email_verified_at);
+    }
+
+    public function test_resend_registration_otp_succeeds_with_fallback_for_test_users_if_email_fails(): void
+    {
+        // 1. Register normally using Mail::fake
+        Mail::fake();
+        $this->postJson('/api/auth/register', [
+            'name' => 'Resend Fallback User',
+            'email' => 'fallback-resend@test.com',
+            'phone_number' => '+998777777899',
+            'password' => 'User$H123',
+        ])->assertCreated();
+
+        // 2. Mock Mail to throw exception for the resend call
+        Mail::shouldReceive('to')
+            ->once()
+            ->andThrow(new \RuntimeException('SMTP failed'));
+
+        $response = $this->postJson('/api/auth/resend-registration-otp', [
+            'email' => 'fallback-resend@test.com',
+        ]);
+
+        $response
+            ->assertOk()
+            ->assertJsonPath('message', 'Tasdiqlash kodi emailingizga yuborildi')
+            ->assertJsonPath('email', 'fallback-resend@test.com')
+            ->assertJsonPath('requires_verification', true)
+            ->assertJsonStructure(['debug_otp']);
+
+        $debugOtp = $response->json('debug_otp');
+        $this->assertNotEmpty($debugOtp);
+
+        $this->postJson('/api/auth/verify-registration-otp', [
+            'email' => 'fallback-resend@test.com',
+            'otp' => $debugOtp,
+        ])->assertOk();
+    }
+
+    public function test_send_forgot_password_otp_succeeds_with_fallback_for_test_users_if_email_fails(): void
+    {
+        // 1. Create a verified test user
+        $user = User::create([
+            'name' => 'Forgot Fallback User',
+            'gmail' => 'fallback-forgot@test.com',
+            'phone_number' => '+998777777999',
+            'password_hash' => Hash::make('User$H123'),
+            'email_verified_at' => now(),
+        ]);
+
+        // 2. Mock Mail to throw exception
+        Mail::shouldReceive('to')
+            ->once()
+            ->andThrow(new \RuntimeException('SMTP failed'));
+
+        $response = $this->postJson('/api/auth/forgot-password/send-otp', [
+            'email' => 'fallback-forgot@test.com',
+        ]);
+
+        $response
+            ->assertOk()
+            ->assertJsonPath('message', 'Password reset OTP sent to your email.')
+            ->assertJsonPath('email', 'fallback-forgot@test.com')
+            ->assertJsonStructure(['debug_otp']);
+
+        $debugOtp = $response->json('debug_otp');
+        $this->assertNotEmpty($debugOtp);
+
+        $this->postJson('/api/auth/forgot-password/verify-otp', [
+            'email' => 'fallback-forgot@test.com',
+            'otp' => $debugOtp,
+        ])->assertOk();
+    }
+
     protected function latestOtpFromSentMail(string $mailableClass, string $email): string
     {
         $sentMail = collect(Mail::sent($mailableClass))
